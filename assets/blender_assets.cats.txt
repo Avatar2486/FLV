@@ -3,6 +3,7 @@ VERSION 1
 
 eab4a916-038e-5c06-95c9-f9eb050df9f1:FLV:FLV
 9d12d60c-2372-5eb7-975f-5804cca83482:FLV/Architecture:FLV-Architecture
+e31b2e19-309c-5006-ace5-c3b02d24c466:FLV/Characters:FLV-Characters
 d98eef67-0a6d-5d5e-9294-551262bb26a3:FLV/Decor:FLV-Decor
 ecf6c618-cd1d-5a26-bd50-99ce6b5ce15b:FLV/Furniture:FLV-Furniture
 d0ded894-f028-5fa9-9bc0-66884e68f683:FLV/Lighting:FLV-Lighting

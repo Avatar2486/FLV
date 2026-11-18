@@ -82,6 +82,18 @@ MATERIALS = {
     "MAT_Glass_Green":       {"color": (0.10, 0.30, 0.12), "roughness": 0.05, "alpha": 0.55},
     "MAT_Steel":             {"color": (0.70, 0.70, 0.72), "roughness": 0.2, "metallic": 1.0},
     "MAT_Coffee":            {"color": (0.03, 0.015, 0.008), "roughness": 0.1},
+
+    # Characters
+    "MAT_Skin":              {"color": (0.57, 0.31, 0.19), "roughness": 0.55, "sheen": 0.2},
+    "MAT_Hair":              {"color": (0.025, 0.015, 0.01), "roughness": 0.5, "sheen": 0.4},
+    "MAT_Shirt":             {"color": (0.38, 0.09, 0.06), "roughness": 0.85, "sheen": 0.4},
+    "MAT_Pants":             {"color": (0.03, 0.04, 0.07), "roughness": 0.85, "sheen": 0.3},
+    "MAT_Shoes":             {"color": (0.025, 0.022, 0.02), "roughness": 0.45},
+    "MAT_Pajama":            {"color": (0.28, 0.33, 0.45), "roughness": 0.9, "sheen": 0.5},
+    "MAT_Pencil":            {"color": (0.85, 0.55, 0.04), "roughness": 0.4},
+    "MAT_Ink":               {"color": (0.02, 0.03, 0.08), "roughness": 0.6},
+    "MAT_Ruled_Line":        {"color": (0.30, 0.45, 0.70), "roughness": 0.8},
+    "MAT_Notebook_Cover":    {"color": (0.08, 0.10, 0.20), "roughness": 0.7},
 }
 
 

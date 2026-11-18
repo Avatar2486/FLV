@@ -189,8 +189,9 @@ def wall_art(coll, location, width=0.9, height=0.6, rotation=0, prefix="DECOR_Ar
 
 # ---------------------------------------------------------------------- furniture
 
-def bed(coll, location, rotation=0, width=1.8, length=2.2, prefix="BED"):
-    """Double bed with tufted headboard; local +Y is the headboard end."""
+def bed(coll, location, rotation=0, width=1.8, length=2.2, cover=0.68, prefix="BED"):
+    """Double bed with tufted headboard; local +Y is the headboard end.
+    `cover` = how much of the bed the blanket covers (0.8 reaches a sleeper's shoulders)."""
     hw, hl, top = width / 2, length / 2, 0.62           # top = mattress surface
     frame = su.box(f"{prefix}_Frame", coll, M("MAT_Bed_Wood"), (width, length, 0.22), (0, 0, 0.27),
                    bevel=0.02)
@@ -202,7 +203,7 @@ def bed(coll, location, rotation=0, width=1.8, length=2.2, prefix="BED"):
     sheet = su.drape(f"{prefix}_Sheet", coll, M("MAT_Bedsheet"), width - 0.06, length - 0.10, 0.2,
                      (0, -0.01, top + 0.012), sides=("left", "right", "front", "back"),
                      flare=0.01, wrinkles=0.004)
-    cover = length * 0.68
+    cover = length * cover
     blanket_y = -hl - 0.04 + cover / 2
     blanket = su.drape(f"{prefix}_Blanket", coll, M("MAT_Blanket"), width + 0.14, cover, 0.42,
                        (0, blanket_y, top + 0.05), flare=0.07, wrinkles=0.03)
@@ -796,3 +797,55 @@ def envelope(coll, location, rotation=0, prefix="PROP_Envelope"):
     flap = su.make_object(f"{prefix}_Flap", coll, M("MAT_Tape"), bm, flat=True)
     seal = su.cylinder(f"{prefix}_Seal", coll, M("MAT_Book_Red"), 0.014, 0.003, (0, -0.005, 0.0045), segments=24)
     return assemble([body, flap, seal], location, rotation)
+
+
+def pencil(coll, location, rotation=0, prefix="PROP_Pencil"):
+    """Yellow pencil lying along local X, sharpened tip toward +X."""
+    r, along_x = 0.0045, (0, 90, 0)
+    bm = bmesh.new()
+    su.add_cylinder(bm, r, 0.13, (-0.005, 0, 0), rotation=along_x, segments=6)                 # painted body
+    su.add_cylinder(bm, r, 0.022, (0.071, 0, 0), rotation=along_x, radius_top=0.0012, segments=12,
+                    material_index=1)                                                           # sharpened wood
+    su.add_cylinder(bm, 0.0012, 0.005, (0.0845, 0, 0), rotation=along_x, radius_top=0.0002, segments=8,
+                    material_index=2)                                                           # graphite
+    su.add_cylinder(bm, r + 0.0005, 0.01, (-0.075, 0, 0), rotation=along_x, segments=12, material_index=3)
+    su.add_cylinder(bm, r, 0.008, (-0.084, 0, 0), rotation=along_x, segments=12, material_index=4)
+    mats = [M(m) for m in ("MAT_Pencil", "MAT_Wax", "MAT_Plastic_Black", "MAT_Aluminium", "MAT_Fabric_Rose")]
+    return su.make_object(prefix, coll, mats, bm, (location[0], location[1], location[2] + r), (0, 0, rotation))
+
+
+def notebook(coll, location, rotation=0, prefix="PROP_Notebook"):
+    """Open spiral notebook lying flat, spine along local Y; pages are 0.01 above `location`."""
+    cover = su.box(prefix, coll, M("MAT_Notebook_Cover"), (0.32, 0.22, 0.004), (0, 0, 0.002), bevel=0.002)
+    bm = bmesh.new()
+    for side in (-1, 1):
+        su.add_box(bm, (0.148, 0.21, 0.006), (side * 0.079, 0, 0.007))
+    pages = su.make_object(f"{prefix}_Pages", coll, M("MAT_Paper"), bm, bevel=0.001)
+    bm = bmesh.new()
+    for i in range(9):
+        su.add_torus(bm, 0.008, 0.0012, (0, -0.096 + i * 0.024, 0.009), rotation=(90, 0, 0), segments=12, ring=6)
+    rings = su.make_object(f"{prefix}_Rings", coll, M("MAT_Aluminium"), bm, smooth_angle=180)
+    bm = bmesh.new()
+    for side in (-1, 1):
+        for i in range(8):
+            su.add_box(bm, (0.13, 0.0012, 0.0004), (side * 0.079, 0.085 - i * 0.022, 0.0102))
+    lines = su.make_object(f"{prefix}_Ruled_Lines", coll, M("MAT_Ruled_Line"), bm)
+    return assemble([cover, pages, rings, lines], location, rotation)
+
+
+def handwriting(name, coll, start, length, frame_start, frames, seed=0):
+    """A line of scribbled 'handwriting' that appears left to right, as if being
+    written, from `frame_start` over `frames` frames. `start` = left end on the page."""
+    rng = random.Random(seed)
+    points = []
+    for i in range(121):
+        t = i / 120
+        wobble = 0.0035 * math.sin(t * 70 + rng.uniform(0, 0.4)) * (0.6 + 0.4 * math.sin(t * 9 + seed))
+        points.append(Vector((t * length + 0.002 * math.sin(t * 110), wobble, 0)))
+    bm = bmesh.new()
+    for a, b in zip(points, points[1:]):
+        side = (b - a).cross(Vector((0, 0, 1))).normalized() * 0.0007
+        bm.faces.new([bm.verts.new(p) for p in (a - side, b - side, b + side, a + side)])
+    ink = su.make_object(name, coll, M("MAT_Ink"), bm, Vector(start), flat=True)
+    su.add_modifier(ink, "BUILD", "Write On", frame_start=frame_start, frame_duration=frames)
+    return ink

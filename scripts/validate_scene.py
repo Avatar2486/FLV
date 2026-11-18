@@ -23,11 +23,12 @@ SCENE = su.SCENES_DIR / "test_bedroom.blend"
 PREVIEW = su.PREVIEW_DIR / "bedroom_main_preview.png"
 VIDEO = su.RENDER_DIR / "bedroom_main.mp4"
 REPORT = su.PROJECT_ROOT / "output" / "validation_report.md"
-COLLECTIONS = ("ROOM", "BED", "FURNITURE", "WINDOW", "PROPS", "LIGHTING", "CAMERAS")
+COLLECTIONS = ("ROOM", "BED", "FURNITURE", "WINDOW", "PROPS", "CHARACTERS", "LIGHTING", "CAMERAS")
 KEY_OBJECTS = ("ROOM_Floor", "ROOM_BackWall", "ROOM_LeftWall", "BED_Frame", "BED_Mattress",
                "BED_Pillow_Left", "BED_Pillow_Right", "WINDOW_Glass", "WINDOW_Frame",
                "TABLE_Bedside_Left", "LAMP_Base", "LAMP_Shade", "CAMERA_Main", "CAMERA_Bed",
-               "CAMERA_Window")
+               "CAMERA_Window", "CHAR_Walker_Rig", "CHAR_Walker_Body", "CHAR_Sleeper_Head",
+               "PROP_Notebook", "PROP_Pencil", "PROP_Pencil_In_Hand")
 GENERIC_NAME = re.compile(r"^(Cube|Cylinder|Sphere|Icosphere|Plane|Cone|Torus|Mesh|Light|Camera|Empty)\b"
                           r"|\.\d{3}$")
 
@@ -70,7 +71,7 @@ check("Blend file reopens", True, f"{len(scene.objects)} objects, {len(bpy.data.
 root = bpy.data.collections.get("FLV_BEDROOM")
 children = {c.name for c in root.children} if root else set()
 missing = [c for c in COLLECTIONS if c not in children]
-check("Collections FLV_BEDROOM > ROOM, BED, FURNITURE, WINDOW, PROPS, LIGHTING, CAMERAS",
+check(f"Collections FLV_BEDROOM > {', '.join(COLLECTIONS)}",
       root and not missing, f"missing: {missing}" if missing else "all present")
 missing = [n for n in KEY_OBJECTS if n not in bpy.data.objects]
 check("Key objects exist", not missing, f"missing: {missing}" if missing else f"{len(KEY_OBJECTS)} found")
@@ -89,9 +90,10 @@ check("Materials named MAT_*", not odd, ", ".join(odd) or f"{len(bpy.data.materi
 # 4. Cameras and animation ------------------------------------------------------------
 check("CAMERA_Main is the active camera", scene.camera and scene.camera.name == "CAMERA_Main",
       scene.camera.name if scene.camera else "none")
-timeline = (scene.frame_start, scene.frame_end, scene.render.fps / scene.render.fps_base)
-check("Timeline 1-120 at 24 fps (5 s)", timeline == (1, 120, 24),
-      f"frames {timeline[0]}-{timeline[1]} at {timeline[2]:g} fps")
+fps = scene.render.fps / scene.render.fps_base
+story_seconds = (scene.frame_end - scene.frame_start + 1) / fps
+check("Timeline starts at frame 1, 24 fps, whole seconds", scene.frame_start == 1 and fps == 24
+      and story_seconds.is_integer(), f"frames {scene.frame_start}-{scene.frame_end} = {story_seconds:g} s")
 for name in ("CAMERA_Main", "CAMERA_Bed", "CAMERA_Window"):
     cam = bpy.data.objects.get(name)
     anim = cam.animation_data if cam else None
@@ -101,8 +103,22 @@ for name in ("CAMERA_Main", "CAMERA_Bed", "CAMERA_Window"):
         keys = [k for fc in bag.fcurves for k in fc.keyframe_points]
     frames = sorted({round(k.co.x) for k in keys})
     smooth = keys and all(k.interpolation == "BEZIER" for k in keys)
-    check(f"{name} animated smoothly", frames == [1, 120] and smooth,
+    check(f"{name} animated smoothly", frames == [scene.frame_start, scene.frame_end] and smooth,
           f"keys at {frames}, {'Bezier ease' if smooth else 'not Bezier'}")
+
+rig = bpy.data.objects.get("CHAR_Walker_Rig")
+anim = rig.animation_data if rig else None
+walk_keys = []
+if anim and anim.action:
+    bag = anim_utils.action_get_channelbag_for_slot(anim.action, anim.action_slot)
+    walk_keys = sorted({round(k.co.x) for fc in bag.fcurves for k in fc.keyframe_points})
+check("Walker animated (walk, pick up pencil, write)", len(walk_keys) > 100 and walk_keys[-1] > 0.75 * scene.frame_end,
+      f"{len(walk_keys)} keyed frames, last at {walk_keys[-1] if walk_keys else '-'}")
+covers = bpy.data.objects.get("CHAR_Sleeper_Under_Covers")
+breathing = covers and covers.animation_data and any(
+    m.type == "CYCLES" for fc in anim_utils.action_get_channelbag_for_slot(
+        covers.animation_data.action, covers.animation_data.action_slot).fcurves for m in fc.modifiers)
+check("Sleeper breathes (looping)", breathing, "covers rise and fall" if breathing else "no breathing loop")
 
 # 5. Render settings and portability ------------------------------------------------
 render = scene.render
@@ -132,7 +148,8 @@ if VIDEO.is_file():
     clip = bpy.data.movieclips.load(str(VIDEO))
     w, h = clip.size
     seconds = clip.frame_duration / clip.fps if clip.fps else 0
-    check("Video MP4 is 1080x1920 and 5 s long", (w, h) == (1080, 1920) and abs(seconds - 5) < 0.05,
+    check(f"Video MP4 is 1080x1920 and {story_seconds:g} s long",
+          (w, h) == (1080, 1920) and abs(seconds - story_seconds) < 0.05,
           f"{rel(VIDEO)}: {w}x{h}, {clip.frame_duration} frames at {clip.fps:g} fps = {seconds:.2f} s, "
           f"{VIDEO.stat().st_size / 1e6:.1f} MB")
 else:

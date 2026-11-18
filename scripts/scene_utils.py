@@ -301,17 +301,21 @@ def camera(name, coll, location, target, lens=35):
     return obj
 
 
-def animate_move(obj, end_location, frame_start, frame_end):
-    """Smooth ease-in/ease-out move from the current location to `end_location`."""
-    start = obj.location.copy()
-    obj.keyframe_insert("location", frame=frame_start)
-    obj.location = end_location
-    obj.keyframe_insert("location", frame=frame_end)
-    obj.location = start
-    anim = obj.animation_data
+def animate_camera(cam, shots):
+    """Smooth, eased camera moves. shots = [(frame, location, look_at point), ...]."""
+    previous = None
+    for frame, location, target in shots:
+        cam.location = location
+        look_at(cam, target)
+        if previous:
+            cam.rotation_euler.make_compatible(previous)    # no spins between keys
+        previous = cam.rotation_euler.copy()
+        cam.keyframe_insert("location", frame=frame)
+        cam.keyframe_insert("rotation_euler", frame=frame)
+    anim = cam.animation_data
     for fcurve in anim_utils.action_get_channelbag_for_slot(anim.action, anim.action_slot).fcurves:
         for key in fcurve.keyframe_points:
-            key.interpolation = "BEZIER"     # auto-clamped Bezier handles = gentle ease
+            key.interpolation = "BEZIER"     # auto-clamped Bezier handles = gentle ease in and out
             key.handle_left_type = key.handle_right_type = "AUTO_CLAMPED"
 
 

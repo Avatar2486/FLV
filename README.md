@@ -15,17 +15,18 @@ FLV/
 ├── blender/scenes/test_bedroom.blend   the bedroom project (open this in Blender)
 ├── scripts/
 │   ├── create_test_scene.py   builds the bedroom and saves the .blend
-│   ├── render_preview.py      540x960 PNG of frame 1  -> output/previews/
+│   ├── render_preview.py      540x960 PNG of any frame -> output/previews/
 │   ├── render_video.py        1080x1920 H.264 MP4     -> output/renders/
 │   ├── validate_scene.py      checks project + renders -> output/validation_report.md
 │   ├── scene_utils.py         shared helpers: shapes, collections, lights, cameras, render, save
 │   ├── material_library.py    every MAT_* material (colour, roughness ...)
-│   ├── asset_library.py       43 procedural builders: furniture, lamps, props, door, window ...
+│   ├── character_library.py   rigged walker, sleeper, walk/reach/breathe animation helpers
+│   ├── asset_library.py       procedural builders: furniture, lamps, props, door, window ...
 │   ├── download_assets.py     fetches the free CC0 Poly Haven set into assets/
 │   ├── build_asset_library.py packs everything for Blender's Asset Browser
 │   └── register_asset_library.py  adds assets/ to Blender as the "FLV" library (once per machine)
 ├── assets/
-│   ├── FLV_Procedural_Assets.blend   43 FLV assets, drag-and-drop
+│   ├── FLV_Procedural_Assets.blend   47 FLV assets, drag-and-drop
 │   ├── FLV_PolyHaven_Assets.blend    385 Poly Haven assets (built locally, not in Git)
 │   ├── polyhaven_manifest.json       source, author and licence of every downloaded asset
 │   ├── furniture/polyhaven/   props/polyhaven/   Poly Haven models (glTF, 1K textures)
@@ -53,8 +54,10 @@ blender --background --factory-startup --python scripts/render_preview.py
 #    other cameras -> bedroom_bed_preview.png / bedroom_window_preview.png
 blender --background --factory-startup --python scripts/render_preview.py -- --camera CAMERA_Bed
 blender --background --factory-startup --python scripts/render_preview.py -- --camera CAMERA_Window
+#    any moment of the story, e.g. frame 300 (writing) -> bedroom_main_preview_f0300.png
+blender --background --factory-startup --python scripts/render_preview.py -- --frame 300
 
-# 3. Five-second vertical video, 1080x1920, 24 fps, H.264 -> output/renders/bedroom_main.mp4
+# 3. The 17-second story video, 1080x1920, 24 fps, H.264 (about 27 min) -> output/renders/bedroom_main.mp4
 blender --background --factory-startup --python scripts/render_video.py
 #    through another camera -> output/renders/bedroom_bed.mp4
 blender --background --factory-startup --python scripts/render_video.py -- --camera CAMERA_Bed
@@ -95,7 +98,8 @@ The file opens in the **Layout** workspace, showing the room in Material Preview
 | `BED` | frame, legs, headboard, mattress, sheet, blanket, fold, throw, pillows, cushions |
 | `FURNITURE` | bedside tables, lamps, wardrobe, open closet, desk, chairs, side table, TV, rug, plant |
 | `WINDOW` | frame, glass, divider, sill, curtains, rod, night sky, moon, trees outside |
-| `PROPS` | books, alarm clock, water glass, picture frame, laptop, vase |
+| `PROPS` | books, alarm clock, water glass, picture frame, laptop, notebook, pencils, handwriting, vase |
+| `CHARACTERS` | `CHAR_Walker` (rig, body, hand targets) and `CHAR_Sleeper` (head, arm, covers) |
 | `LIGHTING` | every light, plus the `ATMOS_Haze` fog |
 | `CAMERAS` | `CAMERA_Main`, `CAMERA_Bed`, `CAMERA_Window` |
 
@@ -155,11 +159,35 @@ change **Power** or **Color**.
 - **Re-aim the active camera**: while looking through it, press **N**, open the
   **View** tab and tick **Lock Camera to View**. Navigate until it looks right,
   then untick it.
-- **Camera animation**: each camera drifts slowly between keyframes at frame 1
-  and frame 120, with ease in and ease out. To change the start or end, go to
-  that frame on the timeline, move the camera, hover over the viewport, press
-  **I** and choose **Location**. Press **Alt+I** to remove a keyframe.
+- **Camera animation**: each camera moves between a keyframe on the first and the
+  last frame, with ease in and ease out. `CAMERA_Main` starts on the whole room and
+  eases in on the desk. To change a start or end, go to that frame on the timeline,
+  move or turn the camera, hover over the viewport, press **I** and choose
+  **Location & Rotation**. Press **Alt+I** to remove a keyframe.
 - **Video length**: set **End** on the timeline (24 frames = 1 second).
+
+### The story and the characters
+
+| Seconds | What happens |
+|---|---|
+| 0-1 | Wide view of the whole room. Someone sleeps in the bed; the walker stands by the door |
+| 0.5-9 | The walker crosses the room, past the armchair and the foot of the bed, to the desk |
+| 9-11 | Turns to the desk, leans in, picks up the pencil |
+| 11-15 | Writes three lines in the notebook (the ink appears as they write) |
+| 15-17 | Looks up at the window. The sleeper breathes slowly the whole time |
+
+- **Pose the walker yourself**: click `CHAR_Walker_Rig` (the bones show through the
+  body), press **Ctrl+Tab** for Pose Mode, click a bone, press **R** to rotate it,
+  then **I** to keyframe it. Ctrl+Tab again to leave.
+- **Move where a hand goes**: the hands follow the small spheres
+  `CHAR_Walker_Hand_Target.L` / `.R`. Move one at a frame and press **I > Location**.
+- **Change the route or timing**: edit `WALK_PATH`, `NOTEBOOK` and `PENCIL` near the
+  top of `scripts/create_test_scene.py` and rebuild (this replaces the .blend).
+- **Clothes and skin colours**: `MAT_Shirt`, `MAT_Pants`, `MAT_Skin`, `MAT_Hair`,
+  `MAT_Pajama` in Material Properties.
+- **Swap in a Mixamo or AI character later**: import it, then copy the walk with
+  Mixamo's own animations, or rename its bones to the FLV names (`hips`, `spine`,
+  `thigh.L` ...) to reuse `character_library.py`.
 
 ### Bring in AI-generated models (Meshy, Tripo, Mixamo)
 
@@ -173,13 +201,13 @@ change **Power** or **Color**.
 - **Save**: File > Save (Cmd+S / Ctrl+S).
 - **Still image**: F12, then Image > Save As.
 - **Video**: Render > Render Animation (Ctrl+F12) writes
-  `output/renders/bedroom_main.mp4`, at 1080x1920, H.264, 5 s.
+  `output/renders/bedroom_main.mp4`, at 1080x1920, H.264, 17 s.
 
-## Asset library (drag and drop, 428 assets)
+## Asset library (drag and drop, 432 assets)
 
 | Library | What's in it | Licence |
 |---|---|---|
-| FLV procedural (43) | double and single bed, bedside table, wardrobe, open closet, bookshelf, desk, dining table, chair, armchair, sofa, side table, TV and stand, rug, coat rack, plant. Lights: table, floor, desk, pendant and ceiling lamps, candle, flashlight (all with real lights). Room parts: door, window, curtains, wall panels. Decor: painting, wall clock (stopped at 3:00), crime evidence board. Props: books, alarm clock, glass, picture frame, laptop, vase, mug, bottle, box, suitcase, bin, knife, sealed envelope | yours, generated by the scripts |
+| FLV procedural (47) | rigged person, sleeping person, notebook, pencil, double and single bed, bedside table, wardrobe, open closet, bookshelf, desk, dining table, chair, armchair, sofa, side table, TV and stand, rug, coat rack, plant. Lights: table, floor, desk, pendant and ceiling lamps, candle, flashlight (all with real lights). Room parts: door, window, curtains, wall panels. Decor: painting, wall clock (stopped at 3:00), crime evidence board. Props: books, alarm clock, glass, picture frame, laptop, vase, mug, bottle, box, suitcase, bin, knife, sealed envelope | yours, generated by the scripts |
 | Poly Haven models (205) | furniture, seating, tables, shelves, lamps, decor, electronics, appliances | CC0, free for commercial use, no credit needed |
 | Poly Haven night skies (61) | HDRI Worlds for background and lighting | CC0 |
 | Poly Haven materials (119) | floor, wall and fabric texture sets | CC0 |

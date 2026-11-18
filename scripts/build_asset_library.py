@@ -22,6 +22,7 @@ import bpy
 from mathutils import Vector
 
 import asset_library as lib
+import character_library as ch
 import scene_utils as su
 
 ASSETS = su.PROJECT_ROOT / "assets"
@@ -77,7 +78,17 @@ PROCEDURAL = {
     "Trash Bin":         ("FLV/Props", lambda c, p: lib.trash_bin(c, p)),
     "Knife":             ("FLV/Props", lambda c, p: lib.knife(c, p)),
     "Sealed Envelope":   ("FLV/Props", lambda c, p: lib.envelope(c, p)),
+    "Notebook":          ("FLV/Props", lambda c, p: lib.notebook(c, p)),
+    "Pencil":            ("FLV/Props", lambda c, p: lib.pencil(c, p)),
+    "Person (rigged)":   ("FLV/Characters", lambda c, p: person(c, p)),
+    "Sleeping Person":   ("FLV/Characters", lambda c, p: ch.sleeper(c, (p[0], p[1], 0.86))),
 }
+
+
+def person(coll, location):
+    rig = ch.character(coll, "CHAR_Person")
+    rig.location = location
+    return rig
 
 
 def catalog_id(path):
