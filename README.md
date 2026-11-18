@@ -203,6 +203,39 @@ change **Power** or **Color**.
 - **Video**: Render > Render Animation (Ctrl+F12) writes
   `output/renders/bedroom_main.mp4`, at 1080x1920, H.264, 17 s.
 
+## Film: The Tell-Tale Heart (10 minutes)
+
+A 10-minute horror short adapted from Edgar Allan Poe's *The Tell-Tale Heart* (1843, public
+domain: free to adapt and monetise). Everything is in `stories/the_tell_tale_heart/`:
+
+| File | What it is |
+|---|---|
+| `source_text.md` | Poe's original text, with source and licence |
+| `film.py` | **The shot list** — 69 shots: narration (Poe's words), new lines (marked adapted), framing, movement, action, light, sound cues |
+| `production_plan.md` | The readable plan, generated from `film.py`: why this story, structure, cast, visual and sound approach, adaptation notes, full shot list with timecodes |
+| `timeline.json` | Shot start frames and lengths, sized to the recorded voices |
+| `sets.py`, `build_film.py` | Builds the 1840s house sets, cast, props, lights and a camera per shot |
+
+Make the film (from the `FLV` folder):
+
+```bash
+# 1. Voices (Piper) + timeline + production plan          ~20 s
+.venv/bin/python -I scripts/story_tools.py stories/the_tell_tale_heart
+# 2. Blender scene with every shot                          ~10 s -> blender/scenes/tell_tale_heart.blend
+blender --background --factory-startup --python stories/the_tell_tale_heart/build_film.py
+# 3. Render shot by shot (two workers in parallel)          ~5-6 h for 1080p
+blender -b blender/scenes/tell_tale_heart.blend --python scripts/render_shots.py -- \
+    --timeline stories/the_tell_tale_heart/timeline.json --out output/renders/tell_tale_heart/shots --worker 0 --workers 2
+#    (run a second copy with --worker 1; re-render single shots with --only 3.5,3.13)
+# 4. Soundtrack: voices + synthesised effects + heartbeat + score   ~20 s
+.venv/bin/python -I scripts/mix_story.py stories/the_tell_tale_heart
+# 5. Join the shots and add the soundtrack
+.venv/bin/python -I scripts/finish_film.py stories/the_tell_tale_heart output/renders/tell_tale_heart/shots
+```
+
+Open `blender/scenes/tell_tale_heart.blend` to see every shot: the timeline markers switch
+cameras, so scrubbing the timeline plays the film's edit.
+
 ## Asset library (drag and drop, 432 assets)
 
 | Library | What's in it | Licence |

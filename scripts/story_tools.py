@@ -20,7 +20,7 @@ import wave
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LEAD, GAP, TAIL = 0.5, 0.4, 0.8          # seconds of air before, between and after lines
+LEAD, GAP, TAIL = 0.4, 0.35, 0.6          # seconds of air before, between and after lines
 
 FX = {   # ffmpeg filters per delivery style
     "narration": "highpass=f=70,lowpass=f=9000,acompressor=threshold=-22dB:ratio=3:attack=5:release=120,"
@@ -96,12 +96,59 @@ def build_timeline(film, lines):
     return {"fps": fps, "frame_end": frame - 1, "seconds": (frame - 1) / fps, "shots": shots}
 
 
+def tc(seconds):
+    return f"{int(seconds // 60)}:{seconds % 60:05.2f}"
+
+
+def write_plan(film, timeline, folder):
+    """production_plan.md: the human-readable plan, generated from film.py + timeline.json."""
+    shots = {s["id"]: s for s in timeline["shots"]}
+    by_seq = {}
+    for shot in film.SHOTS:
+        by_seq.setdefault(shot["seq"], []).append(shot)
+    L = [f"# {film.TITLE} — production plan", "",
+         getattr(film, "PLAN_INTRO", "").strip(), "",
+         f"**Runtime:** {tc(timeline['seconds'])} · **Shots:** {len(film.SHOTS)} · **Format:** "
+         f"{film.RESOLUTION[0]}x{film.RESOLUTION[1]}, {film.FPS} fps, H.264 + AAC", "",
+         "## Structure", "", "| Sequence | Starts | Length |", "|---|---|---|"]
+    for seq, items in by_seq.items():
+        a = (shots[items[0]["id"]]["start"] - 1) / film.FPS
+        n = sum(shots[s["id"]]["seconds"] for s in items)
+        L.append(f"| {seq}. {film.SEQUENCES[seq]} | {tc(a)} | {n:.0f} s |")
+    L += ["", "## Cast and voices", "", "| Role | Voice | Licence |", "|---|---|---|"]
+    L += [f"| {c['name']} | Piper `{c['model']}`{' speaker ' + str(c['speaker']) if c['speaker'] is not None else ''}"
+          f" | {c['licence']} |" for c in film.CAST.values()]
+    L += ["", getattr(film, "PLAN_APPROACH", "").strip(), "", "## Adaptation notes", "",
+          "Narration is Poe's text, verbatim, with passages cut for time. These are FLV additions:", ""]
+    for shot in film.SHOTS:
+        if shot["adapted"]:
+            L.append(f"- **{shot['id']}** — {shot['adapted']}")
+        for who, text, adapted in shot["lines"]:
+            if adapted:
+                L.append(f"- **{shot['id']}** — new line for {film.CAST[who]['name']}: “{text}”")
+    L += ["", "## Shot list", "",
+          "| # | In | Dur | Framing / lens | Movement | Action | Light | Sound | Words | Out |",
+          "|---|---|---|---|---|---|---|---|---|---|"]
+    for shot in film.SHOTS:
+        t = shots[shot["id"]]
+        words = " / ".join(f"{w}: {x[:60]}{'…' if len(x) > 60 else ''}" for w, x, _ in shot["lines"]) or "—"
+        sound = ", ".join(c for c, _, g in shot["sfx"] if g > 0) or "—"
+        mark = " ⓐ" if shot["adapted"] else ""
+        L.append(f"| {shot['id']}{mark} | {tc((t['start'] - 1) / film.FPS)} | {t['seconds']:.1f}s | {shot['frame']} | "
+                 f"{shot['move'] or '—'} | {shot['action'] or '—'} | {shot['light'] or '—'} | "
+                 f"{sound}; score: {shot['music'] or '—'} | {words.replace('|', '/')} | {shot['transition']} |")
+    L += ["", "ⓐ = shot contains adapted (non-Poe) material. Speakers: N narration, NS narrator on screen, "
+              "OM old man, O1–O3 officers."]
+    (folder / "production_plan.md").write_text("\n".join(L) + "\n")
+
+
 if __name__ == "__main__":
     folder = Path(sys.argv[1]).resolve()
     film = load_story(folder)
     lines = make_voices(film, ROOT / "audio" / "voiceovers" / folder.name)
     timeline = build_timeline(film, lines)
     (folder / "timeline.json").write_text(json.dumps(timeline, indent=1))
+    write_plan(film, timeline, folder)
     spoken = sum(l["seconds"] for l in lines)
     print(f"{len(lines)} lines, {spoken / 60:.1f} min of speech; film {timeline['seconds'] / 60:.2f} min "
           f"({timeline['frame_end']} frames) -> {folder.name}/timeline.json")

@@ -1,20 +1,20 @@
 {
  "fps": 24,
- "frame_end": 17485,
- "seconds": 728.5416666666666,
+ "frame_end": 14721,
+ "seconds": 613.375,
  "shots": [
   {
    "id": "0.1",
    "start": 1,
-   "frames": 96,
-   "seconds": 4.0,
+   "frames": 72,
+   "seconds": 3.0,
    "lines": []
   },
   {
    "id": "0.2",
-   "start": 97,
-   "frames": 174,
-   "seconds": 7.25,
+   "start": 73,
+   "frames": 168,
+   "seconds": 7.0,
    "lines": [
     {
      "shot": "0.2",
@@ -22,17 +22,17 @@
      "who": "N",
      "adapted": false,
      "text": "True!\u2014nervous\u2014very, very dreadfully nervous I had been and am;",
-     "file": "audio/voiceovers/the_tell_tale_heart/0.2_0_N_5afdfe7e9c.wav",
-     "seconds": 5.932,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/0.2_0_N_41d02577a7.wav",
+     "seconds": 5.073,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "0.3",
-   "start": 271,
-   "frames": 309,
-   "seconds": 12.875,
+   "start": 241,
+   "frames": 243,
+   "seconds": 10.125,
    "lines": [
     {
      "shot": "0.3",
@@ -40,15 +40,15 @@
      "who": "N",
      "adapted": false,
      "text": "but why will you say that I am mad? The disease had sharpened my senses\u2014not destroyed\u2014not dulled them. Above all was the sense of hearing acute.",
-     "file": "audio/voiceovers/the_tell_tale_heart/0.3_0_N_cf34f9cff4.wav",
-     "seconds": 11.575,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/0.3_0_N_b265b3ed0f.wav",
+     "seconds": 9.114,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "0.4",
-   "start": 580,
+   "start": 484,
    "frames": 168,
    "seconds": 7.0,
    "lines": [
@@ -58,17 +58,17 @@
      "who": "N",
      "adapted": false,
      "text": "I heard all things in the heaven and in the earth. I heard many things in hell.",
-     "file": "audio/voiceovers/the_tell_tale_heart/0.4_0_N_fb729a4d84.wav",
-     "seconds": 5.131,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/0.4_0_N_d083b3242c.wav",
+     "seconds": 4.655,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "0.5",
-   "start": 748,
-   "frames": 246,
-   "seconds": 10.25,
+   "start": 652,
+   "frames": 207,
+   "seconds": 8.625,
    "lines": [
     {
      "shot": "0.5",
@@ -76,31 +76,31 @@
      "who": "N",
      "adapted": false,
      "text": "How, then, am I mad? Hearken! and observe how healthily\u2014how calmly I can tell you the whole story.",
-     "file": "audio/voiceovers/the_tell_tale_heart/0.5_0_N_3f3a4fa137.wav",
-     "seconds": 8.939,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/0.5_0_N_128c0297f4.wav",
+     "seconds": 7.628,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "T",
-   "start": 994,
-   "frames": 144,
-   "seconds": 6.0,
+   "start": 859,
+   "frames": 120,
+   "seconds": 5.0,
    "lines": []
   },
   {
    "id": "1.1",
-   "start": 1138,
-   "frames": 144,
-   "seconds": 6.0,
+   "start": 979,
+   "frames": 120,
+   "seconds": 5.0,
    "lines": []
   },
   {
    "id": "1.2",
-   "start": 1282,
-   "frames": 239,
-   "seconds": 9.958333333333334,
+   "start": 1099,
+   "frames": 211,
+   "seconds": 8.791666666666666,
    "lines": [
     {
      "shot": "1.2",
@@ -108,17 +108,17 @@
      "who": "N",
      "adapted": false,
      "text": "It is impossible to say how first the idea entered my brain; but once conceived, it haunted me day and night.",
-     "file": "audio/voiceovers/the_tell_tale_heart/1.2_0_N_04e1f4c19b.wav",
-     "seconds": 8.638,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/1.2_0_N_e006e1cadb.wav",
+     "seconds": 7.778,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "1.3",
-   "start": 1521,
-   "frames": 145,
-   "seconds": 6.041666666666667,
+   "start": 1310,
+   "frames": 120,
+   "seconds": 5.0,
    "lines": [
     {
      "shot": "1.3",
@@ -126,15 +126,15 @@
      "who": "N",
      "adapted": false,
      "text": "Object there was none. Passion there was none.",
-     "file": "audio/voiceovers/the_tell_tale_heart/1.3_0_N_175ab9269e.wav",
-     "seconds": 4.76,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/1.3_0_N_9af1470ed2.wav",
+     "seconds": 3.982,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "1.4",
-   "start": 1666,
+   "start": 1430,
    "frames": 168,
    "seconds": 7.0,
    "lines": [
@@ -144,15 +144,15 @@
      "who": "N",
      "adapted": false,
      "text": "I loved the old man. He had never wronged me. He had never given me insult.",
-     "file": "audio/voiceovers/the_tell_tale_heart/1.4_0_N_7efdbb642d.wav",
-     "seconds": 5.619,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/1.4_0_N_29bc29d5ab.wav",
+     "seconds": 5.48,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "1.5",
-   "start": 1834,
+   "start": 1598,
    "frames": 96,
    "seconds": 4.0,
    "lines": [
@@ -162,15 +162,15 @@
      "who": "N",
      "adapted": false,
      "text": "For his gold I had no desire.",
-     "file": "audio/voiceovers/the_tell_tale_heart/1.5_0_N_5bb855aa8f.wav",
-     "seconds": 2.043,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/1.5_0_N_4f5524dc12.wav",
+     "seconds": 2.113,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "1.6",
-   "start": 1930,
+   "start": 1694,
    "frames": 120,
    "seconds": 5.0,
    "lines": [
@@ -180,17 +180,17 @@
      "who": "N",
      "adapted": false,
      "text": "I think it was his eye! yes, it was this!",
-     "file": "audio/voiceovers/the_tell_tale_heart/1.6_0_N_284e0be471.wav",
-     "seconds": 3.552,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/1.6_0_N_208c6689c6.wav",
+     "seconds": 3.332,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "1.7",
-   "start": 2050,
-   "frames": 182,
-   "seconds": 7.583333333333333,
+   "start": 1814,
+   "frames": 168,
+   "seconds": 7.0,
    "lines": [
     {
      "shot": "1.7",
@@ -198,17 +198,17 @@
      "who": "N",
      "adapted": false,
      "text": "One of his eyes resembled that of a vulture\u2014a pale blue eye, with a film over it.",
-     "file": "audio/voiceovers/the_tell_tale_heart/1.7_0_N_54e8e31f47.wav",
-     "seconds": 6.292,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/1.7_0_N_399b2d44a0.wav",
+     "seconds": 5.84,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "1.8",
-   "start": 2232,
-   "frames": 125,
-   "seconds": 5.208333333333333,
+   "start": 1982,
+   "frames": 107,
+   "seconds": 4.458333333333333,
    "lines": [
     {
      "shot": "1.8",
@@ -216,17 +216,17 @@
      "who": "N",
      "adapted": false,
      "text": "Whenever it fell upon me, my blood ran cold;",
-     "file": "audio/voiceovers/the_tell_tale_heart/1.8_0_N_7842f8794c.wav",
-     "seconds": 3.901,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/1.8_0_N_cf1c942d77.wav",
+     "seconds": 3.471,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "1.9",
-   "start": 2357,
-   "frames": 279,
-   "seconds": 11.625,
+   "start": 2089,
+   "frames": 251,
+   "seconds": 10.458333333333334,
    "lines": [
     {
      "shot": "1.9",
@@ -234,35 +234,35 @@
      "who": "N",
      "adapted": false,
      "text": "and so by degrees\u2014very gradually\u2014I made up my mind to take the life of the old man, and thus rid myself of the eye for ever.",
-     "file": "audio/voiceovers/the_tell_tale_heart/1.9_0_N_be95fa64b2.wav",
-     "seconds": 10.344,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/1.9_0_N_301e4442c4.wav",
+     "seconds": 9.462,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "2.1",
-   "start": 2636,
-   "frames": 428,
-   "seconds": 17.833333333333332,
+   "start": 2340,
+   "frames": 280,
+   "seconds": 11.666666666666666,
    "lines": [
     {
      "shot": "2.1",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "Now this is the point. You fancy me mad. Madmen know nothing. But you should have seen me. You should have seen how wisely I proceeded\u2014with what caution\u2014with what foresight\u2014with what dissimulation I went to work!",
-     "file": "audio/voiceovers/the_tell_tale_heart/2.1_0_N_ab2a777e04.wav",
-     "seconds": 16.521,
-     "offset": 0.5
+     "text": "Now this is the point. You fancy me mad. Madmen know nothing. But you should have seen me. You should have seen how wisely I proceeded\u2014with what caution\u2014with what foresight!",
+     "file": "audio/voiceovers/the_tell_tale_heart/2.1_0_N_39ea785f2d.wav",
+     "seconds": 10.646,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "2.2",
-   "start": 3064,
-   "frames": 155,
-   "seconds": 6.458333333333333,
+   "start": 2620,
+   "frames": 128,
+   "seconds": 5.333333333333333,
    "lines": [
     {
      "shot": "2.2",
@@ -270,17 +270,17 @@
      "who": "N",
      "adapted": false,
      "text": "I was never kinder to the old man than during the whole week before I killed him.",
-     "file": "audio/voiceovers/the_tell_tale_heart/2.2_0_N_4f4c2c623e.wav",
-     "seconds": 5.143,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/2.2_0_N_3205d8893d.wav",
+     "seconds": 4.354,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "2.3",
-   "start": 3219,
-   "frames": 178,
-   "seconds": 7.416666666666667,
+   "start": 2748,
+   "frames": 173,
+   "seconds": 7.208333333333333,
    "lines": [
     {
      "shot": "2.3",
@@ -288,17 +288,17 @@
      "who": "N",
      "adapted": false,
      "text": "And every night, about midnight, I turned the latch of his door and opened it\u2014oh, so gently!",
-     "file": "audio/voiceovers/the_tell_tale_heart/2.3_0_N_b7b9a39cfb.wav",
-     "seconds": 6.118,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/2.3_0_N_a194a4845b.wav",
+     "seconds": 6.211,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "2.4",
-   "start": 3397,
-   "frames": 282,
-   "seconds": 11.75,
+   "start": 2921,
+   "frames": 246,
+   "seconds": 10.25,
    "lines": [
     {
      "shot": "2.4",
@@ -306,35 +306,35 @@
      "who": "N",
      "adapted": false,
      "text": "And then, when I had made an opening sufficient for my head, I put in a dark lantern, all closed, closed, so that no light shone out, and then I thrust in my head.",
-     "file": "audio/voiceovers/the_tell_tale_heart/2.4_0_N_196b387792.wav",
-     "seconds": 10.46,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/2.4_0_N_5f1c45edfd.wav",
+     "seconds": 9.253,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "2.5",
-   "start": 3679,
-   "frames": 499,
-   "seconds": 20.791666666666668,
+   "start": 3167,
+   "frames": 312,
+   "seconds": 13.0,
    "lines": [
     {
      "shot": "2.5",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "I moved it slowly\u2014very, very slowly, so that I might not disturb the old man's sleep. It took me an hour to place my whole head within the opening so far that I could see him as he lay upon his bed. Ha!\u2014would a madman have been so wise as this?",
-     "file": "audio/voiceovers/the_tell_tale_heart/2.5_0_N_0c0985e1fa.wav",
-     "seconds": 19.481,
-     "offset": 0.5
+     "text": "It took me an hour to place my whole head within the opening so far that I could see him as he lay upon his bed. Ha!\u2014would a madman have been so wise as this?",
+     "file": "audio/voiceovers/the_tell_tale_heart/2.5_0_N_a9c2b8ad20.wav",
+     "seconds": 10.53,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "2.6",
-   "start": 4178,
-   "frames": 258,
-   "seconds": 10.75,
+   "start": 3479,
+   "frames": 250,
+   "seconds": 10.416666666666666,
    "lines": [
     {
      "shot": "2.6",
@@ -342,15 +342,15 @@
      "who": "N",
      "adapted": false,
      "text": "And then, when my head was well in the room, I undid the lantern cautiously\u2014oh, so cautiously\u2014cautiously (for the hinges creaked)\u2014",
-     "file": "audio/voiceovers/the_tell_tale_heart/2.6_0_N_e8ff70574c.wav",
-     "seconds": 9.439,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/2.6_0_N_133a48c113.wav",
+     "seconds": 9.404,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "2.7",
-   "start": 4436,
+   "start": 3729,
    "frames": 144,
    "seconds": 6.0,
    "lines": [
@@ -360,17 +360,17 @@
      "who": "N",
      "adapted": false,
      "text": "I undid it just so much that a single thin ray fell upon the vulture eye.",
-     "file": "audio/voiceovers/the_tell_tale_heart/2.7_0_N_f97e5c4a4e.wav",
-     "seconds": 4.644,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/2.7_0_N_ab8754db24.wav",
+     "seconds": 4.226,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "2.8",
-   "start": 4580,
-   "frames": 432,
-   "seconds": 18.0,
+   "start": 3873,
+   "frames": 384,
+   "seconds": 16.0,
    "lines": [
     {
      "shot": "2.8",
@@ -378,17 +378,17 @@
      "who": "N",
      "adapted": false,
      "text": "And this I did for seven long nights\u2014every night just at midnight\u2014but I found the eye always closed; and so it was impossible to do the work; for it was not the old man who vexed me, but his Evil Eye.",
-     "file": "audio/voiceovers/the_tell_tale_heart/2.8_0_N_9c95da6ad4.wav",
-     "seconds": 14.013,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/2.8_0_N_84df4d628f.wav",
+     "seconds": 12.701,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "2.9",
-   "start": 5012,
-   "frames": 616,
-   "seconds": 25.666666666666668,
+   "start": 4257,
+   "frames": 551,
+   "seconds": 22.958333333333332,
    "lines": [
     {
      "shot": "2.9",
@@ -396,9 +396,9 @@
      "who": "N",
      "adapted": false,
      "text": "And every morning, when the day broke, I went boldly into the chamber,",
-     "file": "audio/voiceovers/the_tell_tale_heart/2.9_0_N_100b5b68e8.wav",
-     "seconds": 5.573,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/2.9_0_N_368568ab4a.wav",
+     "seconds": 5.004,
+     "offset": 0.4
     },
     {
      "shot": "2.9",
@@ -406,9 +406,9 @@
      "who": "NS",
      "adapted": true,
      "text": "Good morning, sir! Did you pass the night well?",
-     "file": "audio/voiceovers/the_tell_tale_heart/2.9_1_NS_ae3cae0255.wav",
-     "seconds": 3.567,
-     "offset": 6.473
+     "file": "audio/voiceovers/the_tell_tale_heart/2.9_1_NS_c6f8016529.wav",
+     "seconds": 3.498,
+     "offset": 5.754
     },
     {
      "shot": "2.9",
@@ -418,25 +418,25 @@
      "text": "Well enough, my boy. Well enough.",
      "file": "audio/voiceovers/the_tell_tale_heart/2.9_2_OM_29a3912ad2.wav",
      "seconds": 3.748,
-     "offset": 10.44
+     "offset": 9.602
     },
     {
      "shot": "2.9",
      "index": 3,
      "who": "N",
      "adapted": false,
-     "text": "So you see he would have been a very profound old man, indeed, to suspect that every night, just at twelve, I looked in upon him while he slept.",
-     "file": "audio/voiceovers/the_tell_tale_heart/2.9_3_N_498cf0ce13.wav",
-     "seconds": 10.298,
-     "offset": 14.588
+     "text": "He would have been a very profound old man, indeed, to suspect that every night, just at twelve, I looked in upon him while he slept.",
+     "file": "audio/voiceovers/the_tell_tale_heart/2.9_3_N_8e10a844bf.wav",
+     "seconds": 8.661,
+     "offset": 13.7
     }
    ]
   },
   {
    "id": "3.1",
-   "start": 5628,
-   "frames": 217,
-   "seconds": 9.041666666666666,
+   "start": 4808,
+   "frames": 201,
+   "seconds": 8.375,
    "lines": [
     {
      "shot": "3.1",
@@ -444,35 +444,35 @@
      "who": "N",
      "adapted": false,
      "text": "Upon the eighth night I was more than usually cautious in opening the door. A watch's minute hand moves more quickly than did mine.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.1_0_N_3bd943f60e.wav",
-     "seconds": 7.755,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/3.1_0_N_fbe6974344.wav",
+     "seconds": 7.372,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.2",
-   "start": 5845,
-   "frames": 249,
-   "seconds": 10.375,
+   "start": 5009,
+   "frames": 144,
+   "seconds": 6.0,
    "lines": [
     {
      "shot": "3.2",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "Never before that night had I felt the extent of my own powers\u2014of my sagacity. I could scarcely contain my feelings of triumph.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.2_0_N_44198ef522.wav",
-     "seconds": 9.079,
-     "offset": 0.5
+     "text": "Never before that night had I felt the extent of my own powers.",
+     "file": "audio/voiceovers/the_tell_tale_heart/3.2_0_N_de99e178e7.wav",
+     "seconds": 3.796,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.3",
-   "start": 6094,
-   "frames": 121,
-   "seconds": 5.041666666666667,
+   "start": 5153,
+   "frames": 100,
+   "seconds": 4.166666666666667,
    "lines": [
     {
      "shot": "3.3",
@@ -480,17 +480,17 @@
      "who": "N",
      "adapted": false,
      "text": "I fairly chuckled at the idea; and perhaps he heard me;",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.3_0_N_6a7fcd708f.wav",
-     "seconds": 3.738,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/3.3_0_N_d64111ae4f.wav",
+     "seconds": 3.146,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.4",
-   "start": 6215,
-   "frames": 121,
-   "seconds": 5.041666666666667,
+   "start": 5253,
+   "frames": 111,
+   "seconds": 4.625,
    "lines": [
     {
      "shot": "3.4",
@@ -498,35 +498,35 @@
      "who": "N",
      "adapted": false,
      "text": "for he moved on the bed suddenly, as if startled.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.4_0_N_e94cace643.wav",
-     "seconds": 3.738,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/3.4_0_N_fcb24d9701.wav",
+     "seconds": 3.622,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.5",
-   "start": 6336,
-   "frames": 473,
-   "seconds": 19.708333333333332,
+   "start": 5364,
+   "frames": 352,
+   "seconds": 14.666666666666666,
    "lines": [
     {
      "shot": "3.5",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "Now you may think that I drew back\u2014but no. His room was as black as pitch with the thick darkness, for the shutters were close fastened, through fear of robbers, and so I knew that he could not see the opening of the door, and I kept pushing it on steadily, steadily.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.5_0_N_e5f43979d7.wav",
-     "seconds": 18.413,
-     "offset": 0.5
+     "text": "Now you may think that I drew back\u2014but no. His room was as black as pitch with the thick darkness, and so I knew that he could not see the opening of the door, and I kept pushing it on steadily, steadily.",
+     "file": "audio/voiceovers/the_tell_tale_heart/3.5_0_N_666b3ccf80.wav",
+     "seconds": 13.653,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.6",
-   "start": 6809,
-   "frames": 188,
-   "seconds": 7.833333333333333,
+   "start": 5716,
+   "frames": 169,
+   "seconds": 7.041666666666667,
    "lines": [
     {
      "shot": "3.6",
@@ -534,17 +534,17 @@
      "who": "N",
      "adapted": false,
      "text": "I had my head in, and was about to open the lantern, when my thumb slipped upon the tin fastening,",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.6_0_N_d868f079c5.wav",
-     "seconds": 6.536,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/3.6_0_N_4806f6f8bf.wav",
+     "seconds": 6.037,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.7",
-   "start": 6997,
-   "frames": 154,
-   "seconds": 6.416666666666667,
+   "start": 5885,
+   "frames": 139,
+   "seconds": 5.791666666666667,
    "lines": [
     {
      "shot": "3.7",
@@ -552,9 +552,9 @@
      "who": "N",
      "adapted": false,
      "text": "and the old man sprang up in the bed, crying out\u2014",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.7_0_N_ef8f2cc027.wav",
-     "seconds": 3.367,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/3.7_0_N_8b4d21bf59.wav",
+     "seconds": 3.088,
+     "offset": 0.4
     },
     {
      "shot": "3.7",
@@ -564,40 +564,40 @@
      "text": "Who's there?",
      "file": "audio/voiceovers/the_tell_tale_heart/3.7_1_OM_2008b89f31.wav",
      "seconds": 1.344,
-     "offset": 4.267
+     "offset": 3.838
     }
    ]
   },
   {
    "id": "3.8",
-   "start": 7151,
-   "frames": 442,
-   "seconds": 18.416666666666668,
+   "start": 6024,
+   "frames": 384,
+   "seconds": 16.0,
    "lines": [
     {
      "shot": "3.8",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "I kept quite still and said nothing. For a whole hour I did not move a muscle, and in the meantime I did not hear him lie down. He was still sitting up in the bed, listening;\u2014just as I have done, night after night, hearkening to the death watches in the wall.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.8_0_N_045724cd04.wav",
-     "seconds": 17.125,
-     "offset": 0.5
+     "text": "I kept quite still and said nothing. For a whole hour I did not move a muscle. He was still sitting up in the bed, listening;\u2014just as I have done, night after night, hearkening to the death watches in the wall.",
+     "file": "audio/voiceovers/the_tell_tale_heart/3.8_0_N_f908a5eab4.wav",
+     "seconds": 12.411,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.9",
-   "start": 7593,
-   "frames": 96,
-   "seconds": 4.0,
+   "start": 6408,
+   "frames": 72,
+   "seconds": 3.0,
    "lines": []
   },
   {
    "id": "3.10",
-   "start": 7689,
-   "frames": 159,
-   "seconds": 6.625,
+   "start": 6480,
+   "frames": 144,
+   "seconds": 6.0,
    "lines": [
     {
      "shot": "3.10",
@@ -605,17 +605,17 @@
      "who": "N",
      "adapted": false,
      "text": "Presently I heard a slight groan, and I knew it was the groan of mortal terror.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.10_0_N_b4a91fcea0.wav",
-     "seconds": 5.34,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/3.10_0_N_c40c16b603.wav",
+     "seconds": 4.737,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.11",
-   "start": 7848,
-   "frames": 302,
-   "seconds": 12.583333333333334,
+   "start": 6624,
+   "frames": 290,
+   "seconds": 12.083333333333334,
    "lines": [
     {
      "shot": "3.11",
@@ -623,9 +623,9 @@
      "who": "N",
      "adapted": false,
      "text": "He had been saying to himself\u2014",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.11_0_N_2f2b8bc886.wav",
-     "seconds": 2.693,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/3.11_0_N_f5bcdd24ab.wav",
+     "seconds": 2.519,
+     "offset": 0.4
     },
     {
      "shot": "3.11",
@@ -635,15 +635,15 @@
      "text": "It is nothing but the wind in the chimney\u2014it is only a mouse crossing the floor\u2014it is merely a cricket which has made a single chirp.",
      "file": "audio/voiceovers/the_tell_tale_heart/3.11_1_OM_13951a7ca0.wav",
      "seconds": 8.195,
-     "offset": 3.593
+     "offset": 3.269
     }
    ]
   },
   {
    "id": "3.12",
-   "start": 8150,
-   "frames": 214,
-   "seconds": 8.916666666666666,
+   "start": 6914,
+   "frames": 184,
+   "seconds": 7.666666666666667,
    "lines": [
     {
      "shot": "3.12",
@@ -651,17 +651,17 @@
      "who": "N",
      "adapted": false,
      "text": "All in vain; because Death, in approaching him, had stalked with his black shadow before him, and enveloped the victim.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.12_0_N_f5876deb11.wav",
-     "seconds": 7.604,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/3.12_0_N_b222e815b5.wav",
+     "seconds": 6.652,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.13",
-   "start": 8364,
-   "frames": 317,
-   "seconds": 13.208333333333334,
+   "start": 7098,
+   "frames": 301,
+   "seconds": 12.541666666666666,
    "lines": [
     {
      "shot": "3.13",
@@ -669,17 +669,17 @@
      "who": "N",
      "adapted": false,
      "text": "So I opened it\u2014you cannot imagine how stealthily, stealthily\u2014until, at length, a single dim ray, like the thread of the spider, shot from out the crevice and fell upon the vulture eye.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.13_0_N_559d26cb36.wav",
-     "seconds": 11.888,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/3.13_0_N_60b2a1f8df.wav",
+     "seconds": 11.528,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.14",
-   "start": 8681,
-   "frames": 179,
-   "seconds": 7.458333333333333,
+   "start": 7399,
+   "frames": 148,
+   "seconds": 6.166666666666667,
    "lines": [
     {
      "shot": "3.14",
@@ -687,83 +687,83 @@
      "who": "N",
      "adapted": false,
      "text": "It was open\u2014wide, wide open\u2014and I grew furious as I gazed upon it.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.14_0_N_ae71676890.wav",
-     "seconds": 6.141,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/3.14_0_N_5bd313e765.wav",
+     "seconds": 5.155,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.15",
-   "start": 8860,
-   "frames": 558,
-   "seconds": 23.25,
+   "start": 7547,
+   "frames": 412,
+   "seconds": 17.166666666666668,
    "lines": [
     {
      "shot": "3.15",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "And now\u2014have I not told you that what you mistake for madness is but over-acuteness of the senses?\u2014now, I say, there came to my ears a low, dull, quick sound, such as a watch makes when enveloped in cotton. I knew that sound well, too. It was the beating of the old man's heart.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.15_0_N_0e9eeb754e.wav",
-     "seconds": 21.931,
-     "offset": 0.5
+     "text": "And now\u2014have I not told you that what you mistake for madness is but over-acuteness of the senses?\u2014there came to my ears a low, dull, quick sound, such as a watch makes when enveloped in cotton. It was the beating of the old man's heart.",
+     "file": "audio/voiceovers/the_tell_tale_heart/3.15_0_N_29a58eaae8.wav",
+     "seconds": 16.184,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.16",
-   "start": 9418,
-   "frames": 416,
-   "seconds": 17.333333333333332,
+   "start": 7959,
+   "frames": 288,
+   "seconds": 12.0,
    "lines": [
     {
      "shot": "3.16",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "It grew quicker and quicker, and louder and louder every instant. The old man's terror must have been extreme! And now a new anxiety seized me\u2014the sound would be heard by a neighbor! The old man's hour had come!",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.16_0_N_9d8d738f5a.wav",
-     "seconds": 16.022,
-     "offset": 0.5
+     "text": "It grew quicker and quicker, and louder and louder every instant. And now a new anxiety seized me\u2014the sound would be heard by a neighbor! The old man's hour had come!",
+     "file": "audio/voiceovers/the_tell_tale_heart/3.16_0_N_14049d797b.wav",
+     "seconds": 10.658,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.17",
-   "start": 9834,
+   "start": 8247,
    "frames": 72,
    "seconds": 3.0,
    "lines": []
   },
   {
    "id": "3.18",
-   "start": 9906,
-   "frames": 389,
-   "seconds": 16.208333333333332,
+   "start": 8319,
+   "frames": 264,
+   "seconds": 11.0,
    "lines": [
     {
      "shot": "3.18",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "In an instant I dragged him to the floor, and pulled the heavy bed over him. I then smiled gaily, to find the deed so far done. But, for many minutes, the heart beat on with a muffled sound.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.18_0_N_ddc32964bf.wav",
-     "seconds": 14.895,
-     "offset": 0.5
+     "text": "In an instant I dragged him to the floor, and pulled the heavy bed over him. But, for many minutes, the heart beat on with a muffled sound.",
+     "file": "audio/voiceovers/the_tell_tale_heart/3.18_0_N_2dd56d4ff9.wav",
+     "seconds": 8.893,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.19",
-   "start": 10295,
-   "frames": 96,
-   "seconds": 4.0,
+   "start": 8583,
+   "frames": 72,
+   "seconds": 3.0,
    "lines": []
   },
   {
    "id": "3.20",
-   "start": 10391,
+   "start": 8655,
    "frames": 168,
    "seconds": 7.0,
    "lines": [
@@ -773,35 +773,35 @@
      "who": "N",
      "adapted": false,
      "text": "At length it ceased. The old man was dead.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.20_0_N_32baffdba5.wav",
-     "seconds": 3.738,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/3.20_0_N_0b8efe4bf2.wav",
+     "seconds": 3.413,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "3.21",
-   "start": 10559,
-   "frames": 256,
-   "seconds": 10.666666666666666,
+   "start": 8823,
+   "frames": 216,
+   "seconds": 9.0,
    "lines": [
     {
      "shot": "3.21",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "I placed my hand upon the heart and held it there many minutes. There was no pulsation. He was stone dead. His eye would trouble me no more.",
-     "file": "audio/voiceovers/the_tell_tale_heart/3.21_0_N_a6e1a076f8.wav",
-     "seconds": 9.357,
-     "offset": 0.5
+     "text": "There was no pulsation. He was stone dead. His eye would trouble me no more.",
+     "file": "audio/voiceovers/the_tell_tale_heart/3.21_0_N_6db4e0d377.wav",
+     "seconds": 4.864,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "4.1",
-   "start": 10815,
-   "frames": 237,
-   "seconds": 9.875,
+   "start": 9039,
+   "frames": 209,
+   "seconds": 8.708333333333334,
    "lines": [
     {
      "shot": "4.1",
@@ -809,15 +809,15 @@
      "who": "N",
      "adapted": false,
      "text": "If still you think me mad, you will think so no longer when I describe the wise precautions I took for the concealment of the body.",
-     "file": "audio/voiceovers/the_tell_tale_heart/4.1_0_N_5a0169e131.wav",
-     "seconds": 8.58,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/4.1_0_N_6d11d9428f.wav",
+     "seconds": 7.72,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "4.2",
-   "start": 11052,
+   "start": 9248,
    "frames": 144,
    "seconds": 6.0,
    "lines": [
@@ -827,15 +827,15 @@
      "who": "N",
      "adapted": false,
      "text": "The night waned, and I worked hastily, but in silence.",
-     "file": "audio/voiceovers/the_tell_tale_heart/4.2_0_N_a0faf35edb.wav",
-     "seconds": 4.365,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/4.2_0_N_5b88940adb.wav",
+     "seconds": 3.866,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "4.3",
-   "start": 11196,
+   "start": 9392,
    "frames": 192,
    "seconds": 8.0,
    "lines": [
@@ -845,17 +845,17 @@
      "who": "N",
      "adapted": false,
      "text": "I then took up three planks from the flooring of the chamber, and deposited all between the scantlings.",
-     "file": "audio/voiceovers/the_tell_tale_heart/4.3_0_N_cab857c97d.wav",
-     "seconds": 6.107,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/4.3_0_N_0532c2e697.wav",
+     "seconds": 5.851,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "4.4",
-   "start": 11388,
-   "frames": 234,
-   "seconds": 9.75,
+   "start": 9584,
+   "frames": 196,
+   "seconds": 8.166666666666666,
    "lines": [
     {
      "shot": "4.4",
@@ -863,33 +863,33 @@
      "who": "N",
      "adapted": false,
      "text": "I then replaced the boards so cleverly, so cunningly, that no human eye\u2014not even his\u2014could have detected any thing wrong.",
-     "file": "audio/voiceovers/the_tell_tale_heart/4.4_0_N_2ba1e4e08b.wav",
-     "seconds": 8.463,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/4.4_0_N_15e62d5d5b.wav",
+     "seconds": 7.152,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "4.5",
-   "start": 11622,
-   "frames": 314,
-   "seconds": 13.083333333333334,
+   "start": 9780,
+   "frames": 216,
+   "seconds": 9.0,
    "lines": [
     {
      "shot": "4.5",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "There was nothing to wash out\u2014no stain of any kind\u2014no blood-spot whatever. I had been too wary for that. A tub had caught all\u2014ha! ha!",
-     "file": "audio/voiceovers/the_tell_tale_heart/4.5_0_N_91ff675884.wav",
-     "seconds": 11.784,
-     "offset": 0.5
+     "text": "There was nothing to wash out\u2014no blood-spot whatever. A tub had caught all\u2014ha! ha!",
+     "file": "audio/voiceovers/the_tell_tale_heart/4.5_0_N_4a4bc9046d.wav",
+     "seconds": 7.233,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "4.6",
-   "start": 11936,
+   "start": 9996,
    "frames": 192,
    "seconds": 8.0,
    "lines": [
@@ -899,17 +899,17 @@
      "who": "N",
      "adapted": false,
      "text": "When I had made an end of these labors, it was four o'clock\u2014still dark as midnight.",
-     "file": "audio/voiceovers/the_tell_tale_heart/4.6_0_N_692414dd81.wav",
-     "seconds": 6.385,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/4.6_0_N_225d7166ba.wav",
+     "seconds": 5.735,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "5.1",
-   "start": 12128,
-   "frames": 234,
-   "seconds": 9.75,
+   "start": 10188,
+   "frames": 206,
+   "seconds": 8.583333333333334,
    "lines": [
     {
      "shot": "5.1",
@@ -917,17 +917,17 @@
      "who": "N",
      "adapted": false,
      "text": "As the bell sounded the hour, there came a knocking at the street door. I went down to open it with a light heart\u2014for what had I now to fear?",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.1_0_N_5a1b5ce6ef.wav",
-     "seconds": 8.44,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/5.1_0_N_3bcf369921.wav",
+     "seconds": 7.581,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "5.2",
-   "start": 12362,
-   "frames": 336,
-   "seconds": 14.0,
+   "start": 10394,
+   "frames": 317,
+   "seconds": 13.208333333333334,
    "lines": [
     {
      "shot": "5.2",
@@ -935,9 +935,9 @@
      "who": "N",
      "adapted": false,
      "text": "There entered three men, who introduced themselves, with perfect suavity, as officers of the police.",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.2_0_N_5236c238ec.wav",
-     "seconds": 7.349,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/5.2_0_N_e6dfd3c719.wav",
+     "seconds": 6.919,
+     "offset": 0.4
     },
     {
      "shot": "5.2",
@@ -947,15 +947,15 @@
      "text": "Forgive the hour, sir. A neighbour heard a shriek in the night. We are bound to search the premises.",
      "file": "audio/voiceovers/the_tell_tale_heart/5.2_1_O1_ad2ac35ae5.wav",
      "seconds": 4.949,
-     "offset": 8.249
+     "offset": 7.669
     }
    ]
   },
   {
    "id": "5.3",
-   "start": 12698,
-   "frames": 222,
-   "seconds": 9.25,
+   "start": 10711,
+   "frames": 211,
+   "seconds": 8.791666666666666,
    "lines": [
     {
      "shot": "5.3",
@@ -963,17 +963,17 @@
      "who": "NS",
      "adapted": true,
      "text": "A shriek? My own, gentlemen\u2014in a dream. The old man is away in the country. Come in, come in!",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.3_0_NS_22b133cfc3.wav",
-     "seconds": 7.944,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/5.3_0_NS_ee50cb2cf4.wav",
+     "seconds": 7.805,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "5.4",
-   "start": 12920,
-   "frames": 213,
-   "seconds": 8.875,
+   "start": 10922,
+   "frames": 192,
+   "seconds": 8.0,
    "lines": [
     {
      "shot": "5.4",
@@ -981,9 +981,9 @@
      "who": "N",
      "adapted": false,
      "text": "I took my visitors all over the house. I bade them search\u2014search well.",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.4_0_N_553f2f0000.wav",
-     "seconds": 4.888,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/5.4_0_N_77d00bfc9f.wav",
+     "seconds": 4.319,
+     "offset": 0.4
     },
     {
      "shot": "5.4",
@@ -991,17 +991,17 @@
      "who": "NS",
      "adapted": true,
      "text": "Search well, gentlemen!",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.4_1_NS_6f759e7c76.wav",
-     "seconds": 2.267,
-     "offset": 5.788
+     "file": "audio/voiceovers/the_tell_tale_heart/5.4_1_NS_bfb75220ce.wav",
+     "seconds": 1.953,
+     "offset": 5.069
     }
    ]
   },
   {
    "id": "5.5",
-   "start": 13133,
-   "frames": 228,
-   "seconds": 9.5,
+   "start": 11114,
+   "frames": 198,
+   "seconds": 8.25,
    "lines": [
     {
      "shot": "5.5",
@@ -1009,35 +1009,35 @@
      "who": "N",
      "adapted": false,
      "text": "I led them, at length, to his chamber. I showed them his treasures, secure, undisturbed.",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.5_0_N_f519cac170.wav",
-     "seconds": 8.208,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/5.5_0_N_fe43dd0bd7.wav",
+     "seconds": 7.244,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "5.6",
-   "start": 13361,
-   "frames": 503,
-   "seconds": 20.958333333333332,
+   "start": 11312,
+   "frames": 390,
+   "seconds": 16.25,
    "lines": [
     {
      "shot": "5.6",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "In the enthusiasm of my confidence, I brought chairs into the room, and desired them here to rest from their fatigues, while I myself, in the wild audacity of my perfect triumph, placed my own seat upon the very spot beneath which reposed the corpse of the victim.",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.6_0_N_4515cf1688.wav",
-     "seconds": 19.655,
-     "offset": 0.5
+     "text": "I brought chairs into the room, and desired them here to rest from their fatigues, while I myself, in the wild audacity of my perfect triumph, placed my own seat upon the very spot beneath which reposed the corpse of the victim.",
+     "file": "audio/voiceovers/the_tell_tale_heart/5.6_0_N_2eafe247a0.wav",
+     "seconds": 15.244,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "5.7",
-   "start": 13864,
-   "frames": 434,
-   "seconds": 18.083333333333332,
+   "start": 11702,
+   "frames": 391,
+   "seconds": 16.291666666666668,
    "lines": [
     {
      "shot": "5.7",
@@ -1045,9 +1045,9 @@
      "who": "N",
      "adapted": false,
      "text": "The officers were satisfied. My manner had convinced them. I was singularly at ease.",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.7_0_N_0216cd4098.wav",
-     "seconds": 6.409,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/5.7_0_N_b776b12cf3.wav",
+     "seconds": 5.433,
+     "offset": 0.4
     },
     {
      "shot": "5.7",
@@ -1057,7 +1057,7 @@
      "text": "Cold night for it, eh?",
      "file": "audio/voiceovers/the_tell_tale_heart/5.7_1_O2_ade131d1fb.wav",
      "seconds": 1.965,
-     "offset": 7.309
+     "offset": 6.183
     },
     {
      "shot": "5.7",
@@ -1067,7 +1067,7 @@
      "text": "Colder than a churchyard.",
      "file": "audio/voiceovers/the_tell_tale_heart/5.7_2_O3_6c5590607f.wav",
      "seconds": 1.512,
-     "offset": 9.674
+     "offset": 8.498
     },
     {
      "shot": "5.7",
@@ -1075,35 +1075,35 @@
      "who": "N",
      "adapted": false,
      "text": "They sat, and while I answered cheerily, they chatted of familiar things.",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.7_3_N_fbaac450f3.wav",
-     "seconds": 5.689,
-     "offset": 11.586
+     "file": "audio/voiceovers/the_tell_tale_heart/5.7_3_N_c398c6ddfe.wav",
+     "seconds": 5.329,
+     "offset": 10.36
     }
    ]
   },
   {
    "id": "5.8",
-   "start": 14298,
-   "frames": 303,
-   "seconds": 12.625,
+   "start": 12093,
+   "frames": 240,
+   "seconds": 10.0,
    "lines": [
     {
      "shot": "5.8",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "But, ere long, I felt myself getting pale and wished them gone. My head ached, and I fancied a ringing in my ears: but still they sat and still chatted.",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.8_0_N_132b03efdc.wav",
-     "seconds": 11.308,
-     "offset": 0.5
+     "text": "But, ere long, I felt myself getting pale and wished them gone. My head ached, and I fancied a ringing in my ears.",
+     "file": "audio/voiceovers/the_tell_tale_heart/5.8_0_N_de2202bc28.wav",
+     "seconds": 8.916,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "5.9",
-   "start": 14601,
-   "frames": 186,
-   "seconds": 7.75,
+   "start": 12333,
+   "frames": 168,
+   "seconds": 7.0,
    "lines": [
     {
      "shot": "5.9",
@@ -1111,71 +1111,71 @@
      "who": "N",
      "adapted": false,
      "text": "The ringing became more distinct\u2014until, at length, I found that the noise was not within my ears.",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.9_0_N_0001144d78.wav",
-     "seconds": 6.467,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/5.9_0_N_d82efae75f.wav",
+     "seconds": 6.014,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "5.10",
-   "start": 14787,
-   "frames": 435,
-   "seconds": 18.125,
+   "start": 12501,
+   "frames": 312,
+   "seconds": 13.0,
    "lines": [
     {
      "shot": "5.10",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "It was a low, dull, quick sound\u2014much such a sound as a watch makes when enveloped in cotton. I gasped for breath\u2014and yet the officers heard it not. I talked more quickly\u2014more vehemently; but the noise steadily increased.",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.10_0_N_aa29fc9e4d.wav",
-     "seconds": 16.834,
-     "offset": 0.5
+     "text": "It was a low, dull, quick sound\u2014much such a sound as a watch makes when enveloped in cotton. I gasped for breath\u2014and yet the officers heard it not.",
+     "file": "audio/voiceovers/the_tell_tale_heart/5.10_0_N_7ec6faddb3.wav",
+     "seconds": 10.275,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "5.11",
-   "start": 15222,
-   "frames": 440,
-   "seconds": 18.333333333333332,
+   "start": 12813,
+   "frames": 355,
+   "seconds": 14.791666666666666,
    "lines": [
     {
      "shot": "5.11",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "I arose and argued about trifles, in a high key and with violent gesticulations; but the noise steadily increased. Why would they not be gone? I paced the floor to and fro with heavy strides\u2014but the noise steadily increased.",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.11_0_N_02e9ed07a3.wav",
-     "seconds": 17.02,
-     "offset": 0.5
+     "text": "I arose and argued about trifles, in a high key and with violent gesticulations; but the noise steadily increased. I paced the floor to and fro with heavy strides\u2014but the noise steadily increased.",
+     "file": "audio/voiceovers/the_tell_tale_heart/5.11_0_N_248513c77d.wav",
+     "seconds": 13.792,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "5.12",
-   "start": 15662,
-   "frames": 408,
-   "seconds": 17.0,
+   "start": 13168,
+   "frames": 324,
+   "seconds": 13.5,
    "lines": [
     {
      "shot": "5.12",
      "index": 0,
      "who": "N",
      "adapted": false,
-     "text": "Oh God! what could I do? I foamed\u2014I raved\u2014I swore! I swung the chair upon which I had been sitting, and grated it upon the boards, but the noise arose over all and continually increased.",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.12_0_N_d5096f00b6.wav",
-     "seconds": 15.685,
-     "offset": 0.5
+     "text": "Oh God! what could I do? I foamed\u2014I raved\u2014I swore! I swung the chair upon which I had been sitting, and grated it upon the boards, but the noise arose over all.",
+     "file": "audio/voiceovers/the_tell_tale_heart/5.12_0_N_8f684809b5.wav",
+     "seconds": 12.492,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "5.13",
-   "start": 16070,
-   "frames": 451,
-   "seconds": 18.791666666666668,
+   "start": 13492,
+   "frames": 407,
+   "seconds": 16.958333333333332,
    "lines": [
     {
      "shot": "5.13",
@@ -1183,17 +1183,17 @@
      "who": "N",
      "adapted": false,
      "text": "It grew louder\u2014louder\u2014louder! And still the men chatted pleasantly, and smiled. Was it possible they heard not? Almighty God!\u2014no, no! They heard!\u2014they suspected!\u2014they knew!\u2014they were making a mockery of my horror!",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.13_0_N_ba5e3d89ad.wav",
-     "seconds": 17.473,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/5.13_0_N_fc0ddc0354.wav",
+     "seconds": 15.952,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "5.14",
-   "start": 16521,
-   "frames": 224,
-   "seconds": 9.333333333333334,
+   "start": 13899,
+   "frames": 195,
+   "seconds": 8.125,
    "lines": [
     {
      "shot": "5.14",
@@ -1201,17 +1201,17 @@
      "who": "N",
      "adapted": false,
      "text": "I felt that I must scream or die!\u2014and now\u2014again!\u2014hark! louder! louder! louder! louder!\u2014",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.14_0_N_1268d282e1.wav",
-     "seconds": 8.022,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/5.14_0_N_fd9da840a3.wav",
+     "seconds": 7.128,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "5.15",
-   "start": 16745,
-   "frames": 237,
-   "seconds": 9.875,
+   "start": 14094,
+   "frames": 220,
+   "seconds": 9.166666666666666,
    "lines": [
     {
      "shot": "5.15",
@@ -1219,22 +1219,22 @@
      "who": "NS",
      "adapted": false,
      "text": "Villains! Dissemble no more! I admit the deed!\u2014tear up the planks!\u2014here, here!\u2014it is the beating of his hideous heart!",
-     "file": "audio/voiceovers/the_tell_tale_heart/5.15_0_NS_511286efde.wav",
-     "seconds": 8.583,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/5.15_0_NS_828a1f297f.wav",
+     "seconds": 8.165,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "6.1",
-   "start": 16982,
-   "frames": 96,
-   "seconds": 4.0,
+   "start": 14314,
+   "frames": 72,
+   "seconds": 3.0,
    "lines": []
   },
   {
    "id": "6.2",
-   "start": 17078,
+   "start": 14386,
    "frames": 120,
    "seconds": 5.0,
    "lines": [
@@ -1244,17 +1244,17 @@
      "who": "N",
      "adapted": true,
      "text": "Hearken.",
-     "file": "audio/voiceovers/the_tell_tale_heart/6.2_0_N_87cdc473d6.wav",
-     "seconds": 0.929,
-     "offset": 0.5
+     "file": "audio/voiceovers/the_tell_tale_heart/6.2_0_N_6770e82329.wav",
+     "seconds": 0.662,
+     "offset": 0.4
     }
    ]
   },
   {
    "id": "6.3",
-   "start": 17198,
-   "frames": 288,
-   "seconds": 12.0,
+   "start": 14506,
+   "frames": 216,
+   "seconds": 9.0,
    "lines": []
   }
  ]

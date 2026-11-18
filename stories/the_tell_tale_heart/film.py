@@ -11,15 +11,53 @@ Plain Python, no Blender needed.
 """
 
 TITLE = "The Tell-Tale Heart"
+
+PLAN_INTRO = """
+**Source:** "The Tell-Tale Heart" by Edgar Allan Poe, first published in *The Pioneer*, January 1843
+(text: *The Works of the Late Edgar Allan Poe*, 1850 — see `source_text.md`). **Public domain worldwide:**
+free to adapt, narrate and monetise; no permission or fee needed.
+
+**Why this story.** It is one of the most famous horror stories ever written and fits a 10-minute
+Blender film almost perfectly: one house, one night, a tiny cast (narrator, old man, three officers),
+and a structure built on suspense — seven nights of creeping, the eighth-night attack, the cover-up,
+and the police visit where guilt (the heartbeat) breaks the narrator. It is driven by things Blender
+does well: darkness, a single beam of light, slow camera moves, close-ups of an eye, floorboards and
+a clock, and above all sound (the heartbeat, a ticking watch, the death-watch beetle, silence).
+"""
+
+PLAN_APPROACH = """
+## Visual approach
+
+- **Look:** stylised "puppet theatre" characters in a realistic 1840s house; low-key lighting, haze,
+  one warm practical (the dark lantern) against cold moonlight. The brightest scene — the officers'
+  lanterns — is where the narrator falls apart.
+- **Camera grammar:** locked-off and slow dolly moves while he is in control; macro inserts (latch,
+  watch, eye, beetle, floor) for his "acute senses"; rising Dutch angles, handheld shake and faster
+  cutting in time with the heartbeat in both climaxes; top-down shots for the violence (kept
+  off-screen) and the cover-up; direct address to camera in a black void as a framing device.
+- **Sets:** chamber (hero set: loose planks, shuttered window, real doorway), corridor with
+  long-case clock, entry hall and stairs, kitchen, narrator's room, street exterior, black void,
+  macro sets (eye at 10x scale, pocket watch, beetle).
+
+## Sound approach
+
+- Voices: Piper TTS (commercially licensed voices), EQ and room tone per scene.
+- Every effect and the score are synthesised from scratch (no licences needed): heartbeat
+  (clean and "watch wrapped in cotton" versions), watch and clock ticks, bells, creaks, wind, the
+  death-watch beetle, knocks, scrapes and a drone score that only fades where the cue changes.
+- The heartbeat is one score shared by picture and sound: it accelerates 62 → 96 bpm before the
+  attack, slows to silence under the bed, and returns 60 → 150 bpm during the police visit — the
+  dust on the floorboard jumps on the same beats.
+"""
 FPS = 24
 RESOLUTION = (1920, 1080)          # 16:9 master for long-form YouTube; key action kept centre-safe
 
 # Who speaks, with which voice. Every voice here is licensed for commercial use.
 CAST = {
     "N":  {"name": "The Narrator (voice-over)", "model": "en_US-john-medium", "speaker": None,
-           "length_scale": 1.12, "fx": "narration", "licence": "public domain (LibriVox reader)"},
+           "length_scale": 0.97, "fx": "narration", "licence": "public domain (LibriVox reader)"},
     "NS": {"name": "The Narrator (on screen)", "model": "en_US-john-medium", "speaker": None,
-           "length_scale": 1.05, "fx": "room", "licence": "public domain (LibriVox reader)"},
+           "length_scale": 1.0, "fx": "room", "licence": "public domain (LibriVox reader)"},
     "OM": {"name": "The Old Man", "model": "en_US-joe-medium", "speaker": None,
            "length_scale": 1.3, "fx": "old", "licence": "CC0"},
     "O1": {"name": "Officer Hale (senior)", "model": "en_US-libritts-high", "speaker": 90,
@@ -53,7 +91,7 @@ def shot(id, set, min, lines=(), sfx=(), music=None, frame="", move="", action="
 
 SHOTS = [
     # ------------------------------------------------------------------ 0. PROLOGUE
-    shot("0.1", "black", 4, sfx=[("heart_single", 1.2, 1.0)], music="silence",
+    shot("0.1", "black", 3, sfx=[("heart_single", 1.2, 1.0)], music="silence",
          frame="Black", action="A single heartbeat in the dark.", transition="fade in"),
     shot("0.2", "chamber_floor", 7, [("N", "True!—nervous—very, very dreadfully nervous I had been and am;")],
          sfx=[("watch_tick_loop", 0, 0.35)], music="drone_low",
@@ -72,11 +110,11 @@ SHOTS = [
                                    "you the whole story.")],
          music="drone_low", frame="MCU → CU, 50 mm", move="Push in to a close-up", action="A thin smile.",
          light="Top light", transition="smash cut to title"),
-    shot("T", "title", 6, sfx=[("boom", 0.2, 1.0), ("heart_single", 0.25, 0.8)], music="silence",
+    shot("T", "title", 5, sfx=[("boom", 0.2, 1.0), ("heart_single", 0.25, 0.8)], music="silence",
          frame="Title card", action="THE TELL-TALE HEART — after Edgar Allan Poe", transition="fade out"),
 
     # ------------------------------------------------------------------ 1. THE EYE
-    shot("1.1", "exterior", 6, sfx=[("wind_loop", 0, 0.6)], music="drone_low",
+    shot("1.1", "exterior", 5, sfx=[("wind_loop", 0, 0.6)], music="drone_low",
          frame="WS the narrow two-storey house at dusk, 35 mm", move="Crane down from roofline to the door",
          action="A street lamp flickers; one lit window upstairs.", light="Blue dusk, warm window",
          transition="dissolve", adapted="Establishing shot of the house"),
@@ -118,7 +156,7 @@ SHOTS = [
     # ------------------------------------------------------------------ 2. SEVEN NIGHTS
     shot("2.1", "corridor", 10, [("N", "Now this is the point. You fancy me mad. Madmen know nothing. But you "
                                        "should have seen me. You should have seen how wisely I proceeded—with "
-                                       "what caution—with what foresight—with what dissimulation I went to work!")],
+                                       "what caution—with what foresight!")],
          sfx=[("clock_tick_loop", 0, 0.5), ("door_creak_soft", 0.5, 0.4)], music="drone_night",
          frame="Low WS down the corridor, 24 mm", move="Slow dolly back as he advances",
          action="He leaves his room with a closed dark lantern; the long-case clock nears twelve.",
@@ -140,8 +178,7 @@ SHOTS = [
          frame="Reverse from the bed side, 35 mm", move="Locked off",
          action="The door opens a sliver; the lantern's dark shape eases in, then his head.",
          light="Almost black; faint moon around the shutters"),
-    shot("2.5", "chamber_night", 13, [("N", "I moved it slowly—very, very slowly, so that I might not disturb the "
-                                            "old man's sleep. It took me an hour to place my whole head within the "
+    shot("2.5", "chamber_night", 13, [("N", "It took me an hour to place my whole head within the "
                                             "opening so far that I could see him as he lay upon his bed. Ha!—would "
                                             "a madman have been so wise as this?")],
          sfx=[("clock_tick_fast", 0, 0.35)], music="drone_night",
@@ -157,7 +194,7 @@ SHOTS = [
          music="drone_night", frame="WS chamber, 24 mm", move="Lateral dolly following the beam",
          action="A thread of light crosses the dark room and lands on the old man's closed eye.",
          light="One hard beam in haze"),
-    shot("2.8", "chamber_night", 18, [("N", "And this I did for seven long nights—every night just at midnight—but "
+    shot("2.8", "chamber_night", 16, [("N", "And this I did for seven long nights—every night just at midnight—but "
                                             "I found the eye always closed; and so it was impossible to do the "
                                             "work; for it was not the old man who vexed me, but his Evil Eye.")],
          sfx=[("clock_chime", 0.3, 0.4), ("clock_chime", 6.3, 0.35), ("clock_chime", 12.3, 0.3)],
@@ -168,7 +205,7 @@ SHOTS = [
                                           "chamber,"),
                                     ("NS", "Good morning, sir! Did you pass the night well?", True),
                                     ("OM", "Well enough, my boy. Well enough.", True),
-                                    ("N", "So you see he would have been a very profound old man, indeed, to "
+                                    ("N", "He would have been a very profound old man, indeed, to "
                                           "suspect that every night, just at twelve, I looked in upon him while he "
                                           "slept.")],
          music="drone_low", frame="Two-shot, 35 mm handheld feel", move="Subtle handheld drift",
@@ -182,8 +219,7 @@ SHOTS = [
          sfx=[("bell_toll", 0.2, 0.7), ("wind_loop", 0, 0.4)], music="drone_tension",
          frame="WS corridor, 24 mm, NIGHT VIII card", move="Very slow push", action="He waits at the door.",
          light="Moon, deeper shadows", adapted="Night VIII title card"),
-    shot("3.2", "door_latch", 6, [("N", "Never before that night had I felt the extent of my own powers—of my "
-                                        "sagacity. I could scarcely contain my feelings of triumph.")],
+    shot("3.2", "door_latch", 6, [("N", "Never before that night had I felt the extent of my own powers.")],
          sfx=[("watch_tick_loud", 0, 0.5)], music="drone_tension", frame="Macro: the door edge creeping, 85 mm",
          move="Locked off", action="The door edge moves slower than a watch hand.", light="Moon edge"),
     shot("3.3", "door_gap", 4, [("N", "I fairly chuckled at the idea; and perhaps he heard me;")],
@@ -193,8 +229,7 @@ SHOTS = [
          sfx=[("bed_creak", 0.2, 0.9)], music="drone_tension", frame="WS chamber, 24 mm", move="Locked off",
          action="The old man shifts in bed.", light="Pitch black, shutter outlines"),
     shot("3.5", "door_gap", 12, [("N", "Now you may think that I drew back—but no. His room was as black as pitch "
-                                       "with the thick darkness, for the shutters were close fastened, through "
-                                       "fear of robbers, and so I knew that he could not see the opening of the "
+                                       "with the thick darkness, and so I knew that he could not see the opening of the "
                                        "door, and I kept pushing it on steadily, steadily.")],
          music="drone_tension", frame="CU narrator, 85 mm", move="Imperceptible push",
          action="He freezes — then keeps pushing.", light="Underglow"),
@@ -207,14 +242,13 @@ SHOTS = [
          sfx=[("bed_creak", 1.4, 1.0)], music="silence", frame="WS, 24 mm", move="Snap push",
          action="The old man bolts upright in bed.", light="Silhouette against the shutters"),
     shot("3.8", "chamber_night", 16, [("N", "I kept quite still and said nothing. For a whole hour I did not move "
-                                            "a muscle, and in the meantime I did not hear him lie down. He was "
-                                            "still sitting up in the bed, listening;—just as I have done, night "
+                                            "a muscle. He was still sitting up in the bed, listening;—just as I have done, night "
                                             "after night, hearkening to the death watches in the wall.")],
          sfx=[("deathwatch_loop", 0, 0.5)], music="silence",
          frame="High corner two-shot, 24 mm", move="Locked off",
          action="Both frozen. Moonlight crawls across the floor as the hour passes.",
          light="Moving moon patch", adapted="Moonlight time-lapse"),
-    shot("3.9", "beetle", 4, sfx=[("deathwatch", 0.3, 1.0), ("deathwatch", 1.6, 0.9)], music="silence",
+    shot("3.9", "beetle", 3, sfx=[("deathwatch", 0.3, 1.0), ("deathwatch", 1.6, 0.9)], music="silence",
          frame="Macro: a death-watch beetle in the wall timber, 100 mm", move="Locked off",
          action="The beetle taps.", light="Raking moonlight", adapted="Visual of the 'death watches'"),
     shot("3.10", "chamber_night", 6, [("N", "Presently I heard a slight groan, and I knew it was the groan of "
@@ -244,13 +278,11 @@ SHOTS = [
          sfx=[("sting_high", 0.0, 1.0)], music="drone_tension", frame="ECU the eye, 100 mm", move="Snap zoom in",
          action="The vulture eye is wide open.", light="The beam on the eye"),
     shot("3.15", "door_gap", 14, [("N", "And now—have I not told you that what you mistake for madness is but "
-                                        "over-acuteness of the senses?—now, I say, there came to my ears a low, "
-                                        "dull, quick sound, such as a watch makes when enveloped in cotton. I knew "
-                                        "that sound well, too. It was the beating of the old man's heart.")],
+                                        "over-acuteness of the senses?—there came to my ears a low, "
+                                        "dull, quick sound, such as a watch makes when enveloped in cotton. It was the beating of the old man's heart.")],
          sfx=[("heart_start", 4.0, 0.0)], music="drone_tension", frame="CU narrator, 85 mm", move="Slow push",
          action="He tilts his head, listening. Insert: a watch wrapped in cotton.", light="Underglow"),
-    shot("3.16", "chamber_night", 12, [("N", "It grew quicker and quicker, and louder and louder every instant. The "
-                                             "old man's terror must have been extreme! And now a new anxiety seized "
+    shot("3.16", "chamber_night", 12, [("N", "It grew quicker and quicker, and louder and louder every instant. And now a new anxiety seized "
                                              "me—the sound would be heard by a neighbor! The old man's hour had "
                                              "come!")],
          music="drone_tension", frame="Cutting CU eye / CU narrator / lantern hand", move="Creeping Dutch tilt",
@@ -259,21 +291,19 @@ SHOTS = [
          music="silence", frame="WS, 24 mm", move="Whip pan",
          action="He throws the lantern open — light floods the room — and leaps.", light="Lantern fully open"),
     shot("3.18", "chamber_night", 11, [("N", "In an instant I dragged him to the floor, and pulled the heavy bed "
-                                             "over him. I then smiled gaily, to find the deed so far done. But, for "
-                                             "many minutes, the heart beat on with a muffled sound.")],
+                                             "over him. But, for many minutes, the heart beat on with a muffled sound.")],
          sfx=[("bed_drag", 0.5, 1.0), ("heart_muffled", 4.0, 0.0)], music="drone_low",
          frame="Top-down, 24 mm", move="Locked off",
          action="Only shadows and the heavy bed tipping over; the narrator straightens, smiling.",
          light="Lantern on the floor", adapted="Violence kept off-screen"),
-    shot("3.19", "exterior", 4, sfx=[("wind_loop", 0, 0.5)], music="drone_low",
+    shot("3.19", "exterior", 3, sfx=[("wind_loop", 0, 0.5)], music="drone_low",
          frame="WS across the street, 50 mm", move="Locked off",
          action="A neighbour's window lights up; a curtain twitches.", light="Night street",
          adapted="The neighbour who heard the shriek"),
     shot("3.20", "chamber_night", 7, [("N", "At length it ceased. The old man was dead.")],
          music="silence", frame="Floor-level, 35 mm", move="Locked off",
          action="The heartbeat slows… and stops. Three seconds of silence.", light="Lantern on the floor"),
-    shot("3.21", "chamber_night", 9, [("N", "I placed my hand upon the heart and held it there many minutes. There "
-                                            "was no pulsation. He was stone dead. His eye would trouble me no "
+    shot("3.21", "chamber_night", 9, [("N", "There was no pulsation. He was stone dead. His eye would trouble me no "
                                             "more.")],
          music="drone_low", frame="CU his hand on the nightshirt, 85 mm", move="Locked off",
          action="A hand rests on the still chest.", light="Lantern"),
@@ -296,8 +326,8 @@ SHOTS = [
                                            "eye—not even his—could have detected any thing wrong.")],
          sfx=[("hammer_muffled", 1.0, 0.6), ("hammer_muffled", 2.2, 0.6)], music="drone_low",
          frame="Top-down, 35 mm", move="Locked off", action="The planks settle back, seamless.", light="Lantern"),
-    shot("4.5", "chamber_night", 9, [("N", "There was nothing to wash out—no stain of any kind—no blood-spot "
-                                           "whatever. I had been too wary for that. A tub had caught all—ha! ha!")],
+    shot("4.5", "chamber_night", 9, [("N", "There was nothing to wash out—no blood-spot "
+                                           "whatever. A tub had caught all—ha! ha!")],
          music="drone_low", frame="MS narrator, 50 mm", move="Locked off",
          action="He wipes his clean hands and laughs.", light="Lantern"),
     shot("4.6", "corridor", 8, [("N", "When I had made an end of these labors, it was four o'clock—still dark as "
@@ -334,7 +364,7 @@ SHOTS = [
                                           "secure, undisturbed.")],
          sfx=[("coin", 2.0, 0.5)], music="drone_low", frame="MS, 35 mm", move="Gentle push",
          action="He opens the strongbox; the officers nod.", light="Lanterns + candle"),
-    shot("5.6", "chamber_dawn", 13, [("N", "In the enthusiasm of my confidence, I brought chairs into the room, "
+    shot("5.6", "chamber_dawn", 13, [("N", "I brought chairs into the room, "
                                            "and desired them here to rest from their fatigues, while I myself, in "
                                            "the wild audacity of my perfect triumph, placed my own seat upon the "
                                            "very spot beneath which reposed the corpse of the victim.")],
@@ -351,8 +381,7 @@ SHOTS = [
          action="Warm, almost cosy: three officers and their host.", light="Warm lanterns",
          adapted="Small talk lines"),
     shot("5.8", "chamber_dawn", 10, [("N", "But, ere long, I felt myself getting pale and wished them gone. My head "
-                                           "ached, and I fancied a ringing in my ears: but still they sat and still "
-                                           "chatted.")],
+                                           "ached, and I fancied a ringing in my ears.")],
          sfx=[("ringing", 3.0, 0.4)], music="drone_tension", frame="CU narrator, 85 mm", move="Slow push",
          action="His smile slips.", light="Warm, draining"),
     shot("5.9", "chamber_floor", 7, [("N", "The ringing became more distinct—until, at length, I found that the "
@@ -362,19 +391,17 @@ SHOTS = [
          action="Dust on the plank seam jumps with each beat.", light="Lanterns", adapted="Dust-on-beat visual"),
     shot("5.10", "chamber_dawn", 13, [("N", "It was a low, dull, quick sound—much such a sound as a watch makes "
                                             "when enveloped in cotton. I gasped for breath—and yet the officers "
-                                            "heard it not. I talked more quickly—more vehemently; but the noise "
-                                            "steadily increased.")],
+                                            "heard it not.")],
          music="drone_tension", frame="CU narrator ↔ officers, 50 mm", move="Handheld, growing",
          action="Sweat; the officers' faces blur and stretch.", light="Desaturating"),
     shot("5.11", "chamber_dawn", 12, [("N", "I arose and argued about trifles, in a high key and with violent "
-                                            "gesticulations; but the noise steadily increased. Why would they not "
-                                            "be gone? I paced the floor to and fro with heavy strides—but the noise "
+                                            "gesticulations; but the noise steadily increased. I paced the floor to and fro with heavy strides—but the noise "
                                             "steadily increased.")],
          sfx=[("steps_heavy", 2.0, 0.7)], music="drone_tension", frame="MS, 35 mm", move="360° orbit",
          action="He paces; the camera circles him.", light="Desaturating"),
     shot("5.12", "chamber_dawn", 10, [("N", "Oh God! what could I do? I foamed—I raved—I swore! I swung the chair "
                                             "upon which I had been sitting, and grated it upon the boards, but the "
-                                            "noise arose over all and continually increased.")],
+                                            "noise arose over all.")],
          sfx=[("chair_scrape", 5.0, 1.0)], music="drone_tension", frame="Top-down, 24 mm", move="Locked off",
          action="He swings the chair and grinds it across the planks.", light="Cold"),
     shot("5.13", "chamber_dawn", 12, [("N", "It grew louder—louder—louder! And still the men chatted pleasantly, "
@@ -393,12 +420,12 @@ SHOTS = [
          action="He leaps up and stamps on the planks, pointing.", light="Cold", transition="smash cut to black"),
 
     # ------------------------------------------------------------------ 6. EPILOGUE
-    shot("6.1", "black", 4, sfx=[("heart_single", 2.0, 0.9)], music="silence", frame="Black",
+    shot("6.1", "black", 3, sfx=[("heart_single", 2.0, 0.9)], music="silence", frame="Black",
          action="Silence. Then one more heartbeat.", adapted="Final heartbeat"),
     shot("6.2", "void", 5, [("N", "Hearken.", True)], music="drone_low", frame="CU narrator, 85 mm",
          move="Locked off", action="Calm again, he whispers to us.", light="Top light",
          adapted="Closing callback to the opening"),
-    shot("6.3", "credits", 12, music="drone_low", frame="Credits",
+    shot("6.3", "credits", 9, music="drone_low", frame="Credits",
          action="Based on 'The Tell-Tale Heart' by Edgar Allan Poe (1843). Credits.", transition="fade out"),
 ]
 

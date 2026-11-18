@@ -23,12 +23,16 @@ from material_library import material as M
 
 WALKER_LOOK = {"skin": "MAT_Skin", "hair": "MAT_Hair", "top": "MAT_Shirt", "legs": "MAT_Pants",
                "shoes": "MAT_Shoes"}
+# Optional look keys: arms (sleeves, default = top), hair_style ("short", "white" fringe, "none"),
+# coat (frock-coat skirt), gown (long nightshirt), hat (top hat), nightcap, cravat, mustache,
+# badge, vulture_eye (True: a milky pale-blue left eye).
 
 # Rest pose, standing at the origin and facing -Y: bone -> (head, tail, parent)
 BONES = {"hips": ((0, 0, 0.92), (0, 0, 1.05), None),
          "spine": ((0, 0, 1.05), (0, 0, 1.45), "hips"),
          "neck": ((0, 0, 1.45), (0, 0, 1.56), "spine"),
-         "head": ((0, 0, 1.56), (0, 0, 1.8), "neck")}
+         "head": ((0, 0, 1.56), (0, 0, 1.8), "neck"),
+         "jaw": ((0, -0.085, 1.622), (0, -0.125, 1.622), "head")}
 for _s, _x in (("L", 1), ("R", -1)):
     BONES.update({
         f"upper_arm.{_s}": ((0.2 * _x, 0, 1.41), (0.2 * _x, 0.03, 1.17), "spine"),
@@ -37,49 +41,91 @@ for _s, _x in (("L", 1), ("R", -1)):
         f"thigh.{_s}": ((0.09 * _x, 0, 0.92), (0.09 * _x, -0.02, 0.5), "hips"),
         f"shin.{_s}": ((0.09 * _x, -0.02, 0.5), (0.09 * _x, 0, 0.09), f"thigh.{_s}"),
         f"foot.{_s}": ((0.09 * _x, 0, 0.09), (0.09 * _x, -0.14, 0.03), f"shin.{_s}"),
+        f"eye.{_s}": ((0.037 * _x, -0.09, 1.675), (0.037 * _x, -0.13, 1.675), "head"),
+        f"brow.{_s}": ((0.037 * _x, -0.1, 1.71), (0.037 * _x, -0.14, 1.71), "head"),
     })
-POSE_BONES = [b for b in BONES if not b.startswith("hand")]
+FACE_BONES = ["jaw", "eye.L", "eye.R", "brow.L", "brow.R"]
+POSE_BONES = [b for b in BONES if not b.startswith("hand") and b not in FACE_BONES]
 
 # Rotation about a bone's own X axis that bends it forward (toward where the person faces).
 FORWARD = -1        # for bones hanging down (legs, arms)
 BEND_DOWN = 1       # for bones pointing up (spine, neck, head): leans the upper body forward
 
 
-def _hair(bm, center, material_index, hairline=0.04):
-    """Hair cap: a sphere around the head with the face cut away."""
+def _hair(bm, center, material_index, style="short", hairline=0.04):
+    """Hair: a cap around the head with the face cut away ("white" leaves a bald crown)."""
     verts = su.add_sphere(bm, 0.115, center, scale=(0.98, 1.0, 1.08), segments=24, material_index=material_index)
     cx, cy, cz = center
-    face = [v for v in verts if (v.co.z < cz + hairline and v.co.y < cy - 0.005) or v.co.z < cz - 0.09]
+    face = [v for v in verts if (v.co.z < cz + hairline and v.co.y < cy - 0.005) or v.co.z < cz - 0.09
+            or (style == "white" and v.co.z > cz + 0.035)]
     bmesh.ops.delete(bm, geom=face, context="VERTS")
     return [v for v in verts if v.is_valid]
 
 
 def _body(name, coll, look):
-    mats = [M(look[k]) for k in ("skin", "top", "legs", "shoes", "hair")] + [M("MAT_Plastic_Black")]
-    SKIN, TOP, LEGS, SHOES, HAIR, EYES = range(6)
+    keys, mats = {}, []
+
+    def mat(key, default=None):
+        name_ = look.get(key) or default
+        if name_ not in keys:
+            keys[name_] = len(mats)
+            mats.append(M(name_))
+        return keys[name_]
+
+    SKIN, TOP, LEGS, SHOES = mat("skin"), mat("top"), mat("legs"), mat("shoes")
+    ARMS, HAIR, DARK = mat("arms", look["top"]), mat("hair"), mat("eyes", "MAT_Plastic_Black")
+    WHITE, MOUTH = mat("sclera", "MAT_Eye_White"), mat("mouth", "MAT_Mouth")
     bm, groups = bmesh.new(), {}
 
     def add(bone, verts):
         groups.setdefault(bone, []).extend(verts)
 
-    def limb(bone, a, b, r, mat):
-        add(bone, su.add_rod(bm, a, b, r, segments=12, material_index=mat))
+    def limb(bone, a, b, r, m):
+        add(bone, su.add_rod(bm, a, b, r, segments=12, material_index=m))
         for p in (a, b):
-            add(bone, su.add_sphere(bm, r, p, segments=12, material_index=mat))
+            add(bone, su.add_sphere(bm, r, p, segments=12, material_index=m))
 
     add("head", su.add_sphere(bm, 0.105, (0, 0, 1.67), scale=(0.95, 1.0, 1.12), material_index=SKIN))
-    add("head", _hair(bm, (0, 0.012, 1.69), HAIR))
-    for x in (-0.037, 0.037):
-        add("head", su.add_sphere(bm, 0.013, (x, -0.097, 1.675), segments=10, material_index=EYES))
+    if look.get("hair_style", "short") != "none":
+        add("head", _hair(bm, (0, 0.012, 1.69), HAIR, look.get("hair_style", "short")))
+    for s, x in (("L", 1), ("R", -1)):
+        add(f"eye.{s}", su.add_sphere(bm, 0.017, (0.037 * x, -0.09, 1.675), segments=12, material_index=WHITE))
+        iris = mat("vulture", "MAT_Vulture_Eye") if (look.get("vulture_eye") and s == "L") else DARK
+        size = 0.012 if iris != DARK else 0.008
+        add(f"eye.{s}", su.add_sphere(bm, size, (0.037 * x, -0.103, 1.675), segments=10, material_index=iris))
+        add(f"brow.{s}", su.add_box(bm, (0.034, 0.008, 0.008), (0.037 * x, -0.1, 1.71), material_index=HAIR))
+    add("jaw", su.add_sphere(bm, 1.0, (0, -0.098, 1.622), scale=(0.026, 0.01, 0.007), segments=12,
+                             material_index=MOUTH))
     add("head", su.add_sphere(bm, 0.017, (0, -0.108, 1.648), scale=(0.8, 1.0, 1.1), segments=10,
                               material_index=SKIN))                                     # nose
+    if look.get("mustache"):
+        add("head", su.add_sphere(bm, 1.0, (0, -0.104, 1.636), scale=(0.036, 0.012, 0.009), segments=12,
+                                  material_index=mat("mustache")))
+    if look.get("hat"):
+        HAT = mat("hat")
+        add("head", su.add_cylinder(bm, 0.098, 0.17, (0, 0.005, 1.87), segments=24, material_index=HAT))
+        add("head", su.add_cylinder(bm, 0.15, 0.012, (0, 0.005, 1.79), segments=24, material_index=HAT))
+    if look.get("nightcap"):
+        add("head", su.add_cylinder(bm, 0.112, 0.2, (0, 0.03, 1.79), radius_top=0.02, rotation=(-35, 0, 0),
+                                    segments=16, material_index=mat("nightcap")))
     limb("neck", (0, 0, 1.47), (0, 0, 1.56), 0.05, SKIN)
+    if look.get("cravat"):
+        add("neck", su.add_sphere(bm, 1.0, (0, -0.045, 1.49), scale=(0.05, 0.03, 0.04), segments=12,
+                                  material_index=mat("cravat")))
     add("spine", su.add_sphere(bm, 1.0, (0, 0, 1.25), scale=(0.19, 0.115, 0.27), material_index=TOP))
+    if look.get("badge"):
+        add("spine", su.add_sphere(bm, 0.016, (0.08, -0.108, 1.33), segments=10, material_index=mat("badge")))
     add("hips", su.add_sphere(bm, 1.0, (0, 0, 0.98), scale=(0.165, 0.105, 0.12), material_index=LEGS))
+    if look.get("coat"):
+        add("hips", su.add_cylinder(bm, 0.235, 0.5, (0, 0.01, 0.78), radius_top=0.175, caps=False, segments=24,
+                                    material_index=mat("coat")))
+    if look.get("gown"):
+        add("hips", su.add_cylinder(bm, 0.27, 0.95, (0, 0, 0.85), radius_top=0.19, caps=False, segments=24,
+                                    material_index=mat("gown")))
     for s, x in (("L", 1), ("R", -1)):
         add(f"upper_arm.{s}", su.add_sphere(bm, 0.056, (0.19 * x, 0.01, 1.4), material_index=TOP))
-        limb(f"upper_arm.{s}", (0.2 * x, 0.01, 1.4), (0.2 * x, 0.03, 1.18), 0.044, TOP)
-        limb(f"forearm.{s}", (0.2 * x, 0.03, 1.16), (0.2 * x, 0, 0.95), 0.038, TOP)
+        limb(f"upper_arm.{s}", (0.2 * x, 0.01, 1.4), (0.2 * x, 0.03, 1.18), 0.044, ARMS)
+        limb(f"forearm.{s}", (0.2 * x, 0.03, 1.16), (0.2 * x, 0, 0.95), 0.038, ARMS)
         add(f"hand.{s}", su.add_sphere(bm, 0.045, (0.2 * x, 0, 0.88), scale=(0.7, 0.55, 1.1), material_index=SKIN))
         limb(f"thigh.{s}", (0.09 * x, 0, 0.9), (0.09 * x, -0.02, 0.51), 0.066, LEGS)
         limb(f"shin.{s}", (0.09 * x, -0.02, 0.49), (0.09 * x, 0, 0.13), 0.053, LEGS)
