@@ -229,9 +229,14 @@ blender -b blender/scenes/tell_tale_heart.blend --python scripts/render_shots.py
 #    (run a second copy with --worker 1; re-render single shots with --only 3.5,3.13)
 # 4. Soundtrack: voices + synthesised effects + heartbeat + score   ~20 s
 .venv/bin/python -I scripts/mix_story.py stories/the_tell_tale_heart
-# 5. Join the shots and add the soundtrack
+# 5. Join the shots and add the soundtrack                ~10 min
 .venv/bin/python -I scripts/finish_film.py stories/the_tell_tale_heart output/renders/tell_tale_heart/shots
 ```
+
+Step 5 writes `output/renders/the_tell_tale_heart/the_tell_tale_heart.mp4` (the copy in git, re-encoded
+to ~80 MB to fit GitHub's 100 MB limit) and `the_tell_tale_heart_master.mp4` (full render quality, local
+only). Per-shot renders, logs and the soundtrack WAV are local only too (see `.gitignore`); the commands
+above rebuild them.
 
 Open `blender/scenes/tell_tale_heart.blend` to see every shot: the timeline markers switch
 cameras, so scrubbing the timeline plays the film's edit.

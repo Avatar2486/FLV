@@ -114,6 +114,19 @@ def build():
     # ---- hand props
     lantern, shutter, beam, glow = sets.dark_lantern(C["PROPS"])
     lantern.visible_shadow = shutter.visible_shadow = False      # its own light must get out
+    # ponytail: the half-open chamber door sits right in front of the lens, so it casts no shadows at all;
+    # restage the door to hinge on the west side if its missing shadow ever shows.
+    bpy.data.objects["CH_DOOR_Panel"].visible_shadow = False
+    for m in bpy.data.materials:                    # Poly Haven clock glass renders opaque in Eevee: see the dial
+        if m.name.endswith("_glass") and m.node_tree:
+            alpha = m.node_tree.nodes["Principled BSDF"].inputs["Alpha"]
+            for link in list(alpha.links):
+                m.node_tree.links.remove(link)
+            alpha.default_value = 0.12
+    for hand, now, then in (("HourHand", 312.7, 120.0), ("MinuteHand", 222.7, 0.0)):    # "it was four o'clock"
+        obj = bpy.data.objects[f"CO_Long_Case_Clock_vintage_grandfather_clock_01_{hand}"]
+        pivot = Matrix.Translation(obj.location)               # origin sits on the arbor; +Y turns clockwise
+        obj.matrix_basis = pivot @ Matrix.Rotation(math.radians(then - now), 4, "Y") @ pivot.inverted() @ obj.matrix_basis
     candle = lib.candle(C["PROPS"], C["PROPS"], (0, 0, 0), height=0.1, prefix="PROP_Hand_Candle")
     candle_light = bpy.data.objects["LIGHT_PROP_Hand_Candle_Flame"]
     off_lights = []
@@ -245,7 +258,8 @@ def rig_state(rig, spec):
         out.append((ik, "influence", 1.0 if (point is not None or held) else 0.0))
     for bone in ch.FACE_BONES:
         pb = rig.pose.bones[bone]
-        out.append((pb, "scale", Vector((1, 1, 1))))
+        shut = spec.get("asleep") and bone.startswith("eye")
+        out.append((pb, "scale", Vector((1, 1, 0.12 if shut else 1))))
         out.append((pb, "rotation_euler", Euler(deg(spec.get("face", {}).get(bone, (0, 0, 0))))))
     return out
 
@@ -335,6 +349,7 @@ LIGHT_STATES = {
     "chamber_day": {"sun": 6, "warm": 70, "fill": 10},
     "chamber_open": {"sun": 7, "warm": 140, "fill": 25},
     "chamber_lantern": {"moon": 600, "fill": 15},
+    "chamber_lantern_eye": {"moon": 600, "fill": 15, "eye_key": 6, "eye_rim": 2.5},     # 3.16 cuts to the eye
     "chamber_police": {"moon": 300, "warm": 160, "fill": 30, "o1": 35, "o2": 35, "o3": 35},
     "chamber_police_cold": {"moon": 500, "warm": 40, "fill": 60, "o1": 20, "o2": 20, "o3": 20},
     "corridor": {"co_moon": 400, "co_fill": 15},
@@ -344,7 +359,7 @@ LIGHT_STATES = {
     "kitchen_night": {"ki_fill": 12, "o1": 40, "o2": 40, "o3": 40},
     "narrator_day": {"nr_sun": 220, "nr_fill": 40},
     "exterior_dusk": {"ex_lamp": 90, "ex_moon": 1.2},
-    "exterior_night": {"ex_lamp": 250, "ex_moon": 0.6},
+    "exterior_night": {"ex_lamp": 250, "ex_moon": 1.5},
     "eye": {"eye_key": 6, "eye_rim": 2.5},
     "watch": {"watch_moon": 2.5},
     "beetle": {"beetle_moon": 1.0},
@@ -360,10 +375,13 @@ def stage_all(ctx):
                                                          "narrator_room", "void", "exterior"))
     door_out = dict(loc=(-1.65, -2.45, 0), heading=180)
     lant_door = (-1.52, -1.98, 1.45)
-    om_lie = dict(loc=(0.9, 0.3, 0.8), rot=(-90, 0, 0))
+    om_lie = dict(loc=(0.9, 0.3, 0.8), rot=(-90, 0, 0), asleep=True)
     om_sit = dict(loc=(0.9, 1.4, -0.2), heading=0, pose=SIT_BED)
     om_floor = dict(loc=(-0.05, 0.25, 0.12), rot=(-90, 0, 12))
-    eye_om = Vector((0.937, 1.975, 0.89))
+    eye_om = Vector((0.937, 1.975, 0.89))      # vulture eye, lying down
+    eye_sit = Vector((0.937, 1.23, 1.462))     # vulture eye, sitting up (om_sit)
+    lant_cam = dict(at=(-2.05, -1.45, 1.6), look=(-1.55, -2.0, 1.42), lens=85, f=4, focus=(-1.52, -1.98, 1.42))
+    face_cam = dict(at=(0.55, 0.5, 1.5), look=(0.9, 1.4, 1.42), lens=85, f=2.8, focus=(0.9, 1.22, 1.46))
     n_void = dict(loc=(vo, -0.12, -0.4), heading=0, pose=SIT)
     seated = {"O1": dict(loc=(0.75, -0.55, -0.4), heading=-112, pose=SIT),       # all face the narrator's chair
               "O2": dict(loc=(-0.15, 1.0, -0.4), heading=-24, pose=SIT),
@@ -416,17 +434,16 @@ def stage_all(ctx):
        cams=[dict(at=(2.0, -1.0, 1.5), look=(0.6, 1.2, 1.1), lens=35, f=4, to=(1.7, -0.6, 1.45))],
        extra=lambda c, sid: _set_tray_down(c, sid))
     st("1.5", "chamber_day", chars={"OM": om_sit, "N": day_n}, props={"chest": dict(rotation_euler=(-70, 0, 0))},
-       cams=[dict(at=(1.55, -0.65, 0.9), look=(2.0, -1.3, 0.45), lens=85, f=2.8, focus=(2.0, -1.3, 0.45),
-                  focus_to=(0.05, 0.75, 1.6))])
+       cams=[dict(at=(1.25, -0.85, 1.15), look=(2.0, -1.3, 0.5), lens=50, f=8)])
     st("1.6", "chamber_day", chars={"OM": dict(om_sit, heading=-30), "N": day_n},
        cams=[dict(at=(-0.6, 0.2, 1.78), look=(0.9, 1.45, 1.4), lens=50, f=2.8, focus=(0.05, 0.75, 1.65),
                   focus_to=(0.9, 1.45, 1.6))])
     st("1.7", "eye", "black", props={"lid": dict(rotation_euler=(80, 0, 0))},
-       cams=[dict(at=(140, -0.95, 0.06), look=(140, -0.12, 0.0), lens=100, f=8, to=(140, -0.8, 0.04))],
+       cams=[dict(at=(140, -0.95, 5.06), look=(140, -0.12, 5.0), lens=100, f=8, to=(140, -0.8, 5.04))],
        extra=lambda c, sid: _eye_blink(c, sid, open_at=1.0))
     st("1.8", "chamber_day", chars={"OM": om_sit, "N": dict(day_n, face={"brow.L": (0, -15, 0),
                                                                          "brow.R": (0, 15, 0)})},
-       cams=[dict(at=(0.75, 0.35, 1.62), look=(0.05, 0.75, 1.65), lens=85, f=2.0)])
+       cams=[dict(at=(0.75, 0.35, 1.62), look=(0.05, 0.75, 1.65), lens=85, f=2.8, focus=(0.16, 0.75, 1.67))])
     st("1.9", "narrator_day", "day",
        chars={"N": dict(loc=(nr, 0.95, -0.4), heading=180, pose=SIT)},
        cams=[dict(at=(nr + 1.6, -1.7, 1.7), look=(nr, 1.3, 1.0), lens=24)],
@@ -441,8 +458,7 @@ def stage_all(ctx):
     latch = (co + 0.849, 0.83, 1.0)
     st("2.3", "corridor", chars={"N": dict(loc=(co + 0.45, 1.05, 0), heading=90, pose=PEEK,
                                            ik=dict(R=latch))},
-       cams=[dict(at=(co + 0.62, 0.62, 1.07), look=latch, lens=100, f=2.8, focus=(co + 0.82, 0.86, 1.0),
-                  focus_to=latch)],
+       cams=[dict(at=(co + 0.55, 0.3, 1.25), look=(co + 0.84, 0.83, 1.0), lens=50, f=4, focus=latch)],
        extra=lambda c, sid: _latch(c, sid))
     peek = dict(door_out, pose=PEEK, ik=dict(R=(lant_door[0], lant_door[1], lant_door[2] + 0.17)))
     st("2.4", "chamber_night", chars={"OM": om_lie, "N": dict(peek, loc=(-1.65, -2.95, 0))},
@@ -456,8 +472,7 @@ def stage_all(ctx):
        extra=lambda c, sid: _clock_spin(c, sid))
     st("2.6", "chamber_night", chars={"OM": om_lie, "N": peek}, props={"ch_door": dict(rotation_euler=(0, 0, -35))},
        lant_=lant(lant_door, eye_om, "closed"),
-       cams=[dict(at=(-1.95, -1.7, 1.55), look=(lant_door[0], lant_door[1], 1.45), lens=50, f=5.6,
-                  to=(-1.16, -2.08, 1.53))],
+       cams=[dict(lant_cam, to=(-1.95, -1.56, 1.57))],
        extra=lambda c, sid: _open_shutter(c, sid, 0.55, 18))
     st("2.7", "chamber_night", chars={"OM": om_lie, "N": peek}, props={"ch_door": dict(rotation_euler=(0, 0, -35))},
        lant_=lant(lant_door, eye_om, "crack"),
@@ -466,9 +481,9 @@ def stage_all(ctx):
     night_cams = [dict(at=(1.6, -1.4, 1.35), look=(0.6, 1.6, 0.95), lens=50),
                   dict(at=(-0.4, 0.9, 1.5), look=(0.95, 1.95, 0.85), lens=50),
                   dict(at=(1.9, -1.8, 2.2), look=(-0.5, 0.0, 1.0), lens=28),
-                  dict(at=(0.4, 0.6, 1.3), look=(0.94, 1.95, 0.88), lens=85, f=2.8),
-                  dict(at=(-2.2, -1.95, 1.62), look=(-1.66, -2.28, 1.6), lens=85, f=2.8),
-                  dict(at=(1.2, -0.6, 1.0), look=(0.94, 1.95, 0.88), lens=100, f=2.8)]
+                  dict(at=(0.4, 0.6, 1.3), look=(0.94, 1.95, 0.88), lens=85),
+                  dict(at=(-2.05, -1.45, 1.6), look=(-1.64, -2.3, 1.6), lens=85),
+                  dict(at=(0.94, 1.2, 1.75), look=(0.94, 1.95, 0.88), lens=50)]
     st("2.8", "chamber_night", chars={"OM": om_lie, "N": peek}, props={"ch_door": dict(rotation_euler=(0, 0, -35))},
        lant_=lant(lant_door, eye_om, "crack"), cams=night_cams,
        extra=lambda c, sid: _night_cards(c, sid, len(night_cams)))
@@ -482,9 +497,9 @@ def stage_all(ctx):
        cams=[dict(at=(co - 0.1, -3.2, 1.6), look=(co + 0.6, 1.2, 1.3), lens=24, to=(co - 0.05, -2.4, 1.6))],
        extra=lambda c, sid: _card(c, sid, "VIII"))
     st("3.2", "corridor", chars={"N": dict(loc=(co + 0.45, 1.05, 0), heading=90, pose=PEEK, ik=dict(R=latch))},
-       cams=[dict(at=(co + 0.35, 1.9, 1.3), look=(co + 0.86, 1.62, 1.2), lens=85, f=2.8)],
+       cams=[dict(at=(co + 0.15, 2.3, 1.45), look=(co + 0.85, 1.3, 1.2), lens=40)],
        extra=lambda c, sid: _door_open_slow(c, sid))
-    gap_cam = dict(at=(-2.05, -1.45, 1.6), look=(-1.64, -2.3, 1.6), lens=85, f=2.8)
+    gap_cam = dict(at=(-2.05, -1.45, 1.6), look=(-1.64, -2.3, 1.6), lens=85, f=2.8, focus=(-1.65, -2.11, 1.58))
     dark_peek = dict(peek, face={"brow.L": (0, -10, 0), "brow.R": (0, 10, 0)})
     st("3.3", "chamber_lantern", chars={"OM": om_lie, "N": dark_peek},
        props={"ch_door": dict(rotation_euler=(0, 0, -35))}, lant_=lant(lant_door, eye_om, "closed"), cams=[gap_cam],
@@ -498,7 +513,7 @@ def stage_all(ctx):
        cams=[dict(gap_cam, to=(-1.95, -1.65, 1.6))])
     st("3.6", "chamber_lantern", chars={"OM": om_lie, "N": peek}, props={"ch_door": dict(rotation_euler=(0, 0, -35))},
        lant_=lant(lant_door, eye_om, "closed"),
-       cams=[dict(at=(-1.95, -1.7, 1.55), look=(lant_door[0], lant_door[1], 1.45), lens=50, f=5.6)],
+       cams=[lant_cam],
        extra=lambda c, sid: _slip(c, sid))
     st("3.7", "chamber_dark", chars={"OM": om_lie, "N": peek}, props={"ch_door": dict(rotation_euler=(0, 0, -35))},
        lant_=lant(lant_door, eye_om, "closed"),
@@ -513,38 +528,38 @@ def stage_all(ctx):
     st("3.10", "chamber_dark", chars={"OM": dict(om_sit, face={"brow.L": (0, 15, 0), "brow.R": (0, -15, 0)}),
                                       "N": peek},
        props={"ch_door": dict(rotation_euler=(0, 0, -35))}, lant_=lant(lant_door, eye_om, "closed"),
-       cams=[dict(at=(0.55, 0.5, 1.5), look=(0.9, 1.4, 1.42), lens=85, f=2.0, to=(0.6, 0.65, 1.48))],
+       cams=[dict(face_cam, to=(0.6, 0.65, 1.48))],
        extra=lambda c, sid: _tremble(c, sid))
     st("3.11", "chamber_dark", chars={"OM": om_sit, "N": peek}, props={"ch_door": dict(rotation_euler=(0, 0, -35))},
        lant_=lant(lant_door, eye_om, "closed"),
-       cams=[dict(at=(0.55, 0.5, 1.5), look=(0.9, 1.4, 1.42), lens=85, f=2.0),
-             dict(at=(-1.5, 0.5, 0.75), look=(-2.3, 0.5, 0.75), lens=50, f=2.8),
+       cams=[face_cam,
+             dict(at=(-0.6, 0.2, 1.0), look=(-2.3, 0.5, 0.7), lens=35),
              dict(at=(-1.2, -1.1, 0.25), look=(-1.6, -0.3, 0.0), lens=50, f=2.8),
-             dict(at=(1.6, 1.0, 1.4), look=(2.48, 1.2, 1.3), lens=50, f=2.8)],
+             dict(at=(2.0, 0.3, 1.3), look=(0.9, 1.3, 1.3), lens=50)],
        extra=lambda c, sid: _suppositions(c, sid))
     st("3.12", "chamber_dark", chars={"OM": om_sit, "N": peek}, props={"ch_door": dict(rotation_euler=(0, 0, -35))},
        lant_=lant(lant_door, eye_om, "closed"),
        cams=[dict(at=(-0.4, -1.2, 1.8), look=(0.9, 2.2, 2.0), lens=24, look_to=(0.9, 2.2, 1.2))],
        extra=lambda c, sid: _shadow_of_death(c, sid))
     st("3.13", "chamber_dark", chars={"OM": om_sit, "N": peek}, props={"ch_door": dict(rotation_euler=(0, 0, -35))},
-       lant_=lant(lant_door, eye_om, "crack"),
-       cams=[dict(at=(-1.12, -2.02, 1.55), look=(lant_door[0], lant_door[1], 1.47), lens=100, f=4,
-                  to=(0.3, 0.6, 1.25), look_to=(0.94, 1.6, 1.68), lens_to=50)],
+       lant_=lant(lant_door, eye_sit, "crack"),
+       cams=[lant_cam, dict(at=(-1.85, -1.75, 1.75), look=eye_sit, lens=24, to=(-1.7, -1.5, 1.72)),
+             dict(face_cam, focus=eye_sit)],
        extra=lambda c, sid: _open_shutter(c, sid, 0.2, 6))
     st("3.14", "eye", "black", props={"lid": dict(rotation_euler=(-40, 0, 0))},
-       cams=[dict(at=(140, -1.3, 0.08), look=(140, -0.12, 0.0), lens=60, f=8, to=(140, -0.85, 0.05),
+       cams=[dict(at=(140, -1.3, 5.08), look=(140, -0.12, 5.0), lens=60, f=8, to=(140, -0.85, 5.05),
                   lens_to=100)])
     st("3.15", "chamber_lantern", chars={"OM": om_sit, "N": dict(dark_peek, pose=pose(PEEK, head=(B * -6, 0, 12)))},
-       props={"ch_door": dict(rotation_euler=(0, 0, -35))}, lant_=lant(lant_door, eye_om, "crack"),
+       props={"ch_door": dict(rotation_euler=(0, 0, -35))}, lant_=lant(lant_door, eye_sit, "crack"),
        cams=[dict(gap_cam, to=(-1.98, -1.6, 1.6)), dict(at=(150, -0.05, 0.3), look=(150, 0.01, 0.02), lens=85, f=11),
              dict(gap_cam, at=(-1.95, -1.65, 1.6))],
        extra=lambda c, sid: _cotton_insert(c, sid))
-    esc = [dict(at=(140, -0.85, 0.05), look=(140, -0.12, 0), lens=100, f=8),
+    esc = [dict(at=(140, -0.85, 5.05), look=(140, -0.12, 5.0), lens=100, f=8),
            dict(gap_cam, at=(-1.98, -1.7, 1.6)),
-           dict(at=(-1.95, -1.7, 1.55), look=(lant_door[0], lant_door[1], 1.45), lens=50, f=5.6)]
-    st("3.16", "chamber_lantern", chars={"OM": om_sit, "N": dark_peek},
+           lant_cam]
+    st("3.16", "chamber_lantern_eye", chars={"OM": om_sit, "N": dark_peek},
        props={"ch_door": dict(rotation_euler=(0, 0, -35)), "lid": dict(rotation_euler=(-40, 0, 0))},
-       lant_=lant(lant_door, eye_om, "crack"),
+       lant_=lant(lant_door, eye_sit, "crack"),
        cams=[dict(esc[i % 3], roll=3 * i, roll_to=3 * i + 2, hand=0.3 + 0.1 * i) for i in range(9)],
        extra=lambda c, sid: None)
     st("3.17", "chamber_night", chars={"OM": om_sit, "N": dict(loc=(-1.35, -1.9, 0), heading=170,
@@ -564,7 +579,7 @@ def stage_all(ctx):
     st("3.20", "chamber_night", chars={"OM": om_floor, "N": dict(loc=(-0.9, -0.8, 0), heading=40)},
        props={"ch_door": dict(rotation_euler=(0, 0, -80)), "bed": tipped},
        lant_=lant((-0.9, -0.9, 0.09), (0.5, 1.0, 1.0), "open"),
-       cams=[dict(at=(-1.2, -1.3, 0.16), look=(0.4, 1.0, 0.3), lens=35, f=2.8)])
+       cams=[dict(at=(0.6, -1.4, 1.2), look=(-0.05, 0.3, 0.2), lens=28)])
     st("3.21", "chamber_night",
        chars={"OM": dict(om_floor, loc=(-0.3, 0.2, 0.12)),
               "N": dict(loc=(-1.2, 1.25, -0.35), heading=90, pose=KNEEL, ik=dict(R=(-0.58, 1.45, 0.26)))},
@@ -587,9 +602,9 @@ def stage_all(ctx):
     st("4.5", "chamber_night", chars={"N": dict(loc=(-0.6, -0.4, 0), heading=-20,
                                                 ik=dict(R=(-0.66, -0.68, 1.0), L=(-0.5, -0.66, 1.0)))},
        props={"ch_door": dict(rotation_euler=(0, 0, -80))}, lant_=lant((0.2, -0.6, 0.09), (-0.6, 0.0, 1.0), "open"),
-       cams=[dict(at=(-0.1, -2.0, 1.45), look=(-0.6, -0.4, 1.35), lens=50, f=2.8)],
+       cams=[dict(at=(-0.1, -2.0, 1.6), look=(-0.6, -0.45, 1.5), lens=45, f=2.8, focus=(-0.6, -0.5, 1.67))],
        extra=lambda c, sid: _laugh(c, sid))
-    st("4.6", "corridor", cams=[dict(at=(co, 2.4, 1.85), look=(co, 3.7, 1.8), lens=50, f=2.8)])
+    st("4.6", "corridor", cams=[dict(at=(co, 2.6, 1.75), look=(co - 0.03, 3.58, 1.72), lens=50, f=2.8)])
     # ---------------- 5. the visitors
     st("5.1", "entry_night", chars={"N": dict(loc=(en - 1.45, 1.4, 3.0), heading=0)},
        cams=[dict(at=(en - 1.45, -1.6, 0.9), look=(en - 1.45, 1.4, 3.5), lens=35, to=(en - 0.6, -1.5, 1.4),
@@ -637,7 +652,7 @@ def stage_all(ctx):
        cams=[dict(at=(0.3, -0.25, 1.25), look=(-0.6, 0.0, 1.23), lens=85, f=2.0, hand=0.4),
              dict(at=(0.1, -0.75, 1.25), look=(0.75, -0.55, 1.25), lens=16, hand=0.5),
              dict(at=(0.25, -0.2, 1.25), look=(-0.6, 0.0, 1.23), lens=100, f=2.0, hand=0.5),
-             dict(at=(0.1, 0.2, 1.25), look=(0.55, 0.65, 1.25), lens=16, hand=0.6)],
+             dict(at=(0.25, 0.15, 1.25), look=(-0.15, 0.95, 1.25), lens=16, hand=0.6)],
        extra=lambda c, sid: None)
     st("5.11", "chamber_police_cold", chars=dict(police, N=dict(loc=(-0.9, -0.6, 0), heading=0)), props=dict(seats),
        cams=[dict(at=(-0.6 + 2.0, -0.4, 1.5), look=(-0.6, -0.4, 1.3), lens=35, hand=0.4)],
@@ -667,7 +682,8 @@ def stage_all(ctx):
     # ---------------- 6. epilogue
     st("6.1", "black", "black", cams=[dict(at=(170, -6, 30), look=(170, 0, 30))])
     st("6.2", "void", "black", chars={"N": n_void},
-       cams=[dict(at=(vo, -0.62, 1.29), look=(vo, -0.04, 1.27), lens=85, f=2.0)], extra=lambda c, sid: _talk(c, sid))
+       cams=[dict(at=(vo, -0.62, 1.29), look=(vo, -0.04, 1.27), lens=85, f=2.8, focus=(vo, -0.21, 1.275))],
+       extra=lambda c, sid: _talk(c, sid))
     st("6.3", "black", "black", cams=[dict(at=(170, -6.5, -19.6), look=(170, 0, -19.6), lens=50,
                                             to=(170, -6.5, -19.3))])
     for sid in ("0.3", "0.5", "4.1"):                     # direct address: lips move with the narration
@@ -818,8 +834,9 @@ def _show_card(ctx, name, a, b):
     cam = max((m for m in ctx["scene"].timeline_markers if m.frame <= a), key=lambda m: m.frame).camera
     half_w = 18.0 / cam.data.lens                        # half frame width at 1 m in front of the lens
     card.parent, card.matrix_parent_inverse = cam, Matrix()
-    card.location = (-0.8 * half_w, -0.8 * half_w * 9 / 16, -1.0)
-    card.rotation_euler, card.scale = (0, 0, 0), (half_w / 0.36,) * 3
+    d = 0.3                                              # close to the lens: in front of anything in shot
+    card.location = (-0.8 * half_w * d, -0.8 * half_w * 9 / 16 * d, -d)
+    card.rotation_euler, card.scale = (0, 0, 0), (half_w * d / 0.36,) * 3
     kset(card, "hide_render", a - 1, True)
     kset(card, "hide_render", a, False)
     kset(card, "hide_render", b, True)
@@ -876,7 +893,7 @@ def _slip(ctx, sid):
 def _spring_up(ctx, sid):
     rig = ctx["R"]["OM"]
     t = 1.5
-    place_rig(rig, at(sid, t), dict(loc=(0.9, 0.3, 0.8), rot=(-90, 0, 0)))
+    place_rig(rig, at(sid, t), dict(loc=(0.9, 0.3, 0.8), rot=(-90, 0, 0), asleep=True))
     place_rig(rig, at(sid, t + 0.35), dict(loc=(0.9, 1.4, -0.2), heading=0, pose=SIT_BED))
     place_rig(rig, f1(sid), dict(loc=(0.9, 1.4, -0.2), heading=0, pose=SIT_BED))
 
@@ -1061,10 +1078,10 @@ def _pace(ctx, sid):
     pts = [(-0.9, -0.6), (-0.3, 0.3), (-0.9, 0.9), (-1.3, 0.0), (-0.9, -0.6)]
     ch.walk(rig, pts, f0(sid) + 6, speed=1.1, stride=0.75)
     cam = ctx["scene"].timeline_markers[sid].camera
-    center = Vector((-0.6, 0.0, 1.3))
+    center = Vector((-0.7, 0.0, 1.3))                  # ellipse checked by ray-cast: clears walls and furniture
     for i in range(0, SHOTS[sid]["frames"] + 1, 6):
         a = 2 * math.pi * i / SHOTS[sid]["frames"]
-        loc = center + Vector((2.0 * math.cos(a), 2.0 * math.sin(a), 0.2))
+        loc = center + Vector((1.3 * math.cos(a), 1.1 * math.sin(a), 0.5))
         cam.location = loc
         e = (center - loc).to_track_quat("-Z", "Y").to_euler()
         e.make_compatible(cam.rotation_euler)
@@ -1188,6 +1205,6 @@ if __name__ == "__main__":
     scene = ctx["scene"]
     su.set_mp4_output(scene, "//../../output/renders/tell_tale_heart_picture.mp4")
     su.set_viewport(target=(0, 0.5, 1.0), view_from=(3.5, -3.5, 2.5))
-    su.save_blend(OUT_FILE)
+    su.save_blend(OUT_FILE, compress=True)            # 74 MB -> 23 MB in git
     print(f"Tell-Tale Heart saved: {OUT_FILE} — {len(ORDER)} shots, {len(scene.timeline_markers)} camera cuts, "
           f"{scene.frame_end} frames")

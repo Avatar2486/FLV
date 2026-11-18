@@ -3,7 +3,9 @@ Join a film's rendered shots and add its soundtrack.
 
     .venv/bin/python -I scripts/finish_film.py stories/the_tell_tale_heart output/renders/tell_tale_heart/shots
 
-Writes output/renders/<story>/<story>.mp4 (H.264 + AAC 192k). Checks every shot is present first.
+Writes output/renders/<story>/<story>_master.mp4 (the rendered H.264 untouched + AAC 192k) and
+<story>.mp4, a ~80 MB re-encode (900 kb/s) that fits GitHub's 100 MB file limit. Checks every shot is
+present first.
 """
 import json
 import subprocess
@@ -23,10 +25,15 @@ listing.write_text("".join(f"file '{f}'\n" for f in files))
 picture = out_dir / "picture.mp4"
 subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(listing),
                 "-c", "copy", str(picture)], check=True)
-final = out_dir / f"{story.name}.mp4"
+master = out_dir / f"{story.name}_master.mp4"
 subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(picture), "-i", str(out_dir / "soundtrack.wav"),
                 "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest",
-                "-movflags", "+faststart", str(final)], check=True)
+                "-movflags", "+faststart", str(master)], check=True)
 picture.unlink()
 listing.unlink()
-print(f"Film: {final} ({final.stat().st_size / 1e6:.1f} MB)")
+web = out_dir / f"{story.name}.mp4"
+subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(master), "-c:v", "libx264", "-preset", "slow",
+                "-b:v", "900k", "-maxrate", "1800k", "-bufsize", "3600k", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                "-b:a", "128k", "-movflags", "+faststart", str(web)], check=True)
+for f in (master, web):
+    print(f"Film: {f} ({f.stat().st_size / 1e6:.1f} MB)")

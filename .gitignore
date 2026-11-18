@@ -30,3 +30,9 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Film intermediates, rebuilt by the commands in README (Film section):
+# per-shot renders + logs (render_shots.py), master WAV (mix_story.py), full-bitrate master (finish_film.py)
+output/renders/tell_tale_heart/
+output/renders/*/soundtrack.wav
+output/renders/*/*_master.mp4

@@ -20,6 +20,7 @@ from material_library import material as M
 
 ASSETS = su.PROJECT_ROOT / "assets"
 H = 3.0                                   # ceiling height
+EYE_Z = 5.0                               # the eye macro set floats clear of the street
 SET_X = {"chamber": 0, "corridor": 20, "entry": 40, "kitchen": 60, "narrator_room": 80, "void": 100,
          "exterior": 120, "eye": 140, "watch": 150, "beetle": 160, "title": 170}
 _MANIFEST = json.loads((ASSETS / "polyhaven_manifest.json").read_text())
@@ -282,7 +283,7 @@ def corridor(coll, lights):
     bpy.data.objects.remove(bpy.data.objects["CO_DOOR_Doorway_Shadow"])
     su.box("CO_Door_Dark", coll, M("MAT_Black"), (0.1, 1.2, 2.4), (x + 1.25, 1.2, 1.2), bevel=0)
     lib.door(coll, (x - 0.9, -2.2, 0), rotation=90, prefix="CO_DOOR_NARRATOR")
-    out["clock"] = ph("vintage_grandfather_clock_01", coll, "CO_Long_Case_Clock", (x, 3.7, 0), rotation=180)
+    out["clock"] = ph("vintage_grandfather_clock_01", coll, "CO_Long_Case_Clock", (x, 3.7, 0))     # faces -Y
     ph("fancy_picture_frame_01", coll, "CO_Portrait", (x - 0.88, 0.8, 1.8), rotation=-90)
     lib.window(coll, (x, -4.0, 1.65), 0.8, 1.3, t, rotation=180, prefix="CO_WINDOW")
     su.box("CO_Sky", coll, M("MAT_Night_Sky"), (3.0, 0.02, 3.0), (x, -4.9, 1.6), bevel=0).visible_shadow = False
@@ -394,7 +395,7 @@ def void(coll, lights):
 def exterior(coll, lights):
     x = SET_X["exterior"]
     out = {}
-    su.box("EX_Street", coll, M("MAT_Cobble"), (40, 30, 0.1), (x, -6, -0.05), bevel=0)
+    su.box("EX_Street", coll, M("MAT_Cobble"), (24, 30, 0.1), (x, -6, -0.05), bevel=0)
     for side, y, rot in (("House", 0.0, 0), ("Opposite", -12.0, 180)):
         bm = bmesh.new()
         su.add_box(bm, (8, 0.4, 8.5), (0, 0.2, 4.25))
@@ -411,7 +412,7 @@ def exterior(coll, lights):
         out[side] = fac
     lit = M("MAT_Lamp_Shade")
     bpy.data.objects["EX_House_Window_2.3_5.6"].data.materials[0] = lit             # the old man's lamp
-    out["neighbour_window"] = bpy.data.objects["EX_Opposite_Window_-2.3_2.0"]
+    out["neighbour_window"] = bpy.data.objects["EX_Opposite_Window_2.3_2.0"]    # facade turned 180: world x - 2.3
     out["neighbour_window"].data.materials[0] = lit
     lib.door(coll, (x, 0.0, 0.15), rotation=0, prefix="EX_DOOR")
     bpy.data.objects.remove(bpy.data.objects["EX_DOOR_Doorway_Shadow"])
@@ -421,7 +422,7 @@ def exterior(coll, lights):
                                  shadow_soft_size=0.2)
     lights["ex_moon"] = su.light("EX_LIGHT_Moon", coll, "SUN", (x, -10, 10), 0, (0.55, 0.68, 1.0),
                                  target=(x, 0, 0), angle=math.radians(3))
-    lights["ex_window"] = su.light("EX_LIGHT_Neighbour", coll, "POINT", (x - 2.3, -12.6, 2.0), 0,
+    lights["ex_window"] = su.light("EX_LIGHT_Neighbour", coll, "POINT", (x - 2.3, -11.5, 2.0), 0,
                                    (1.0, 0.65, 0.35), shadow_soft_size=0.3)
     haze("EX_Fog", coll, (x, -6, 3), (30, 20, 6), 0.012)
     return out
@@ -430,10 +431,10 @@ def exterior(coll, lights):
 def eye_macro(coll, lights):
     """Close-up rig of the old man's 'vulture eye', built 10x real size (like a macro miniature):
     eyeball, milky pale-blue iris under a cataract film, lids with lashes, skin around it."""
-    x, k = SET_X["eye"], 10.0
+    x, k, z = SET_X["eye"], 10.0, EYE_Z
     out = {}
-    su.sphere("EYE_Face", coll, M("MAT_Skin_Pale"), 0.09 * k, (x, 0.07 * k, 0), scale=(1.4, 1.0, 1.0), segments=64)
-    su.sphere("EYE_Brow_Ridge", coll, M("MAT_Skin_Pale"), 0.03 * k, (x, -0.004 * k, 0.026 * k),
+    su.sphere("EYE_Face", coll, M("MAT_Skin_Pale"), 0.09 * k, (x, 0.07 * k, z), scale=(1.4, 1.0, 1.0), segments=64)
+    su.sphere("EYE_Brow_Ridge", coll, M("MAT_Skin_Pale"), 0.03 * k, (x, -0.004 * k, z + 0.026 * k),
               scale=(1.6, 0.8, 0.55), segments=32)
     bm = bmesh.new()
     su.add_sphere(bm, 0.0125 * k, segments=48, material_index=0)
@@ -442,8 +443,8 @@ def eye_macro(coll, lights):
     su.add_sphere(bm, 1.0, (0, -0.0118 * k, 0), scale=(0.0022 * k, 0.0015 * k, 0.0022 * k), segments=16,
                   material_index=2)
     out["eyeball"] = su.make_object("EYE_Ball", coll, [M("MAT_Eye_White"), M("MAT_Vulture_Eye"),
-                                                       M("MAT_Plastic_Black")], bm, (x, -0.012 * k, 0), smooth_angle=180)
-    su.sphere("EYE_Film", coll, M("MAT_Eye_Film"), 0.0129 * k, (x, -0.012 * k, 0), segments=48)
+                                                       M("MAT_Plastic_Black")], bm, (x, -0.012 * k, z), smooth_angle=180)
+    su.sphere("EYE_Film", coll, M("MAT_Eye_Film"), 0.0129 * k, (x, -0.012 * k, z), segments=48)
     lids = []
     for name, sign in (("Upper", 1), ("Lower", -1)):
         bm = bmesh.new()
@@ -456,15 +457,15 @@ def eye_macro(coll, lights):
                 su.add_rod(bm, base, base + Vector((0.0, -0.0035 * k, 0.0035 * k)), 0.00016 * k, segments=5,
                            material_index=1)
         lid = su.make_object(f"EYE_Lid_{name}", coll, [M("MAT_Skin_Pale"), M("MAT_Hair_White")], bm,
-                             (x, -0.012 * k, 0), smooth_angle=180)
+                             (x, -0.012 * k, z), smooth_angle=180)
         su.add_modifier(lid, "SOLIDIFY", "Thickness", thickness=0.0015 * k)
         lids.append(lid)
     out["lid_upper"], out["lid_lower"] = lids
     out["lid_lower"].rotation_euler.x = math.radians(60)
-    lights["eye_key"] = su.light("EYE_LIGHT_Key", coll, "AREA", (x + 0.8, -1.2, 0.6), 0, (0.85, 0.9, 1.0),
-                                 target=(x, -0.12, 0), shape="DISK", size=0.8)
-    lights["eye_rim"] = su.light("EYE_LIGHT_Rim", coll, "AREA", (x - 0.6, 0.2, 0.5), 0, (1.0, 0.75, 0.45),
-                                 target=(x, -0.12, 0), shape="DISK", size=0.5)
+    lights["eye_key"] = su.light("EYE_LIGHT_Key", coll, "AREA", (x + 0.8, -1.2, z + 0.6), 0, (0.85, 0.9, 1.0),
+                                 target=(x, -0.12, z), shape="DISK", size=0.8)
+    lights["eye_rim"] = su.light("EYE_LIGHT_Rim", coll, "AREA", (x - 0.6, 0.2, z + 0.5), 0, (1.0, 0.75, 0.45),
+                                 target=(x, -0.12, z), shape="DISK", size=0.5)
     return out
 
 
