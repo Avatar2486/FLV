@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Blender temporary files
+*.blend1
+*.blend2
+*.tmp
+*.log
+
+# Local backups (renders in output/ ARE committed)
+backups/
+
+# Downloaded Piper voice models (re-download, see README)
+voices/*.onnx
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Environment variables
+.env
+.env.*
+!.env.example
