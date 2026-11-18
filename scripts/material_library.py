@@ -72,6 +72,16 @@ MATERIALS = {
     "MAT_Soil":              {"color": (0.04, 0.025, 0.015), "roughness": 1.0},
     "MAT_Leather":           {"color": (0.12, 0.06, 0.035), "roughness": 0.5},
     "MAT_Basket":            {"color": (0.45, 0.33, 0.18), "roughness": 0.9},
+    "MAT_Wax":               {"color": (0.85, 0.80, 0.68), "roughness": 0.4, "sheen": 0.3},
+    "MAT_Flame":             {"color": (1.0, 0.55, 0.15), "emission": 12.0},
+    "MAT_Cork":              {"color": (0.45, 0.30, 0.16), "roughness": 1.0},
+    "MAT_Red_String":        {"color": (0.55, 0.02, 0.02), "roughness": 0.6},
+    "MAT_Paper_Yellow":      {"color": (0.80, 0.65, 0.15), "roughness": 0.9},
+    "MAT_Cardboard":         {"color": (0.42, 0.27, 0.13), "roughness": 0.9},
+    "MAT_Tape":              {"color": (0.60, 0.50, 0.30), "roughness": 0.3},
+    "MAT_Glass_Green":       {"color": (0.10, 0.30, 0.12), "roughness": 0.05, "alpha": 0.55},
+    "MAT_Steel":             {"color": (0.70, 0.70, 0.72), "roughness": 0.2, "metallic": 1.0},
+    "MAT_Coffee":            {"color": (0.03, 0.015, 0.008), "roughness": 0.1},
 }
 
 

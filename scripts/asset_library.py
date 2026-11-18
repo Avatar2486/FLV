@@ -12,6 +12,7 @@ selected and changed on its own. Future AI-generated models can replace any
 builder: import the model, name it the same way, put it in the same collection.
 """
 import math
+import random
 
 import bmesh
 from mathutils import Euler, Matrix, Vector
@@ -23,13 +24,13 @@ from material_library import material as M
 def assemble(parts, location, rotation=0.0):
     """Parent parts[1:] to parts[0], then place the group in the room."""
     root = parts[0]
+    built = root.matrix_basis.copy()
     for part in parts[1:]:
         if part.parent is None:
-            part.location = Vector(part.location) - Vector(root.location)
             part.parent = root
-    turn = Matrix.Rotation(math.radians(rotation), 3, "Z")
-    root.location = Vector(location) + turn @ Vector(root.location)
-    root.rotation_euler.z += math.radians(rotation)
+            part.matrix_parent_inverse = built.inverted()      # keep it where it was built (like Ctrl+P)
+    turn = Matrix.Rotation(math.radians(rotation), 4, "Z")
+    root.matrix_basis = Matrix.Translation(Vector(location)) @ turn @ built
     return root
 
 
@@ -211,11 +212,12 @@ def bed(coll, location, rotation=0, width=1.8, length=2.2, prefix="BED"):
     throw = su.drape(f"{prefix}_Throw", coll, M("MAT_Fabric_Charcoal"), width + 0.22, 0.5, 0.4,
                      (0, -hl + 0.4, top + 0.09), sides=("left", "right"), flare=0.05, wrinkles=0.015)
     parts = [frame, bed_legs, headboard, mattress, sheet, blanket, fold, throw]
-    for side, name in ((-1, "Left"), (1, "Right")):
+    pillow_sides = ((0, "Center"),) if width < 1.4 else ((-1, "Left"), (1, "Right"))   # single or double
+    for side, name in pillow_sides:
         parts.append(su.pillow(f"{prefix}_Pillow_{name}", coll, M("MAT_Pillow"), (0.72, 0.5, 0.2),
-                               (side * 0.42, hl - 0.19, top + 0.27), rotation=(62, 0, 0)))
+                               (side * width * 0.233, hl - 0.19, top + 0.27), rotation=(62, 0, 0)))
         parts.append(su.pillow(f"{prefix}_Cushion_{name}", coll, M("MAT_Fabric_Mustard"),
-                               (0.45, 0.42, 0.16), (side * 0.33, hl - 0.53, top + 0.23),
+                               (0.45, 0.42, 0.16), (side * width * 0.183, hl - 0.53, top + 0.23),
                                rotation=(68, 0, -side * 8)))
     return assemble(parts, location, rotation)
 
@@ -351,14 +353,16 @@ def open_closet(coll, location, rotation=0, width=1.0, depth=0.5, height=2.2, pr
     return assemble(parts, location, rotation)
 
 
-def desk(coll, location, rotation=0, width=0.9, depth=0.55, height=0.75, prefix="DESK"):
+def desk(coll, location, rotation=0, width=0.9, depth=0.55, height=0.75, drawer=True, prefix="DESK"):
+    """Desk with a slim drawer; drawer=False makes a plain (dining) table."""
     top = su.box(f"{prefix}_Top", coll, M("MAT_Furniture_Wood"), (width, depth, 0.035),
                  (0, 0, height - 0.0175), bevel=0.008)
-    drawer = su.box(f"{prefix}_Drawer", coll, M("MAT_Furniture_Paint"), (width - 0.14, depth - 0.1, 0.1),
-                    (0, 0.02, height - 0.085), bevel=0.006)
-    desk_legs = legs(f"{prefix}_Legs", coll, M("MAT_Furniture_Wood"), corners(width / 2 - 0.05, depth / 2 - 0.05),
-                     height - 0.035, 0.024)
-    return assemble([top, drawer, desk_legs], location, rotation)
+    parts = [top, legs(f"{prefix}_Legs", coll, M("MAT_Furniture_Wood"),
+                       corners(width / 2 - 0.05, depth / 2 - 0.05), height - 0.035, 0.024)]
+    if drawer:
+        parts.append(su.box(f"{prefix}_Drawer", coll, M("MAT_Furniture_Paint"), (width - 0.14, depth - 0.1, 0.1),
+                            (0, 0.02, height - 0.085), bevel=0.006))
+    return assemble(parts, location, rotation)
 
 
 def chair(coll, location, rotation=0, prefix="CHAIR"):
@@ -377,20 +381,21 @@ def chair(coll, location, rotation=0, prefix="CHAIR"):
     return assemble([seat, cushion, chair_legs, posts, back], location, rotation)
 
 
-def armchair(coll, location, rotation=0, prefix="ARMCHAIR"):
-    """Upholstered reading chair; a sitter faces local -Y."""
-    fabric = M("MAT_Fabric_Sage")
-    base = su.box(f"{prefix}_Base", coll, fabric, (0.78, 0.74, 0.22), (0, 0, 0.26), bevel=0.05)
-    seat = su.pillow(f"{prefix}_Seat_Cushion", coll, fabric, (0.6, 0.62, 0.12), (0, -0.04, 0.42), puff=0.25)
-    back = su.box(f"{prefix}_Back", coll, fabric, (0.78, 0.16, 0.55), (0, 0.3, 0.62), rotation=(-10, 0, 0),
+def armchair(coll, location, rotation=0, width=0.78, fabric="MAT_Fabric_Sage", prefix="ARMCHAIR"):
+    """Upholstered chair; a sitter faces local -Y. Make it wider and it is a sofa."""
+    fabric, hw = M(fabric), width / 2
+    base = su.box(f"{prefix}_Base", coll, fabric, (width, 0.74, 0.22), (0, 0, 0.26), bevel=0.05)
+    seat = su.pillow(f"{prefix}_Seat_Cushion", coll, fabric, (width - 0.18, 0.62, 0.12), (0, -0.04, 0.42),
+                     puff=0.25)
+    back = su.box(f"{prefix}_Back", coll, fabric, (width, 0.16, 0.55), (0, 0.3, 0.62), rotation=(-10, 0, 0),
                   bevel=0.06)
     bm = bmesh.new()
     for side in (-1, 1):
-        su.add_box(bm, (0.12, 0.7, 0.24), (side * 0.33, -0.02, 0.48))
+        su.add_box(bm, (0.12, 0.7, 0.24), (side * (hw - 0.06), -0.02, 0.48))
     arms = su.make_object(f"{prefix}_Arms", coll, fabric, bm, bevel=0.05)
-    chair_legs = legs(f"{prefix}_Legs", coll, M("MAT_Bed_Wood"), corners(0.32, 0.29), 0.15, 0.022)
-    cushion = su.pillow(f"{prefix}_Cushion", coll, M("MAT_Fabric_Rose"), (0.38, 0.32, 0.12), (0, 0.11, 0.65),
-                        rotation=(72, 0, 8), puff=0.5)
+    chair_legs = legs(f"{prefix}_Legs", coll, M("MAT_Bed_Wood"), corners(hw - 0.07, 0.29), 0.15, 0.022)
+    cushion = su.pillow(f"{prefix}_Cushion", coll, M("MAT_Fabric_Rose"), (0.38, 0.32, 0.12),
+                        (hw - 0.3, 0.11, 0.65), rotation=(72, 0, 8), puff=0.5)
     return assemble([base, seat, back, arms, chair_legs, cushion], location, rotation)
 
 
@@ -537,3 +542,257 @@ def vase(coll, location, prefix="PROP_Vase"):
                         radius_top=0.0015, segments=6)
     branches = su.make_object(f"{prefix}_Branches", coll, M("MAT_Bed_Wood"), bm)
     return assemble([body, branches], location)
+
+
+# -------------------------------------------------------- more furniture & lighting
+
+def sofa(coll, location, rotation=0, prefix="SOFA"):
+    """Three-seat sofa (a wide armchair)."""
+    return armchair(coll, location, rotation, width=1.9, fabric="MAT_Fabric_Cream", prefix=prefix)
+
+
+def bookshelf(coll, location, rotation=0, width=0.9, depth=0.32, height=1.8, shelves=5, prefix="BOOKSHELF"):
+    """Open bookcase filled with books; its back is local +Y."""
+    t, hw = 0.025, width / 2
+    gap = (height - t) / shelves
+    bm = bmesh.new()
+    for side in (-1, 1):
+        su.add_box(bm, (t, depth, height), (side * (hw - t / 2), 0, height / 2))
+    for i in range(shelves + 1):
+        su.add_box(bm, (width - 2 * t, depth, t), (0, 0, t / 2 + i * gap))
+    su.add_box(bm, (width - 2 * t, 0.01, height), (0, depth / 2 - 0.005, height / 2), material_index=1)
+    parts = [su.make_object(prefix, coll, [M("MAT_Furniture_Wood"), M("MAT_Furniture_Paint")], bm, bevel=0.005)]
+    covers = [M(m) for m in ("MAT_Book_Red", "MAT_Book_Green", "MAT_Book_Blue", "MAT_Book_Tan", "MAT_Fabric_Cream")]
+    rng = random.Random(prefix)                      # same books every time the asset is built
+    for i in range(shelves):
+        bm = bmesh.new()
+        x, end = -hw + t + 0.01, hw - t - rng.uniform(0.05, 0.25)     # leave a gap on each shelf
+        while x < end:
+            w, h = rng.uniform(0.02, 0.045), min(gap - t - 0.02, rng.uniform(0.17, 0.26))
+            su.add_box(bm, (w, depth * 0.75, h), (x + w / 2, 0, h / 2), material_index=rng.randrange(len(covers)))
+            x += w + 0.002
+        parts.append(su.make_object(f"{prefix}_Books_{i + 1}", coll, covers, bm, (0, -0.01, t + i * gap),
+                                    bevel=0.002))
+    return assemble(parts, location, rotation)
+
+
+def floor_lamp(coll, light_coll, location, prefix="FLOOR_LAMP", energy=50):
+    base = su.cylinder(f"{prefix}_Base", coll, M("MAT_Metal"), 0.15, 0.03, (0, 0, 0.015), bevel=0.006)
+    pole = su.cylinder(f"{prefix}_Pole", coll, M("MAT_Brass"), 0.012, 1.45, (0, 0, 0.75), segments=12)
+    shade = su.cylinder(f"{prefix}_Shade", coll, M("MAT_Lamp_Shade"), 0.22, 0.3, (0, 0, 1.55), radius_top=0.16,
+                        caps=False, segments=48)
+    su.add_modifier(shade, "SOLIDIFY", "Shade Thickness", thickness=0.004)
+    bulb = su.sphere(f"{prefix}_Bulb", coll, M("MAT_Bulb"), 0.04, (0, 0, 1.5), segments=16)
+    bulb.visible_shadow = False
+    glow = su.light(f"LIGHT_{prefix}_Bulb", light_coll, "POINT", (0, 0, 1.52), energy, (1.0, 0.62, 0.32),
+                    shadow_soft_size=0.05)
+    return assemble([base, pole, shade, bulb, glow], location)
+
+
+def desk_lamp(coll, light_coll, location, rotation=0, prefix="DESK_LAMP", energy=15):
+    """Angled reading lamp; it shines down toward local +X."""
+    base = su.cylinder(f"{prefix}_Base", coll, M("MAT_Metal"), 0.07, 0.02, (0, 0, 0.01), bevel=0.004)
+    elbow, head = Vector((0.1, 0, 0.32)), Vector((0.3, 0, 0.36))
+    beam = Vector((0.5, 0, -0.866))                    # 30 degrees off straight down
+    bm = bmesh.new()
+    su.add_rod(bm, (0, 0, 0.02), elbow, 0.008)
+    su.add_rod(bm, elbow, head, 0.008)
+    su.add_sphere(bm, 0.014, elbow, segments=12)
+    arm = su.make_object(f"{prefix}_Arm", coll, M("MAT_Metal"), bm)
+    shade = su.cylinder(f"{prefix}_Shade", coll, M("MAT_Metal"), 0.025, 0.12, head + beam * 0.06,
+                        rotation=(0, 150, 0), radius_top=0.07, caps=False)
+    su.add_modifier(shade, "SOLIDIFY", "Shade Thickness", thickness=0.003)
+    bulb = su.sphere(f"{prefix}_Bulb", coll, M("MAT_Bulb"), 0.02, head + beam * 0.07, segments=12)
+    bulb.visible_shadow = False
+    glow = su.light(f"LIGHT_{prefix}_Bulb", light_coll, "SPOT", head + beam * 0.06, energy, (1.0, 0.7, 0.4),
+                    target=head + beam, spot_size=math.radians(80), spot_blend=0.5, shadow_soft_size=0.02)
+    return assemble([base, arm, shade, bulb, glow], location, rotation)
+
+
+def ceiling_light(coll, light_coll, location, prefix="CEILING_LIGHT", energy=60):
+    """Flush dome light. `location` = the point on the ceiling."""
+    base = su.cylinder(f"{prefix}_Base", coll, M("MAT_Trim_White"), 0.12, 0.02, (0, 0, -0.01), bevel=0.004)
+    dome = su.sphere(f"{prefix}_Dome", coll, M("MAT_Lamp_Shade"), 0.16, (0, 0, -0.02), scale=(1, 1, 0.4))
+    dome.visible_shadow = False
+    glow = su.light(f"LIGHT_{prefix}", light_coll, "POINT", (0, 0, -0.09), energy, (1.0, 0.8, 0.6),
+                    shadow_soft_size=0.12)
+    return assemble([base, dome, glow], location)
+
+
+def candle(coll, light_coll, location, height=0.12, radius=0.025, prefix="CANDLE", energy=3):
+    """Pillar candle with a glowing flame and a small flickery-warm light."""
+    body = su.cylinder(prefix, coll, M("MAT_Wax"), radius, height, (0, 0, height / 2), segments=24, bevel=0.004)
+    wick = su.cylinder(f"{prefix}_Wick", coll, M("MAT_Plastic_Black"), 0.0015, 0.015, (0, 0, height + 0.0075),
+                       segments=6)
+    flame = su.sphere(f"{prefix}_Flame", coll, M("MAT_Flame"), 0.007, (0, 0, height + 0.024), scale=(1, 1, 2.2),
+                      segments=12)
+    flame.visible_shadow = False
+    glow = su.light(f"LIGHT_{prefix}_Flame", light_coll, "POINT", (0, 0, height + 0.03), energy, (1.0, 0.55, 0.2),
+                    shadow_soft_size=0.01)
+    return assemble([body, wick, flame, glow], location)
+
+
+def coat_rack(coll, location, prefix="COAT_RACK"):
+    """Standing coat rack with a long coat on one hook."""
+    pole = su.cylinder(prefix, coll, M("MAT_Bed_Wood"), 0.02, 1.75, (0, 0, 0.875), segments=16, bevel=0.004)
+    bm = bmesh.new()
+    for i in range(4):
+        a = math.radians(45 + 90 * i)
+        out = Vector((math.cos(a), math.sin(a), 0))
+        su.add_rod(bm, (0, 0, 0.15), out * 0.28 + Vector((0, 0, 0.01)), 0.015)       # feet
+        su.add_rod(bm, (0, 0, 1.6), out * 0.13 + Vector((0, 0, 1.7)), 0.009)         # hooks
+        su.add_sphere(bm, 0.016, out * 0.13 + Vector((0, 0, 1.7)), segments=10)
+    arms = su.make_object(f"{prefix}_Feet_Hooks", coll, M("MAT_Bed_Wood"), bm)
+    top = su.sphere(f"{prefix}_Top", coll, M("MAT_Bed_Wood"), 0.03, (0, 0, 1.76))
+    coat = garment(f"{prefix}_Coat", coll, M("MAT_Fabric_Charcoal"), 1.05, (0.09, 0.09, 1.69))
+    coat.rotation_euler.z = math.radians(45)
+    return assemble([pole, arms, top, coat], location)
+
+
+# ------------------------------------------------------------------- story props
+
+def mug(coll, location, rotation=0, prefix="PROP_Mug"):
+    bm = bmesh.new()
+    su.add_cylinder(bm, 0.04, 0.095, (0, 0, 0.0475), caps=False, segments=32)
+    su.add_cylinder(bm, 0.04, 0.006, (0, 0, 0.003), segments=32)
+    body = su.make_object(prefix, coll, M("MAT_Ceramic"), bm, smooth_angle=60)
+    su.add_modifier(body, "SOLIDIFY", "Wall Thickness", thickness=0.005)
+    bm = bmesh.new()
+    su.add_torus(bm, 0.025, 0.006, (0.06, 0, 0.05), rotation=(90, 0, 0), segments=24)
+    handle = su.make_object(f"{prefix}_Handle", coll, M("MAT_Ceramic"), bm, smooth_angle=180)
+    coffee = su.cylinder(f"{prefix}_Coffee", coll, M("MAT_Coffee"), 0.034, 0.004, (0, 0, 0.075), segments=32)
+    return assemble([body, handle, coffee], location, rotation)
+
+
+def bottle(coll, location, glass="MAT_Glass_Green", prefix="PROP_Bottle"):
+    bm = bmesh.new()
+    su.add_cylinder(bm, 0.035, 0.2, (0, 0, 0.1), segments=32)
+    su.add_cylinder(bm, 0.035, 0.05, (0, 0, 0.225), radius_top=0.012, segments=32)
+    su.add_cylinder(bm, 0.012, 0.07, (0, 0, 0.285), segments=24)
+    body = su.make_object(prefix, coll, M(glass), bm, smooth_angle=50)
+    cap = su.cylinder(f"{prefix}_Cap", coll, M("MAT_Brass"), 0.0135, 0.015, (0, 0, 0.325), segments=24)
+    return assemble([body, cap], location)
+
+
+def wall_clock(coll, location, rotation=0, radius=0.17, prefix="DECOR_Wall_Clock"):
+    """Round wall clock stopped at 3:00. `location` = its centre on the wall; local +Y = wall."""
+    bm = bmesh.new()
+    su.add_torus(bm, radius, 0.018, (0, -0.02, 0), rotation=(90, 0, 0), segments=48)
+    su.add_cylinder(bm, radius, 0.02, (0, -0.01, 0), rotation=(90, 0, 0), segments=48)
+    rim = su.make_object(prefix, coll, M("MAT_Bed_Wood"), bm, smooth_angle=60)
+    face = su.cylinder(f"{prefix}_Face", coll, M("MAT_Clock_Face"), radius - 0.01, 0.004, (0, -0.022, 0),
+                       rotation=(90, 0, 0), segments=48)
+    bm = bmesh.new()
+    su.add_box(bm, (0.006, 0.002, radius * 0.75), (0, 0, radius * 0.33))           # minute hand on 12
+    su.add_box(bm, (radius * 0.5, 0.002, 0.008), (radius * 0.23, 0, 0))            # hour hand on 3
+    for i in range(12):
+        a = math.radians(i * 30)
+        su.add_box(bm, (0.006, 0.002, 0.02), (radius * 0.82 * math.sin(a), 0, radius * 0.82 * math.cos(a)),
+                   rotation=(0, i * 30, 0))
+    hands = su.make_object(f"{prefix}_Hands", coll, M("MAT_Plastic_Black"), bm, (0, -0.026, 0))
+    return assemble([rim, face, hands], location, rotation)
+
+
+def evidence_board(coll, location, rotation=0, width=1.2, height=0.8, prefix="DECOR_Evidence_Board"):
+    """Crime-story cork board: photos and notes linked by red string.
+    `location` = its centre on the wall; local +Y = wall."""
+    hw, hh, b = width / 2, height / 2, 0.04
+    bm = bmesh.new()
+    for size, center in (((width, 0.03, b), (0, -0.015, hh - b / 2)), ((width, 0.03, b), (0, -0.015, -hh + b / 2)),
+                         ((b, 0.03, height), (-hw + b / 2, -0.015, 0)), ((b, 0.03, height), (hw - b / 2, -0.015, 0))):
+        su.add_box(bm, size, center)
+    frame = su.make_object(prefix, coll, M("MAT_Bed_Wood"), bm, bevel=0.005)
+    cork = su.box(f"{prefix}_Cork", coll, M("MAT_Cork"), (width - 2 * b + 0.01, 0.012, height - 2 * b + 0.01),
+                  (0, -0.012, 0), bevel=0)
+    # (x, z, width, height, kind, tilt): kind 0 = photo, 1 = note, 2 = sticky note
+    items = ((-0.4, 0.17, 0.14, 0.18, 0, -5), (-0.12, 0.2, 0.16, 0.12, 0, 4), (0.2, 0.18, 0.12, 0.16, 0, -3),
+             (0.42, 0.05, 0.13, 0.17, 1, 6), (-0.38, -0.15, 0.15, 0.11, 1, 3), (-0.05, -0.12, 0.17, 0.12, 0, -6),
+             (0.22, -0.17, 0.09, 0.09, 2, 8), (0.05, 0.02, 0.08, 0.08, 2, -4))
+    notes_bm, pins_bm, pins = bmesh.new(), bmesh.new(), []
+    for x, z, w, h, kind, tilt in items:
+        x, z = x * width / 1.2, z * height / 0.8
+        su.add_box(notes_bm, (w, 0.002, h), (x, -0.02, z), material_index=kind, rotation=(0, tilt, 0))
+        pin = Vector((x, -0.026, z + h / 2 - 0.02))
+        su.add_sphere(pins_bm, 0.008, pin, segments=10)
+        pins.append(pin)
+    notes = su.make_object(f"{prefix}_Notes", coll, [M("MAT_Photo"), M("MAT_Paper"), M("MAT_Paper_Yellow")],
+                           notes_bm)
+    tacks = su.make_object(f"{prefix}_Pins", coll, M("MAT_Book_Red"), pins_bm, smooth_angle=180)
+    bm = bmesh.new()
+    for i, j in ((0, 1), (1, 2), (2, 3), (0, 4), (4, 5), (5, 6), (1, 5), (7, 3)):
+        su.add_rod(bm, pins[i], pins[j], 0.0015, segments=6)
+    string = su.make_object(f"{prefix}_String", coll, M("MAT_Red_String"), bm)
+    return assemble([frame, cork, notes, tacks, string], location, rotation)
+
+
+def flashlight(coll, light_coll, location, rotation=0, prefix="PROP_Flashlight", energy=20):
+    """Torch lying on its side, switched on, shining toward local -Y."""
+    z = 0.028
+    body = su.cylinder(prefix, coll, M("MAT_Metal"), 0.022, 0.16, (0, 0.02, z), rotation=(90, 0, 0), bevel=0.003)
+    head = su.cylinder(f"{prefix}_Head", coll, M("MAT_Metal"), 0.022, 0.05, (0, -0.085, z), rotation=(90, 0, 0),
+                       radius_top=0.028, bevel=0.002)
+    lens = su.cylinder(f"{prefix}_Lens", coll, M("MAT_Bulb"), 0.025, 0.003, (0, -0.111, z), rotation=(90, 0, 0))
+    lens.visible_shadow = False
+    beam = su.light(f"LIGHT_{prefix}_Beam", light_coll, "SPOT", (0, -0.115, z), energy, (1.0, 0.9, 0.75),
+                    target=(0, -2, z), spot_size=math.radians(40), spot_blend=0.3, shadow_soft_size=0.01)
+    return assemble([body, head, lens, beam], location, rotation)
+
+
+def cardboard_box(coll, location, size=(0.45, 0.35, 0.3), rotation=0, prefix="PROP_Box"):
+    w, d, h = size
+    body = su.box(prefix, coll, M("MAT_Cardboard"), size, (0, 0, h / 2), bevel=0.004)
+    bm = bmesh.new()
+    su.add_box(bm, (0.06, d + 0.004, 0.002), (0, 0, h + 0.001))
+    for side in (-1, 1):
+        su.add_box(bm, (0.06, 0.002, 0.08), (0, side * (d / 2 + 0.001), h - 0.04))
+    tape = su.make_object(f"{prefix}_Tape", coll, M("MAT_Tape"), bm)
+    return assemble([body, tape], location, rotation)
+
+
+def suitcase(coll, location, rotation=0, prefix="PROP_Suitcase"):
+    """Vintage suitcase standing upright."""
+    body = su.box(prefix, coll, M("MAT_Leather"), (0.55, 0.2, 0.4), (0, 0, 0.21), bevel=0.03)
+    bm = bmesh.new()
+    for side in (-1, 1):
+        su.add_box(bm, (0.035, 0.205, 0.405), (side * 0.16, 0, 0.21))
+    straps = su.make_object(f"{prefix}_Straps", coll, M("MAT_Bed_Wood"), bm, bevel=0.004)
+    bm = bmesh.new()
+    su.add_torus(bm, 0.06, 0.011, (0, 0, 0.41), rotation=(90, 0, 0), arc=180, segments=16)
+    handle = su.make_object(f"{prefix}_Handle", coll, M("MAT_Plastic_Black"), bm, smooth_angle=180)
+    return assemble([body, straps, handle], location, rotation)
+
+
+def trash_bin(coll, location, prefix="PROP_Trash_Bin"):
+    bm = bmesh.new()
+    su.add_cylinder(bm, 0.11, 0.3, (0, 0, 0.15), radius_top=0.13, caps=False, segments=32)
+    su.add_cylinder(bm, 0.11, 0.006, (0, 0, 0.003), segments=32)
+    can = su.make_object(prefix, coll, M("MAT_Aluminium"), bm, smooth_angle=60)
+    su.add_modifier(can, "SOLIDIFY", "Wall Thickness", thickness=0.004)
+    bm = bmesh.new()
+    for x, y, z, r in ((0.02, 0.03, 0.26, 0.05), (-0.05, -0.02, 0.25, 0.045), (0.04, -0.05, 0.28, 0.04)):
+        verts = bmesh.ops.create_icosphere(bm, subdivisions=1, radius=r)["verts"]
+        bmesh.ops.translate(bm, vec=(x, y, z), verts=verts)
+    paper = su.make_object(f"{prefix}_Paper", coll, M("MAT_Paper"), bm, flat=True)
+    return assemble([can, paper], location)
+
+
+def knife(coll, location, rotation=0, prefix="PROP_Knife"):
+    """Kitchen knife lying flat, blade pointing toward local +X."""
+    bm = bmesh.new()
+    for v in su.add_box(bm, (0.2, 0.032, 0.002), (0.1, 0, 0.004)):
+        if v.co.x > 0.15:
+            v.co.y = 0.016                  # the edge sweeps up to the spine at the tip
+    blade = su.make_object(prefix, coll, M("MAT_Steel"), bm)
+    handle = su.box(f"{prefix}_Handle", coll, M("MAT_Bed_Wood"), (0.11, 0.026, 0.018), (-0.055, 0, 0.009),
+                    bevel=0.006)
+    return assemble([blade, handle], location, rotation)
+
+
+def envelope(coll, location, rotation=0, prefix="PROP_Envelope"):
+    """Sealed kraft envelope with a red wax seal."""
+    body = su.box(prefix, coll, M("MAT_Cardboard"), (0.22, 0.11, 0.003), (0, 0, 0.0015), bevel=0)
+    bm = bmesh.new()
+    bm.faces.new([bm.verts.new(p) for p in ((-0.11, 0.055, 0.0032), (0, -0.01, 0.0032), (0.11, 0.055, 0.0032))])
+    flap = su.make_object(f"{prefix}_Flap", coll, M("MAT_Tape"), bm, flat=True)
+    seal = su.cylinder(f"{prefix}_Seal", coll, M("MAT_Book_Red"), 0.014, 0.003, (0, -0.005, 0.0045), segments=24)
+    return assemble([body, flap, seal], location, rotation)

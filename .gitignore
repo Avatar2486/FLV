@@ -15,6 +15,9 @@ backups/
 # Downloaded Piper voice models (re-download, see README)
 voices/*.onnx
 
+# Built from the committed Poly Haven files in ~20 s by build_asset_library.py (97 MB)
+assets/FLV_PolyHaven_Assets.blend
+
 # OS files
 .DS_Store
 Thumbs.db

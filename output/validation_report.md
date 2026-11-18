@@ -1,6 +1,6 @@
 # FLV bedroom validation report
 
-2026-11-18 18:25 | Blender 5.3.0
+2026-11-18 18:49 | Blender 5.3.0
 
 | Check | Result | Detail |
 |---|---|---|
@@ -21,5 +21,5 @@
 | Saved output is H.264 MP4 | PASS | //../../output/renders/bedroom_main.mp4 |
 | Output path is relative to the .blend | PASS | //../../output/renders/bedroom_main.mp4 |
 | No absolute file paths stored | PASS | none |
-| Preview PNG is 540x960 and has an image in it | PASS | output/previews/bedroom_main_preview.png: 540x960, 583 KB, contrast 1.00 |
+| Preview PNG is 540x960 and has an image in it | PASS | output/previews/bedroom_main_preview.png: 540x960, 584 KB, contrast 1.00 |
 | Video MP4 is 1080x1920 and 5 s long | PASS | output/renders/bedroom_main.mp4: 1080x1920, 120 frames at 24 fps = 5.00 s, 1.7 MB |

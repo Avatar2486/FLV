@@ -30,10 +30,14 @@ def reset_scene():
         bpy.data.batch_remove(list(data))
 
 
-def save_blend(path):
+def save_blend(path, compress=False):
+    """Save, storing every file path relative to the .blend so it opens on any machine."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    bpy.ops.wm.save_as_mainfile(filepath=str(path))
+    bpy.ops.wm.save_as_mainfile(filepath=str(path), compress=compress)
+    if any(i.filepath and not i.filepath.startswith("//") for i in bpy.data.images if i.source == "FILE"):
+        bpy.ops.file.make_paths_relative()
+        bpy.ops.wm.save_mainfile(compress=compress)
 
 
 def open_blend(path):
@@ -70,10 +74,44 @@ def _place(bm, verts, center, rotation=(0, 0, 0)):
     bmesh.ops.translate(bm, vec=center, verts=verts)
 
 
-def add_box(bm, size, center=(0, 0, 0), material_index=0):
+def add_box(bm, size, center=(0, 0, 0), material_index=0, rotation=(0, 0, 0)):
     verts = bmesh.ops.create_cube(bm, size=1.0)["verts"]
     bmesh.ops.scale(bm, vec=size, verts=verts)
-    _place(bm, verts, center)
+    _place(bm, verts, center, rotation)
+    _set_material(verts, material_index)
+    return verts
+
+
+def add_rod(bm, start, end, radius, segments=8, material_index=0):
+    """Cylinder running from point `start` to point `end` (arms, strings, branches)."""
+    start, end = Vector(start), Vector(end)
+    axis = end - start
+    verts = bmesh.ops.create_cone(bm, cap_ends=True, segments=segments, radius1=radius,
+                                  radius2=radius, depth=axis.length)["verts"]
+    bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=Vector((0, 0, 1)).rotation_difference(axis).to_matrix(),
+                     verts=verts)
+    bmesh.ops.translate(bm, vec=(start + end) / 2, verts=verts)
+    _set_material(verts, material_index)
+    return verts
+
+
+def add_torus(bm, major, minor, center=(0, 0, 0), rotation=(0, 0, 0), arc=360, segments=32, ring=8,
+              material_index=0):
+    """Ring in the XY plane (rims, handles); `arc` < 360 makes an open bow."""
+    closed = arc >= 360
+    grid = []
+    for i in range(segments if closed else segments + 1):
+        a = math.radians(arc) * i / segments
+        grid.append([bm.verts.new(((major + minor * math.cos(b)) * math.cos(a),
+                                   (major + minor * math.cos(b)) * math.sin(a), minor * math.sin(b)))
+                     for b in (2 * math.pi * j / ring for j in range(ring))])
+    for i in range(segments):
+        nxt = (i + 1) % len(grid)
+        for j in range(ring):
+            k = (j + 1) % ring
+            bm.faces.new((grid[i][j], grid[nxt][j], grid[nxt][k], grid[i][k]))
+    verts = [v for row in grid for v in row]
+    _place(bm, verts, center, rotation)
     _set_material(verts, material_index)
     return verts
 
