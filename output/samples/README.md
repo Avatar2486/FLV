@@ -35,6 +35,17 @@ Files:
   - the mouth rests closed in pauses
   - expressions, blinks and small head movements play underneath the speech
 
+- **Living body (new):** see `docs/realism_research.md` for the research behind each part.
+  - **Eyes:** the "Eyes Alive" gaze statistics for talking or listening, with the eyes leading and the head
+    following big shifts.
+  - **Blinks:** quick to close and slower to open, some partial, gathering at speech pauses.
+  - **Breathing:** an in-breath before each phrase, with the phrase spoken on the out-breath.
+  - **Sway:** slow postural sway, so the body is never frozen.
+- **`reaction_test.mp4` (new):** the old man listening in the dark hears the latch:
+  - a startle that runs head to toe: blink, neck, shoulders, arms
+  - a held breath, eyes darting with the head following toward the door
+  - panic breathing, then "Who's there?"
+
 **Your choice:** keep these looks, or tell me what to change (age, build, hair, clothes, face).
 
 ## 3. Motion: `motion/`

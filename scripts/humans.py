@@ -76,6 +76,8 @@ def build(spec, location=(0, 0, 0)):
     FaceService.interpolate_targets(body)
     rig = body.parent
     rig.location = location
+    for pb in rig.pose.bones:                # one rotation channel for poses, mocap and the living-body layers
+        pb.rotation_mode = "QUATERNION"
     parts = {o.name.split(".", 1)[1]: o for o in rig.children}
     _eyes(parts["high-poly"], data, spec.get("eyes", ("grey", "grey")), spec.get("film_eye"))
     for asset, fabric_id, tint in spec.get("clothes", []):
@@ -280,7 +282,8 @@ def lip_sync(rig, wav, start_frame, fps=24, lead=1.0, gain=1.0):
     learned from real talking faces, so the jaw opens only a little while the lips do most of the work, sounds
     blend into each other (coarticulation) and the lips close fully on m/b/p. The result is added on top of
     the expression already keyed (fear, a smile). `lead` frames: the face moves just before the sound, as lips
-    shape a sound before it is heard. Blinks and eye direction stay with the shot (blinks(), face())."""
+    shape a sound before it is heard. Blinks and eye direction stay with the shot (eyes(), face()).
+    Returns {"phrases": [(first, last frame)], "pauses": [frame]} for breathe() and eyes()."""
     import numpy as np
     out = Path(bpy.app.tempdir) / "speech_face.json"
     subprocess.run([str(ROOT / ".venv" / "bin" / "python"), "-I", str(ROOT / "scripts" / "speech_face.py"), str(wav),
@@ -318,16 +321,249 @@ def lip_sync(rig, wav, start_frame, fps=24, lead=1.0, gain=1.0):
                   for n, k in scale.items() if n in base[i]}
         face(rig, start_frame + i, values, meshes)
     face(rig, start_frame + frames, base[frames - 1], meshes)          # back to the expression after the line
+    # phrases (voice on, gaps under 0.25 s merged) and the pauses between them, in scene frames
+    voice = np.array(data["voice"]) > 0.5
+    spans, on = [], None
+    for i, v in enumerate(voice):
+        if v and on is None:
+            on = i
+        if not v and on is not None:
+            spans.append([on, i - 1])
+            on = None
+    if on is not None:
+        spans.append([on, len(voice) - 1])
+    merged = []
+    for a, b in spans:
+        if merged and (a - merged[-1][1]) / src_fps < 0.25:
+            merged[-1][1] = b
+        else:
+            merged.append([a, b])
+    to_frame = lambda i: start_frame + i / src_fps * fps - lead
+    phrases = [(to_frame(a), to_frame(b)) for a, b in merged]
+    return {"phrases": phrases, "pauses": [(b1 + a2) / 2 for (_, b1), (a2, _) in zip(phrases, phrases[1:])]}
+
+
+# --- living body: eyes, breathing, sway, startle --------------------------------------------------------
+# Layers add on top of whatever the bones already do (mocap or a held pose), frame by frame, so they combine.
+#
+# Eyes: "Eyes Alive" (Lee, Badler & Badler, SIGGRAPH 2002), measured at 30 fps:
+#   saccade size P(A) ~ e^(-A/6.9) (90% under 15 deg); direction (deg: %) 0:15.5 45:6.5 90:17.7 135:7.4
+#   180:16.8 225:7.9 270:20.4 315:7.8; duration D = 25 ms + 2.4 ms/deg; mutual-gaze / gaze-away spells:
+#   talking 3.1+-3.2 s / 0.93+-0.8 s, listening 7.9+-1.6 s / 0.43+-0.24 s. Gaze shifts over ~15 deg bring
+#   the head (eyes lead, head follows ~2 frames later and the eyes counter-rotate as it arrives).
+# Blinks: ~17/min at rest, more while speaking, fewer while listening hard or afraid; the lid closes in ~80 ms
+#   and reopens in ~150 ms; big saccades and speech pauses often carry a blink; some blinks are partial.
+# MPFB eye shapes, measured on the mesh: weight 1 turns the eye ~38 deg out/in, 18 deg up, 27 deg down
+#   (looking down also lowers the upper lid, as real lids follow the eye).
+EYE_DEG = {"out": 37.6, "in": 39.5, "up": 18.1, "down": 27.0}
+SACCADE_DIRS = ((0, 15.54), (45, 6.46), (90, 17.69), (135, 7.44), (180, 16.80), (225, 7.89), (270, 20.38),
+                (315, 7.79))
+GAZE_MODES = {   # (mutual mean, sd), (away mean, sd) in seconds; blinks per minute; largest saccade
+    "talking": ((3.13, 3.16), (0.93, 0.80), 24, 25),
+    "listening": ((7.92, 1.57), (0.43, 0.24), 12, 20),
+    "fear": ((0.6, 0.35), (0.5, 0.3), 7, 30),            # scanning the dark, blinking suppressed
+    "thinking": ((1.0, 0.6), (1.6, 0.9), 15, 20),        # looking away while recalling
+}
+
+
+def _layer(rig, start, end, offsets):
+    """Add small rotations on top of the motion already there, every frame from start to end.
+    offsets(frame) -> {bone: (yaw, pitch, roll)} in degrees, in the character's frame: yaw turns to the
+    character's left, pitch nods forward/down, roll tilts to the left. The underlying motion is read for
+    every frame first, so layers stack instead of feeding on their own keys."""
+    from mathutils import Quaternion
+    scene = bpy.context.scene
+    plan = {f: offsets(f) for f in range(start, end + 1)}
+    bones = {b for offs in plan.values() for b in offs}
+    for name in bones:
+        pb = rig.pose.bones[name]
+        if pb.rotation_mode != "QUATERNION":
+            pb.rotation_quaternion = pb.rotation_euler.to_quaternion()
+            pb.rotation_mode = "QUATERNION"
+    base = {}
+    for f in plan:
+        scene.frame_set(f)
+        base[f] = {n: (rig.pose.bones[n].rotation_quaternion.copy(), rig.pose.bones[n].matrix.to_3x3().normalized())
+                   for n in bones}
+    for f, offs in plan.items():
+        for name, (yaw, pitch, roll) in offs.items():
+            q, orient = base[f][name]
+            to_local = orient.inverted()             # rotate about the bone as it is posed now, not at rest
+            for axis, deg in (((0, 0, 1), yaw), ((1, 0, 0), pitch), ((0, 1, 0), roll)):
+                if deg:
+                    q = q @ Quaternion((to_local @ Vector(axis)).normalized(), math.radians(deg))
+            pb = rig.pose.bones[name]
+            pb.rotation_quaternion = q
+            pb.keyframe_insert("rotation_quaternion", frame=f)
+
+
+def eyes(rig, start, end, mode="talking", look=(0.0, 0.0), pauses=(), seed=1, fps=24, head=True):
+    """Gaze, saccades, eyelids and blinks for frames start..end. `look` = where mutual gaze points, as
+    (degrees to the character's left, degrees up) from straight ahead; `pauses` = frames where speech
+    pauses (blinks gather there). Head turns join big gaze shifts unless head=False."""
+    rng = random.Random(seed)
+    (mm, ms), (am, asd), blink_rate, biggest = GAZE_MODES[mode]
+    meshes = face_meshes(rig)
+    targets, f, away = [], float(start), False          # alternate mutual-gaze and gaze-away spells
+    while f < end:
+        if away:
+            size = min(rng.expovariate(1 / 6.9), biggest)                      # P(A) ~ e^(-A/6.9)
+            angle = math.radians(rng.choices([d for d, _ in SACCADE_DIRS], [w for _, w in SACCADE_DIRS])[0])
+            targets.append((f, (look[0] + size * math.cos(angle), look[1] + size * math.sin(angle))))
+        else:
+            targets.append((f, tuple(look)))
+        mean, sd = (am, asd) if away else (mm, ms)
+        f += max(0.12, rng.gauss(mean, sd)) * fps
+        away = not away
+    plans, head_now, previous = [], (0.0, 0.0), (0.0, 0.0)
+    for f, gaze in targets:
+        jump = math.hypot(gaze[0] - previous[0], gaze[1] - previous[1])
+        travel = max(1.0, (0.025 + 0.0024 * jump) * fps)                         # D = 25 ms + 2.4 ms/deg
+        rel = gaze                                   # head share is measured from straight ahead
+        reach = math.hypot(*rel)
+        share = max(0.0, 1 - 15 / reach) * 0.65 if (head and reach > 15) else 0.0   # head takes the excess
+        head_next = (rel[0] * share, rel[1] * share)
+        _key_eyes(rig, meshes, f, (previous[0] - head_now[0], previous[1] - head_now[1]))
+        _key_eyes(rig, meshes, f + travel, (gaze[0] - head_now[0], gaze[1] - head_now[1]))   # eyes land first
+        if head_next != head_now:            # ...then the head follows and the eyes counter-rotate (VOR)
+            a, b = f + 2, f + 2 + 0.25 * fps
+            plans.append((a, b, head_now, head_next))
+            _key_eyes(rig, meshes, b, (gaze[0] - head_next[0], gaze[1] - head_next[1]))
+            head_now = head_next
+        if jump > 20 and rng.random() < 0.6:                                     # gaze-evoked blink
+            _blink(meshes, f, rng)
+        previous = gaze
+    t = start + rng.expovariate(blink_rate / 60) * fps                          # spontaneous blinks
+    while t < end - 6:
+        _blink(meshes, t, rng)
+        t += max(0.5 * fps, rng.expovariate(blink_rate / 60) * fps)
+    for pause in pauses:                                                         # blinks gather at pauses
+        if rng.random() < 0.5:
+            _blink(meshes, pause, rng)
+    if plans:
+        def head_turns(frame):
+            yaw = pitch = 0.0
+            for a, b, h0, h1 in plans:
+                if frame >= b:
+                    yaw, pitch = h1
+                elif frame >= a:
+                    k = 0.5 - 0.5 * math.cos(math.pi * (frame - a) / (b - a))
+                    yaw, pitch = h0[0] + (h1[0] - h0[0]) * k, h0[1] + (h1[1] - h0[1]) * k
+                    break
+                else:
+                    break
+            return {"Head": (yaw * 0.6, -pitch * 0.6, 0), "Neck1": (yaw * 0.4, -pitch * 0.4, 0)}
+        _layer(rig, int(start), int(end), head_turns)
+
+
+def _key_eyes(rig, meshes, frame, gaze):
+    yaw, pitch = gaze
+    left = {"eyeLookOutLeft": max(yaw, 0) / EYE_DEG["out"], "eyeLookInLeft": max(-yaw, 0) / EYE_DEG["in"]}
+    right = {"eyeLookInRight": max(yaw, 0) / EYE_DEG["in"], "eyeLookOutRight": max(-yaw, 0) / EYE_DEG["out"]}
+    vertical = {f"eyeLook{d}{s}": v for s in ("Left", "Right") for d, v in
+                (("Up", max(pitch, 0) / EYE_DEG["up"]), ("Down", max(-pitch, 0) / EYE_DEG["down"]))}
+    face(rig, frame, {k: min(1.0, v) for k, v in {**left, **right, **vertical}.items()}, meshes)
+
+
+def _blink(meshes, frame, rng):
+    depth = 1.0 if rng.random() > 0.15 else rng.uniform(0.5, 0.75)             # some blinks are partial
+    for f, v in ((frame - 0.5, 0.0), (frame + 2, depth), (frame + 2.8, depth), (frame + 6.5, 0.0)):
+        for obj in meshes:                       # closes in ~80 ms, reopens in ~150 ms
+            keys = obj.data.shape_keys.key_blocks
+            for name in ("eyeBlinkLeft", "eyeBlinkRight"):
+                if name in keys:
+                    keys[name].value = v
+                    keys[name].keyframe_insert("value", frame=f)
 
 
 def blinks(rig, start, end, seed=1, fps=24):
+    """Spontaneous blinks only (eyes() adds gaze-coupled ones); kept for shots without gaze work."""
     rng = random.Random(seed)
     meshes = face_meshes(rig)
-    frame = start + rng.uniform(0.5, 2) * fps
-    while frame < end - 6:
-        for f, v in ((frame - 1, 0.0), (frame + 1.5, 1.0), (frame + 3.5, 0.0)):
-            face(rig, f, {"eyeBlinkLeft": v, "eyeBlinkRight": v}, meshes)
-        frame += rng.uniform(2.0, 5.0) * fps
+    t = start + rng.uniform(0.5, 2) * fps
+    while t < end - 6:
+        _blink(meshes, t, rng)
+        t += max(0.5 * fps, rng.expovariate(17 / 60) * fps)
+
+
+# Breathing: inhale ~40% of a breath, exhale ~60%, then a short rest; chest, shoulders and neck move slightly
+# out of step; anxious breathing is faster and rides higher in the chest and shoulders; speech is spoken on
+# the out-breath after a quick in-breath (~0.35 s) before each phrase.
+BREATH = {   # breaths per minute, chest lift (deg), shoulder rise (deg)
+    "calm": (13, 1.0, 0.5), "anxious": (22, 1.6, 1.4), "panic": (32, 2.2, 2.6), "held": (0, 0.0, 0.0),
+    "old": (17, 0.8, 0.9),
+}
+
+
+def breathe(rig, start, end, style="calm", phrases=(), fps=24, seed=1):
+    """Breathing layer. `phrases` = [(first frame, last frame), ...] of speech: a quick in-breath lands just
+    before each phrase and the phrase is spoken on a slow out-breath."""
+    rate, chest, shoulder = BREATH[style]
+    rng = random.Random(seed)
+    curve = {}                       # frame -> lung fill 0..1
+    if rate:
+        period = 60 / rate * fps
+        t = start - rng.uniform(0, period)
+        while t < end:
+            p = period * rng.uniform(0.9, 1.1)
+            for f in range(int(t), int(t + p) + 1):
+                x = (f - t) / p
+                curve[f] = (0.5 - 0.5 * math.cos(math.pi * x / 0.4)) if x < 0.4 else \
+                           (0.5 + 0.5 * math.cos(math.pi * (x - 0.4) / 0.45)) if x < 0.85 else 0.0
+            t += p
+    for a, b in phrases:              # in-breath before speaking, then a long out-breath through the phrase
+        for f in range(int(a - 0.35 * fps), int(b) + 1):
+            curve[f] = (f - (a - 0.35 * fps)) / (0.35 * fps) if f < a else 1 - 0.85 * (f - a) / max(1, b - a)
+
+    def offsets(f):
+        fill = curve.get(f, 0.0)
+        lag = curve.get(f - 2, 0.0)   # shoulders and neck follow the chest a little later
+        return {"Spine1": (0, -chest * fill, 0), "Spine": (0, -chest * 0.4 * fill, 0),
+                "Neck1": (0, chest * 0.7 * lag, 0),                               # keep the head level
+                "LeftShoulder": (0, 0, -shoulder * lag), "RightShoulder": (0, 0, shoulder * lag)}
+    _layer(rig, start, end, offsets)
+
+
+def sway(rig, start, end, amount=1.0, seed=1):
+    """Postural sway: nobody stands or sits perfectly still (slow, small, never-repeating drift)."""
+    rng = random.Random(seed)
+    waves = [(rng.uniform(0.07, 0.35), rng.uniform(0, 6.3)) for _ in range(6)]
+
+    def drift(f, k):
+        return sum(math.sin(2 * math.pi * w * f / 24 + ph + k) for w, ph in waves) / len(waves)
+
+    def offsets(f):
+        return {"LowerBack": (0.6 * amount * drift(f, 0), 0.5 * amount * drift(f, 1), 0.5 * amount * drift(f, 2)),
+                "Neck1": (0.8 * amount * drift(f, 3), 0.6 * amount * drift(f, 4), 0.4 * amount * drift(f, 5))}
+    _layer(rig, start, end, offsets)
+
+
+# Startle (acoustic startle reflex, Brown et al. 1991): a cranio-caudal wave - blink ~20-40 ms, head and neck
+# 60-120 ms, shoulders 100-120 ms, arms 125-195 ms, legs 145-395 ms - flexing the neck and trunk, raising the
+# shoulders, bending the elbows; it peaks fast and settles over most of a second.
+def startle(rig, frame, strength=1.0, fps=24):
+    meshes = face_meshes(rig)
+    face(rig, frame - 1, {"eyeBlinkLeft": 0.0, "eyeBlinkRight": 0.0, "eyeWideLeft": 0.0, "eyeWideRight": 0.0,
+                          "browInnerUp": 0.0}, meshes)
+    face(rig, frame + 0.03 * fps, {"eyeBlinkLeft": strength, "eyeBlinkRight": strength}, meshes)
+    face(rig, frame + 0.2 * fps, {"eyeBlinkLeft": 0.0, "eyeBlinkRight": 0.0, "eyeWideLeft": 0.8 * strength,
+                                  "eyeWideRight": 0.8 * strength, "browInnerUp": 0.9 * strength}, meshes)
+    wave = {"Head": (0.09, (0, 2, 0)), "Neck1": (0.08, (0, 6, 0)), "Spine1": (0.11, (0, 5, 0)),
+            "LeftShoulder": (0.11, (0, 0, -9)), "RightShoulder": (0.11, (0, 0, 9)),
+            "LeftArm": (0.16, (0, 0, -6)), "RightArm": (0.16, (0, 0, 6)),
+            "LeftForeArm": (0.16, (0, -14, 0)), "RightForeArm": (0.16, (0, -14, 0)),
+            "LeftUpLeg": (0.25, (0, -4, 0)), "RightUpLeg": (0.25, (0, -4, 0))}
+
+    def offsets(f):
+        out = {}
+        for bone, (delay, rot) in wave.items():
+            if bone not in rig.pose.bones:
+                continue
+            t = (f - frame) / fps - delay
+            k = 0.0 if t < 0 else (t / 0.08 if t < 0.08 else math.exp(-(t - 0.08) / 0.35))   # snap, then settle
+            out[bone] = tuple(r * k * strength for r in rot)
+        return out
+    _layer(rig, int(frame), int(frame + 1.6 * fps), offsets)
 
 
 # --- motion capture -------------------------------------------------------------------------------

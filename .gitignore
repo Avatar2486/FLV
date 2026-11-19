@@ -40,6 +40,7 @@ output/renders/*/*_master.mp4
 # Large downloads, fetched again by scripts/download_film_kit.sh
 assets/makehuman_packs/
 *.part
+assets/mocap/library/
 voices/kokoro/
 voices/wav2arkit/
 tools/

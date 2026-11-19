@@ -51,6 +51,14 @@ for c in 08_04 16_33 82_08 77_05 77_14 77_29 77_34 91_32 79_73 17_01 13_05 86_15
 done
 # 100STYLE (CC BY 4.0, Ian Mason): only the 28 clips we use, read out of the 1.5 GB zip by range requests
 python3 -I scripts/fetch_100style.py
+# Motion library, not in Git (~2 GB): the full CMU database and idle/walk/turn clips of all 100 100STYLE styles
+python3 -I scripts/fetch_100style.py --library
+if [ "$(ls assets/mocap/library/cmu 2>/dev/null | wc -l)" -lt 2000 ]; then
+    get https://codeload.github.com/sfd158/cmu-mocap/zip/refs/heads/master assets/mocap/library/cmu-mocap.zip
+    unzip -q -n -j assets/mocap/library/cmu-mocap.zip "*/data/*.bvh" -d assets/mocap/library/cmu
+    unzip -q -n -j assets/mocap/library/cmu-mocap.zip "*/cmu-mocap-index-text.txt" -d assets/mocap/library
+    rm assets/mocap/library/cmu-mocap.zip
+fi
 
 # 6. Period music: Chopin, recorded by Musopen and released CC0 (archive.org/details/musopen-chopin)
 CH=https://archive.org/download/musopen-chopin

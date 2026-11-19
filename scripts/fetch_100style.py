@@ -2,9 +2,10 @@
 Fetch only the 100STYLE clips FLV uses (forward walk + idle of 14 styles) out of the 1.5 GB zip on
 Zenodo, reading just those bytes with HTTP range requests. CC BY 4.0: "The 100STYLE Dataset – Ian Mason".
 
-    python3 scripts/fetch_100style.py
-
-Plain Python 3, no extra packages. Clips already in assets/mocap/100style/ are skipped.
+    python3 scripts/fetch_100style.py                     # the clips the film uses -> assets/mocap/100style
+    python3 scripts/fetch_100style.py --library           # idle, forward walk and turn of all 100 styles
+                                                          # -> assets/mocap/library/100style (not in Git)
+Plain Python 3, no extra packages. Clips already there are skipped.
 """
 import http.client
 import io
@@ -60,14 +61,20 @@ class RemoteFile(io.RawIOBase):
 
 
 def main():
-    OUT.mkdir(parents=True, exist_ok=True)
-    wanted = {f"{s}_{kind}.bvh" for s in STYLES for kind in ("FW", "ID")}
+    import sys
+    library = "--library" in sys.argv
+    out = OUT.parent / "library" / "100style" if library else OUT
+    out.mkdir(parents=True, exist_ok=True)
+    kinds = ("ID", "FW", "TR1") if library else ("FW", "ID")
     with zipfile.ZipFile(io.BufferedReader(RemoteFile(), buffer_size=1 << 20)) as archive:
+        names = [info.filename.rsplit("/", 1)[-1] for info in archive.infolist()]
+        styles = sorted({n.rsplit("_", 1)[0] for n in names if n.endswith("_ID.bvh")}) if library else STYLES
+        wanted = {f"{s}_{kind}.bvh" for s in styles for kind in kinds}
         for info in archive.infolist():
             name = info.filename.rsplit("/", 1)[-1]
             if name in wanted:
                 wanted.discard(name)
-                target = OUT / name
+                target = out / name
                 if target.exists():
                     print(f"have  {target.name}")
                     continue
