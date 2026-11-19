@@ -320,6 +320,35 @@ echo "Your line here" | .venv/bin/piper -m voices/en_US-lessac-medium.onnx -f au
 Check each voice's licence before commercial use. `en_US-lessac` comes from a
 non-commercial dataset. `en_US-ljspeech-high` is public domain.
 
+## Downloads: realistic characters, motion, voices, sound and music
+
+One script fetches the free tools and data for the next version of the films (about 6.5 GB). It is safe to
+re-run, because it skips anything already there:
+
+```bash
+bash scripts/download_film_kit.sh
+```
+
+What it fetches:
+- **Blender add-ons:** MPFB (MakeHuman characters) and Sapling Tree Gen.
+- **Characters:** MakeHuman packs (bodies, skins, eyes, hair, face units, visemes, clothes) into `assets/makehuman_packs/`.
+- **Lip sync:** Rhubarb, into `tools/rhubarb/`.
+- **Voices:** Kokoro (`voices/kokoro/`), and Chatterbox in its own environment (`tools/chatterbox/`).
+- **Motion capture:** CMU and 100STYLE clips, into `assets/mocap/`.
+- **Music:** Chopin recordings (CC0), into `audio/music/chopin/`.
+- **Poly Haven:** the furniture, props and 1843 street assets.
+
+**Real sound effects** come from Freesound, CC0 only. To get them:
+1. Create a free account and an API key at https://freesound.org/apiv2/apply.
+2. Add `FREESOUND_API_KEY=your-key` to `.env`. It stays on your computer and out of Git.
+3. Run the script again. It saves the sounds to `audio/sfx/freesound/` with a manifest.
+
+The large downloads stay out of Git. The small, shareable ones (mocap clips, music, sound effects) are
+committed.
+
+Every source and licence, and the credit lines that CC-BY items need, are in
+[`assets/THIRD_PARTY.md`](assets/THIRD_PARTY.md).
+
 ## Portability notes
 
 - No absolute paths are stored. The `.blend` saves its video path relative to

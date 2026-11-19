@@ -36,3 +36,9 @@ Thumbs.db
 output/renders/tell_tale_heart/
 output/renders/*/soundtrack.wav
 output/renders/*/*_master.mp4
+
+# Large downloads, fetched again by scripts/download_film_kit.sh
+assets/makehuman_packs/
+*.part
+voices/kokoro/
+tools/

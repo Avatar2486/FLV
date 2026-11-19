@@ -39,6 +39,47 @@
   "source": "https://polyhaven.com/a/BarberShopChair_01",
   "type": "models"
  },
+ "Barrel_01": {
+  "authors": [
+   "Jorge Camacho"
+  ],
+  "categories": [
+   "industrial",
+   "containers"
+  ],
+  "files": [
+   "props/polyhaven/Barrel_01/Barrel_01_1k.gltf",
+   "props/polyhaven/Barrel_01/Barrel_01.bin",
+   "props/polyhaven/Barrel_01/textures/Barrel_01_explosive_diff_1k.jpg",
+   "props/polyhaven/Barrel_01/textures/Barrel_01_explosive_nor_gl_1k.jpg",
+   "props/polyhaven/Barrel_01/textures/Barrel_01_explosive_arm_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Barrel_01",
+  "source": "https://polyhaven.com/a/Barrel_01",
+  "type": "models"
+ },
+ "Barrel_02": {
+  "authors": [
+   "Jorge Camacho"
+  ],
+  "categories": [
+   "industrial",
+   "containers",
+   "collection: the_shed"
+  ],
+  "files": [
+   "props/polyhaven/Barrel_02/Barrel_02_1k.gltf",
+   "props/polyhaven/Barrel_02/textures/Barrel_02_arm_1k.jpg",
+   "props/polyhaven/Barrel_02/Barrel_02.bin",
+   "props/polyhaven/Barrel_02/textures/Barrel_02_diff_1k.jpg",
+   "props/polyhaven/Barrel_02/textures/Barrel_02_nor_gl_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Barrel 02",
+  "source": "https://polyhaven.com/a/Barrel_02",
+  "type": "models"
+ },
  "Camera_01": {
   "authors": [
    "Rajil Jose Macatangay"
@@ -658,6 +699,26 @@
   "source": "https://polyhaven.com/a/bar_chair_round_01",
   "type": "models"
  },
+ "barrel_03": {
+  "authors": [
+   "Serhii Khromov"
+  ],
+  "categories": [
+   "industrial",
+   "containers"
+  ],
+  "files": [
+   "props/polyhaven/barrel_03/barrel_03_1k.gltf",
+   "props/polyhaven/barrel_03/textures/barrel_03_diff_1k.jpg",
+   "props/polyhaven/barrel_03/barrel_03.bin",
+   "props/polyhaven/barrel_03/textures/barrel_03_nor_gl_1k.jpg",
+   "props/polyhaven/barrel_03/textures/barrel_03_arm_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Barrel 03",
+  "source": "https://polyhaven.com/a/barrel_03",
+  "type": "models"
+ },
  "beige_wall_001": {
   "authors": [
    "Dimitrios Savva",
@@ -845,6 +906,36 @@
   "license": "CC0-1.0",
   "name": "Boombox",
   "source": "https://polyhaven.com/a/boombox",
+  "type": "models"
+ },
+ "brass_candleholders": {
+  "authors": [
+   "Tina"
+  ],
+  "categories": [
+   "decorative",
+   "lighting"
+  ],
+  "files": [
+   "props/polyhaven/brass_candleholders/brass_candleholders_1k.gltf",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_03_arm_1k.jpg",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_03_nor_gl_1k.jpg",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_flame_diff_1k.jpg",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_candles_nor_gl_1k.jpg",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_candles_arm_1k.jpg",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_02_arm_1k.jpg",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_01_diff_1k.jpg",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_03_diff_1k.jpg",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_01_nor_gl_1k.jpg",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_02_nor_gl_1k.jpg",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_02_diff_1k.jpg",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_candles_diff_1k.jpg",
+   "props/polyhaven/brass_candleholders/textures/brass_candleholders_01_arm_1k.jpg",
+   "props/polyhaven/brass_candleholders/brass_candleholders.bin"
+  ],
+  "license": "CC0-1.0",
+  "name": "Brass Candleholders",
+  "source": "https://polyhaven.com/a/brass_candleholders",
   "type": "models"
  },
  "brass_diya_lantern": {
@@ -1046,6 +1137,27 @@
   "source": "https://polyhaven.com/a/brick_floor_003",
   "type": "textures"
  },
+ "brick_pavement": {
+  "authors": [
+   "Charlotte Baglioni"
+  ],
+  "categories": [
+   "brick",
+   "cobblestone",
+   "dirty",
+   "man made",
+   "road"
+  ],
+  "files": [
+   "textures/polyhaven/brick_pavement/brick_pavement_diff_1k.jpg",
+   "textures/polyhaven/brick_pavement/brick_pavement_nor_gl_1k.jpg",
+   "textures/polyhaven/brick_pavement/brick_pavement_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Brick Pavement",
+  "source": "https://polyhaven.com/a/brick_pavement",
+  "type": "textures"
+ },
  "brick_wall_001": {
   "authors": [
    "Dimitrios Savva",
@@ -1230,6 +1342,25 @@
   "license": "CC0-1.0",
   "name": "Brown Leather",
   "source": "https://polyhaven.com/a/brown_leather",
+  "type": "textures"
+ },
+ "brown_mud_leaves_01": {
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "categories": [
+   "terrain",
+   "natural",
+   "outdoor"
+  ],
+  "files": [
+   "textures/polyhaven/brown_mud_leaves_01/brown_mud_leaves_01_diff_1k.jpg",
+   "textures/polyhaven/brown_mud_leaves_01/brown_mud_leaves_01_nor_gl_1k.jpg",
+   "textures/polyhaven/brown_mud_leaves_01/brown_mud_leaves_01_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Brown Mud Leaves 01",
+  "source": "https://polyhaven.com/a/brown_mud_leaves_01",
   "type": "textures"
  },
  "brown_planks_03": {
@@ -2084,6 +2215,49 @@
   "source": "https://polyhaven.com/a/climbing_wall_base",
   "type": "textures"
  },
+ "cobblestone_floor_04": {
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "categories": [
+   "floor",
+   "outdoor",
+   "dirty",
+   "man made",
+   "cobblestone"
+  ],
+  "files": [
+   "textures/polyhaven/cobblestone_floor_04/cobblestone_floor_04_diff_1k.jpg",
+   "textures/polyhaven/cobblestone_floor_04/cobblestone_floor_04_nor_gl_1k.jpg",
+   "textures/polyhaven/cobblestone_floor_04/cobblestone_floor_04_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Cobblestone Floor 04",
+  "source": "https://polyhaven.com/a/cobblestone_floor_04",
+  "type": "textures"
+ },
+ "cobblestone_floor_05": {
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "categories": [
+   "floor",
+   "outdoor",
+   "dirty",
+   "man made",
+   "road",
+   "cobblestone"
+  ],
+  "files": [
+   "textures/polyhaven/cobblestone_floor_05/cobblestone_floor_05_diff_1k.jpg",
+   "textures/polyhaven/cobblestone_floor_05/cobblestone_floor_05_nor_gl_1k.jpg",
+   "textures/polyhaven/cobblestone_floor_05/cobblestone_floor_05_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Cobblestone Floor 05",
+  "source": "https://polyhaven.com/a/cobblestone_floor_05",
+  "type": "textures"
+ },
  "cobblestone_street_night": {
   "authors": [
    "Greg Zaal",
@@ -2412,6 +2586,29 @@
   "license": "CC0-1.0",
   "name": "Dartboard",
   "source": "https://polyhaven.com/a/dartboard",
+  "type": "models"
+ },
+ "dead_tree_trunk": {
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "categories": [
+   "nature",
+   "plants",
+   "ground cover",
+   "collection: pine_forest",
+   "collection: verdant_trail"
+  ],
+  "files": [
+   "props/polyhaven/dead_tree_trunk/dead_tree_trunk_1k.gltf",
+   "props/polyhaven/dead_tree_trunk/textures/dead_tree_trunk_arm_1k.jpg",
+   "props/polyhaven/dead_tree_trunk/textures/dead_tree_trunk_nor_gl_1k.jpg",
+   "props/polyhaven/dead_tree_trunk/textures/dead_tree_trunk_diff_1k.jpg",
+   "props/polyhaven/dead_tree_trunk/dead_tree_trunk.bin"
+  ],
+  "license": "CC0-1.0",
+  "name": "Dead Tree Trunk",
+  "source": "https://polyhaven.com/a/dead_tree_trunk",
   "type": "models"
  },
  "denim_fabric": {
@@ -2750,6 +2947,49 @@
   "name": "Drill Press 01",
   "source": "https://polyhaven.com/a/drill_press_01",
   "type": "models"
+ },
+ "dry_branches_medium_01": {
+  "authors": [
+   "Rico Cilliers"
+  ],
+  "categories": [
+   "props",
+   "nature",
+   "plants",
+   "ground cover",
+   "collection: pine_forest",
+   "collection: verdant_trail"
+  ],
+  "files": [
+   "props/polyhaven/dry_branches_medium_01/dry_branches_medium_01_1k.gltf",
+   "props/polyhaven/dry_branches_medium_01/textures/dry_branches_medium_01_arm_1k.jpg",
+   "props/polyhaven/dry_branches_medium_01/textures/dry_branches_medium_01_diff_1k.jpg",
+   "props/polyhaven/dry_branches_medium_01/textures/dry_branches_medium_01_nor_gl_1k.jpg",
+   "props/polyhaven/dry_branches_medium_01/dry_branches_medium_01.bin"
+  ],
+  "license": "CC0-1.0",
+  "name": "Dry Branches Medium 01",
+  "source": "https://polyhaven.com/a/dry_branches_medium_01",
+  "type": "models"
+ },
+ "dry_decay_leaves": {
+  "authors": [
+   "Amal Kumar"
+  ],
+  "categories": [
+   "outdoor",
+   "natural",
+   "terrain"
+  ],
+  "files": [
+   "textures/polyhaven/dry_decay_leaves/dry_decay_leaves_diff_1k.jpg",
+   "textures/polyhaven/dry_decay_leaves/dry_decay_leaves_nor_gl_1k.jpg",
+   "textures/polyhaven/dry_decay_leaves/dry_decay_leaves_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Dry Decay Leaves",
+  "source": "https://polyhaven.com/a/dry_decay_leaves",
+  "type": "textures"
  },
  "electric_stove": {
   "authors": [
@@ -3216,6 +3456,28 @@
   "license": "CC0-1.0",
   "name": "Garden Sprinkler 01",
   "source": "https://polyhaven.com/a/garden_sprinkler_01",
+  "type": "models"
+ },
+ "gate_latch_01": {
+  "authors": [
+   "Desktoy"
+  ],
+  "categories": [
+   "industrial",
+   "buildings",
+   "structures",
+   "collection: the_shed"
+  ],
+  "files": [
+   "props/polyhaven/gate_latch_01/gate_latch_01_1k.gltf",
+   "props/polyhaven/gate_latch_01/textures/gate_latch_01_arm_1k.jpg",
+   "props/polyhaven/gate_latch_01/textures/gate_latch_01_diff_1k.jpg",
+   "props/polyhaven/gate_latch_01/gate_latch_01.bin",
+   "props/polyhaven/gate_latch_01/textures/gate_latch_01_nor_gl_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Gate Latch 01",
+  "source": "https://polyhaven.com/a/gate_latch_01",
   "type": "models"
  },
  "gingham_check": {
@@ -4071,6 +4333,27 @@
   "source": "https://polyhaven.com/a/lantern_chandelier_01",
   "type": "models"
  },
+ "large_iron_gate": {
+  "authors": [
+   "Josh Dean"
+  ],
+  "categories": [
+   "structures",
+   "buildings",
+   "collection: hidden_alley"
+  ],
+  "files": [
+   "props/polyhaven/large_iron_gate/large_iron_gate_1k.gltf",
+   "props/polyhaven/large_iron_gate/textures/large_iron_gate_nor_gl_1k.jpg",
+   "props/polyhaven/large_iron_gate/textures/large_iron_gate_diff_1k.jpg",
+   "props/polyhaven/large_iron_gate/large_iron_gate.bin",
+   "props/polyhaven/large_iron_gate/textures/large_iron_gate_arm_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Large Iron Gate",
+  "source": "https://polyhaven.com/a/large_iron_gate",
+  "type": "models"
+ },
  "large_red_bricks": {
   "authors": [
    "Rob Tuytel"
@@ -4751,6 +5034,48 @@
   "name": "Moonlit Golf",
   "source": "https://polyhaven.com/a/moonlit_golf",
   "type": "hdris"
+ },
+ "moss_01": {
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "categories": [
+   "nature",
+   "plants",
+   "ground cover",
+   "collection: pine_forest"
+  ],
+  "files": [
+   "props/polyhaven/moss_01/moss_01_1k.gltf",
+   "props/polyhaven/moss_01/textures/moss_01_nor_gl_1k.jpg",
+   "props/polyhaven/moss_01/textures/moss_01_diff_1k.jpg",
+   "props/polyhaven/moss_01/textures/moss_01_arm_1k.jpg",
+   "props/polyhaven/moss_01/moss_01.bin"
+  ],
+  "license": "CC0-1.0",
+  "name": "Moss 01",
+  "source": "https://polyhaven.com/a/moss_01",
+  "type": "models"
+ },
+ "mossy_cobblestone": {
+  "authors": [
+   "S\u01a1n Nguy\u1ec5n"
+  ],
+  "categories": [
+   "floor",
+   "outdoor",
+   "man made",
+   "cobblestone"
+  ],
+  "files": [
+   "textures/polyhaven/mossy_cobblestone/mossy_cobblestone_diff_1k.jpg",
+   "textures/polyhaven/mossy_cobblestone/mossy_cobblestone_nor_gl_1k.jpg",
+   "textures/polyhaven/mossy_cobblestone/mossy_cobblestone_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Mossy Cobblestone",
+  "source": "https://polyhaven.com/a/mossy_cobblestone",
+  "type": "textures"
  },
  "mounted_fluorescent_lights": {
   "authors": [
@@ -5853,6 +6178,46 @@
   "source": "https://polyhaven.com/a/rectangular_parquet",
   "type": "textures"
  },
+ "red_brick": {
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "categories": [
+   "wall",
+   "brick",
+   "man made"
+  ],
+  "files": [
+   "textures/polyhaven/red_brick/red_brick_diff_1k.jpg",
+   "textures/polyhaven/red_brick/red_brick_nor_gl_1k.jpg",
+   "textures/polyhaven/red_brick/red_brick_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Red Brick",
+  "source": "https://polyhaven.com/a/red_brick",
+  "type": "textures"
+ },
+ "red_bricks_02": {
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "categories": [
+   "outdoor",
+   "wall",
+   "dirty",
+   "man made",
+   "brick"
+  ],
+  "files": [
+   "textures/polyhaven/red_bricks_02/red_bricks_02_diff_1k.jpg",
+   "textures/polyhaven/red_bricks_02/red_bricks_02_nor_gl_1k.jpg",
+   "textures/polyhaven/red_bricks_02/red_bricks_02_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Red Bricks 02",
+  "source": "https://polyhaven.com/a/red_bricks_02",
+  "type": "textures"
+ },
  "retro_multimeter": {
   "authors": [
    "elli moeller"
@@ -5939,6 +6304,45 @@
   "name": "Rogland Moonlit Night",
   "source": "https://polyhaven.com/a/rogland_moonlit_night",
   "type": "hdris"
+ },
+ "roof_slates_02": {
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "categories": [
+   "roofing",
+   "man made",
+   "outdoor"
+  ],
+  "files": [
+   "textures/polyhaven/roof_slates_02/roof_slates_02_diff_1k.jpg",
+   "textures/polyhaven/roof_slates_02/roof_slates_02_nor_gl_1k.jpg",
+   "textures/polyhaven/roof_slates_02/roof_slates_02_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Roof Slates 02",
+  "source": "https://polyhaven.com/a/roof_slates_02",
+  "type": "textures"
+ },
+ "roof_slates_03": {
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "categories": [
+   "roofing",
+   "man made",
+   "outdoor",
+   "clean"
+  ],
+  "files": [
+   "textures/polyhaven/roof_slates_03/roof_slates_03_diff_1k.jpg",
+   "textures/polyhaven/roof_slates_03/roof_slates_03_nor_gl_1k.jpg",
+   "textures/polyhaven/roof_slates_03/roof_slates_03_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Roof Slates 03",
+  "source": "https://polyhaven.com/a/roof_slates_03",
+  "type": "textures"
  },
  "rooftop_night": {
   "authors": [
@@ -6380,6 +6784,50 @@
   "source": "https://polyhaven.com/a/shanghai_bund",
   "type": "hdris"
  },
+ "shrub_02": {
+  "authors": [
+   "Rico Cilliers"
+  ],
+  "categories": [
+   "nature",
+   "plants",
+   "ground cover",
+   "collection: verdant_trail"
+  ],
+  "files": [
+   "props/polyhaven/shrub_02/shrub_02_1k.gltf",
+   "props/polyhaven/shrub_02/textures/shrub_02_arm_1k.jpg",
+   "props/polyhaven/shrub_02/textures/shrub_02_nor_gl_1k.jpg",
+   "props/polyhaven/shrub_02/shrub_02.bin",
+   "props/polyhaven/shrub_02/textures/shrub_02_diff_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Shrub 02",
+  "source": "https://polyhaven.com/a/shrub_02",
+  "type": "models"
+ },
+ "shrub_03": {
+  "authors": [
+   "Rico Cilliers"
+  ],
+  "categories": [
+   "nature",
+   "plants",
+   "ground cover",
+   "collection: verdant_trail"
+  ],
+  "files": [
+   "props/polyhaven/shrub_03/shrub_03_1k.gltf",
+   "props/polyhaven/shrub_03/shrub_03.bin",
+   "props/polyhaven/shrub_03/textures/shrub_03_arm_1k.jpg",
+   "props/polyhaven/shrub_03/textures/shrub_03_diff_1k.jpg",
+   "props/polyhaven/shrub_03/textures/shrub_03_nor_gl_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Shrub 03",
+  "source": "https://polyhaven.com/a/shrub_03",
+  "type": "models"
+ },
  "side_table_01": {
   "authors": [
    "James Ray Cock"
@@ -6600,6 +7048,26 @@
   "name": "Solitude Night",
   "source": "https://polyhaven.com/a/solitude_night",
   "type": "hdris"
+ },
+ "spinning_wheel_01": {
+  "authors": [
+   "Sofia Pahaoja"
+  ],
+  "categories": [
+   "props",
+   "tools"
+  ],
+  "files": [
+   "props/polyhaven/spinning_wheel_01/spinning_wheel_01_1k.gltf",
+   "props/polyhaven/spinning_wheel_01/textures/spinning_wheel_01_diff_1k.jpg",
+   "props/polyhaven/spinning_wheel_01/spinning_wheel_01.bin",
+   "props/polyhaven/spinning_wheel_01/textures/spinning_wheel_01_nor_gl_1k.jpg",
+   "props/polyhaven/spinning_wheel_01/textures/spinning_wheel_01_arm_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Spinning Wheel 01",
+  "source": "https://polyhaven.com/a/spinning_wheel_01",
+  "type": "models"
  },
  "square_brick_floor": {
   "authors": [
@@ -6837,6 +7305,27 @@
   "source": "https://polyhaven.com/a/stone_fire_pit",
   "type": "models"
  },
+ "stone_floor": {
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "categories": [
+   "outdoor",
+   "man made",
+   "floor",
+   "rock",
+   "cobblestone"
+  ],
+  "files": [
+   "textures/polyhaven/stone_floor/stone_floor_diff_1k.jpg",
+   "textures/polyhaven/stone_floor/stone_floor_nor_gl_1k.jpg",
+   "textures/polyhaven/stone_floor/stone_floor_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Stone Floor",
+  "source": "https://polyhaven.com/a/stone_floor",
+  "type": "textures"
+ },
  "stone_tiles": {
   "authors": [
    "Christopher Melani"
@@ -6920,6 +7409,27 @@
   "source": "https://polyhaven.com/a/street_lamp_02",
   "type": "models"
  },
+ "street_rat": {
+  "authors": [
+   "Sean Buckley"
+  ],
+  "categories": [
+   "nature",
+   "creature",
+   "collection: hidden_alley"
+  ],
+  "files": [
+   "props/polyhaven/street_rat/street_rat_1k.gltf",
+   "props/polyhaven/street_rat/textures/street_rat_nor_gl_1k.jpg",
+   "props/polyhaven/street_rat/textures/street_rat_diff_1k.jpg",
+   "props/polyhaven/street_rat/street_rat.bin",
+   "props/polyhaven/street_rat/textures/street_rat_arm_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Street Rat",
+  "source": "https://polyhaven.com/a/street_rat",
+  "type": "models"
+ },
  "stretch_poplin": {
   "authors": [
    "Rico Cilliers",
@@ -6978,6 +7488,28 @@
   "license": "CC0-1.0",
   "name": "Sungka Board 02",
   "source": "https://polyhaven.com/a/sungka_board_02",
+  "type": "models"
+ },
+ "tea_set_01": {
+  "authors": [
+   "James Ray Cock",
+   "Jurita Burger",
+   "Rico Cilliers"
+  ],
+  "categories": [
+   "props",
+   "dishes"
+  ],
+  "files": [
+   "props/polyhaven/tea_set_01/tea_set_01_1k.gltf",
+   "props/polyhaven/tea_set_01/tea_set_01.bin",
+   "props/polyhaven/tea_set_01/textures/tea_set_01_nor_gl_1k.jpg",
+   "props/polyhaven/tea_set_01/textures/tea_set_01_diff_1k.jpg",
+   "props/polyhaven/tea_set_01/textures/tea_set_01_arm_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Tea Set 01",
+  "source": "https://polyhaven.com/a/tea_set_01",
   "type": "models"
  },
  "television_02": {
@@ -7141,6 +7673,29 @@
   "license": "CC0-1.0",
   "name": "Treasure Chest",
   "source": "https://polyhaven.com/a/treasure_chest",
+  "type": "models"
+ },
+ "tree_stump_01": {
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "categories": [
+   "nature",
+   "plants",
+   "ground cover",
+   "trees",
+   "collection: pine_forest"
+  ],
+  "files": [
+   "props/polyhaven/tree_stump_01/tree_stump_01_1k.gltf",
+   "props/polyhaven/tree_stump_01/tree_stump_01.bin",
+   "props/polyhaven/tree_stump_01/textures/tree_stump_01_diff_1k.jpg",
+   "props/polyhaven/tree_stump_01/textures/tree_stump_01_nor_gl_1k.jpg",
+   "props/polyhaven/tree_stump_01/textures/tree_stump_01_arm_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Tree Stump 01",
+  "source": "https://polyhaven.com/a/tree_stump_01",
   "type": "models"
  },
  "unfinished_office_night": {
@@ -7570,6 +8125,25 @@
   "source": "https://polyhaven.com/a/warm_restaurant_night",
   "type": "hdris"
  },
+ "weathered_plank_siding": {
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "categories": [
+   "outdoor",
+   "wall",
+   "wood"
+  ],
+  "files": [
+   "textures/polyhaven/weathered_plank_siding/weathered_plank_siding_diff_1k.jpg",
+   "textures/polyhaven/weathered_plank_siding/weathered_plank_siding_nor_gl_1k.jpg",
+   "textures/polyhaven/weathered_plank_siding/weathered_plank_siding_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Weathered Plank Siding",
+  "source": "https://polyhaven.com/a/weathered_plank_siding",
+  "type": "textures"
+ },
  "white_plaster_02": {
   "authors": [
    "Rob Tuytel"
@@ -7613,6 +8187,26 @@
   "license": "CC0-1.0",
   "name": "White Rough Plaster",
   "source": "https://polyhaven.com/a/white_rough_plaster",
+  "type": "textures"
+ },
+ "white_sandstone_bricks": {
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "categories": [
+   "brick",
+   "man made",
+   "outdoor",
+   "wall"
+  ],
+  "files": [
+   "textures/polyhaven/white_sandstone_bricks/white_sandstone_bricks_diff_1k.jpg",
+   "textures/polyhaven/white_sandstone_bricks/white_sandstone_bricks_nor_gl_1k.jpg",
+   "textures/polyhaven/white_sandstone_bricks/white_sandstone_bricks_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "White Sandstone Bricks",
+  "source": "https://polyhaven.com/a/white_sandstone_bricks",
   "type": "textures"
  },
  "white_stucco": {
@@ -7678,6 +8272,37 @@
   "source": "https://polyhaven.com/a/wicker_basket_02",
   "type": "models"
  },
+ "wine_bottles_01": {
+  "authors": [
+   "Jurita Burger",
+   "Rico Cilliers"
+  ],
+  "categories": [
+   "props",
+   "containers",
+   "dishes"
+  ],
+  "files": [
+   "props/polyhaven/wine_bottles_01/wine_bottles_01_1k.gltf",
+   "props/polyhaven/wine_bottles_01/textures/wine_bottles_01_label_ftero_vinea_02_arm_1k.jpg",
+   "props/polyhaven/wine_bottles_01/textures/wine_bottles_01_label_ftero_vinea_01_diff_1k.jpg",
+   "props/polyhaven/wine_bottles_01/textures/wine_bottles_01_label_intertwine_01_arm_1k.jpg",
+   "props/polyhaven/wine_bottles_01/textures/wine_bottles_01_label_clearwater_crystals_01_diff_1k.jpg",
+   "props/polyhaven/wine_bottles_01/textures/wine_bottles_01_label_ftero_vinea_01_arm_1k.jpg",
+   "props/polyhaven/wine_bottles_01/textures/wine_bottles_01_label_clearwater_crystals_01_arm_1k.jpg",
+   "props/polyhaven/wine_bottles_01/textures/wine_bottles_01_label_ftero_vinea_02_diff_1k.jpg",
+   "props/polyhaven/wine_bottles_01/textures/wine_bottles_01_paper_nor_gl_1k.jpg",
+   "props/polyhaven/wine_bottles_01/wine_bottles_01.bin",
+   "props/polyhaven/wine_bottles_01/textures/wine_bottles_01_label_intertwine_01_diff_1k.jpg",
+   "props/polyhaven/wine_bottles_01/textures/wine_bottles_01_diff_1k.jpg",
+   "props/polyhaven/wine_bottles_01/textures/wine_bottles_01_nor_gl_1k.jpg",
+   "props/polyhaven/wine_bottles_01/textures/wine_bottles_01_arm_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Wine Bottles 01",
+  "source": "https://polyhaven.com/a/wine_bottles_01",
+  "type": "models"
+ },
  "winter_evening": {
   "authors": [
    "Sergej Majboroda"
@@ -7697,6 +8322,25 @@
   "name": "Winter Evening",
   "source": "https://polyhaven.com/a/winter_evening",
   "type": "hdris"
+ },
+ "winter_leaves": {
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "categories": [
+   "outdoor",
+   "floor",
+   "natural"
+  ],
+  "files": [
+   "textures/polyhaven/winter_leaves/winter_leaves_diff_1k.jpg",
+   "textures/polyhaven/winter_leaves/winter_leaves_nor_gl_1k.jpg",
+   "textures/polyhaven/winter_leaves/winter_leaves_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Winter Leaves",
+  "source": "https://polyhaven.com/a/winter_leaves",
+  "type": "textures"
  },
  "wood_cabinet_worn_long": {
   "authors": [
@@ -7718,6 +8362,28 @@
   "license": "CC0-1.0",
   "name": "Wood Cabinet Worn Long",
   "source": "https://polyhaven.com/a/wood_cabinet_worn_long",
+  "type": "textures"
+ },
+ "wood_peeling_paint_weathered": {
+  "authors": [
+   "Dimitrios Savva",
+   "Rob Tuytel"
+  ],
+  "categories": [
+   "outdoor",
+   "man made",
+   "wall",
+   "wood",
+   "dirty"
+  ],
+  "files": [
+   "textures/polyhaven/wood_peeling_paint_weathered/wood_peeling_paint_weathered_diff_1k.jpg",
+   "textures/polyhaven/wood_peeling_paint_weathered/wood_peeling_paint_weathered_nor_gl_1k.jpg",
+   "textures/polyhaven/wood_peeling_paint_weathered/wood_peeling_paint_weathered_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Wood Peeling Paint Weathered",
+  "source": "https://polyhaven.com/a/wood_peeling_paint_weathered",
   "type": "textures"
  },
  "wood_planks_dirt": {
@@ -7952,6 +8618,25 @@
   "license": "CC0-1.0",
   "name": "Wool Boucle",
   "source": "https://polyhaven.com/a/wool_boucle",
+  "type": "textures"
+ },
+ "worn_brick_wall": {
+  "authors": [
+   "Amal Kumar"
+  ],
+  "categories": [
+   "wall",
+   "man made",
+   "brick"
+  ],
+  "files": [
+   "textures/polyhaven/worn_brick_wall/worn_brick_wall_diff_1k.jpg",
+   "textures/polyhaven/worn_brick_wall/worn_brick_wall_nor_gl_1k.jpg",
+   "textures/polyhaven/worn_brick_wall/worn_brick_wall_rough_1k.jpg"
+  ],
+  "license": "CC0-1.0",
+  "name": "Worn Brick Wall",
+  "source": "https://polyhaven.com/a/worn_brick_wall",
   "type": "textures"
  },
  "worn_metal_rack": {

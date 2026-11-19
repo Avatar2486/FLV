@@ -32,6 +32,16 @@ SELECTION = {
     "hdris": {"night"},
     "textures": {"indoor", "fabric"},
 }
+# Named assets fetched whatever their category or size: Tell-Tale Heart props and the 1843 street.
+EXTRA = {
+    "brass_candleholders", "tea_set_01", "wine_bottles_01", "spinning_wheel_01",
+    "street_rat", "Barrel_01", "Barrel_02", "barrel_03", "large_iron_gate", "gate_latch_01",
+    "dead_tree_trunk", "tree_stump_01", "dry_branches_medium_01", "shrub_02", "shrub_03", "moss_01",
+    "cobblestone_floor_04", "cobblestone_floor_05", "mossy_cobblestone", "brick_pavement", "stone_floor",
+    "red_brick", "red_bricks_02", "worn_brick_wall", "roof_slates_02", "roof_slates_03",
+    "wood_peeling_paint_weathered", "weathered_plank_siding", "white_sandstone_bricks",
+    "winter_leaves", "dry_decay_leaves", "brown_mud_leaves_01",
+}
 FURNITURE = {"furniture", "seating", "table", "shelves"}      # other models go to assets/props
 TEXTURE_MAPS = ("Diffuse", "nor_gl", "Rough")                  # colour, normal (OpenGL), roughness
 
@@ -97,13 +107,13 @@ def main():
     manifest, jobs, total = {}, [], 0
     for kind, categories in SELECTION.items():
         catalogue = get_json(f"{API}/assets?type={kind}")
-        chosen = sorted(i for i, info in catalogue.items() if categories & set(info["categories"]))
+        chosen = sorted(i for i, info in catalogue.items() if categories & set(info["categories"]) or i in EXTRA)
         with ThreadPoolExecutor(4) as pool:                 # look up file lists, a few at a time
             plans = list(pool.map(lambda i: plan(kind, i, catalogue[i]), chosen))
         kind_bytes = 0
         for asset_id, (folder, entries) in zip(chosen, plans):
             size = sum(e[2] for e in entries)
-            if not entries or size > MAX_ASSET_MB * 1e6:
+            if not entries or (size > MAX_ASSET_MB * 1e6 and asset_id not in EXTRA):
                 continue
             info = catalogue[asset_id]
             manifest[asset_id] = {
