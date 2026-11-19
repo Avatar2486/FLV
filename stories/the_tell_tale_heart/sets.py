@@ -254,8 +254,11 @@ def chamber(coll, lights):
     out["soot"] = su.make_object("CH_Soot", coll, M("MAT_Soot"), bm, (-2.3, 0.5, 0.9), flat=True)
 
     # Lighting rig (energies are keyed per shot)
+    # the moon is a small, sharp source; a 1.2 m area light's traced soft shadows speckled every lit surface
+    # in Eevee (more samples did not help), and jitter alone on the big light gave blocky shadow tiles
     lights["moon"] = su.light("CH_LIGHT_Moon", coll, "AREA", (3.6, 0.3, 2.4), 0, (0.55, 0.68, 1.0),
-                              target=(0.3, -0.2, 0.0), shape="RECTANGLE", size=1.2, size_y=1.4)
+                              target=(0.3, -0.2, 0.0), shape="RECTANGLE", size=0.15, size_y=0.18,
+                              use_shadow_jitter=True, shadow_jitter_overblur=0.0)
     lights["sun"] = su.light("CH_LIGHT_Sun", coll, "SUN", (6, 0, 4), 0, (1.0, 0.9, 0.75), target=(0, 0.3, 0),
                              angle=math.radians(2))
     lights["fill"] = su.light("CH_LIGHT_Fill", coll, "AREA", (0.5, -1.5, 2.9), 0, (0.6, 0.7, 1.0),

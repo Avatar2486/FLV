@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Quaternion, Vector
 
 ROOT = Path(__file__).resolve().parent.parent
 TEXTURES = ROOT / "assets" / "textures" / "polyhaven"
@@ -248,10 +248,13 @@ def aim(rig, bone, direction):
 
 
 def relax_arms(rig, spread=0.12, forward=0.08):
-    """Arms down by the sides, elbows slightly bent (MakeHuman rigs rest in a T/A pose)."""
+    """Arms down by the sides, elbows slightly bent (MakeHuman rigs rest in a T/A pose). Directions are in
+    the character's own frame, so this works standing or lying."""
+    bpy.context.view_layer.update()
+    to_world = rig.matrix_world.to_3x3()
     for side, sx in (("Left", 1), ("Right", -1)):
-        aim(rig, f"{side}Arm", (sx * spread, -forward, -1))
-        aim(rig, f"{side}ForeArm", (sx * spread * 0.6, -forward * 2.5, -1))
+        aim(rig, f"{side}Arm", to_world @ Vector((sx * spread, -forward, -1)))
+        aim(rig, f"{side}ForeArm", to_world @ Vector((sx * spread * 0.6, -forward * 2.5, -1)))
 
 
 # --- face -----------------------------------------------------------------------------------------
@@ -491,7 +494,7 @@ def blinks(rig, start, end, seed=1, fps=24):
 # the out-breath after a quick in-breath (~0.35 s) before each phrase.
 BREATH = {   # breaths per minute, chest lift (deg), shoulder rise (deg)
     "calm": (13, 1.0, 0.5), "anxious": (22, 1.6, 1.4), "panic": (32, 2.2, 2.6), "held": (0, 0.0, 0.0),
-    "old": (17, 0.8, 0.9),
+    "old": (17, 0.8, 0.9), "sleep": (12, 0.9, 0.2),
 }
 
 
@@ -541,13 +544,23 @@ def sway(rig, start, end, amount=1.0, seed=1):
 # Startle (acoustic startle reflex, Brown et al. 1991): a cranio-caudal wave - blink ~20-40 ms, head and neck
 # 60-120 ms, shoulders 100-120 ms, arms 125-195 ms, legs 145-395 ms - flexing the neck and trunk, raising the
 # shoulders, bending the elbows; it peaks fast and settles over most of a second.
-def startle(rig, frame, strength=1.0, fps=24):
+def startle(rig, frame, strength=1.0, fps=24, face_too=True, until=None):
+    """face_too=False: a jerk in sleep (eyes stay shut). until: hold the layer's keys to this frame."""
     meshes = face_meshes(rig)
+    if face_too:
+        _startle_face(rig, meshes, frame, strength, fps)
+    _startle_body(rig, frame, strength, fps, until)
+
+
+def _startle_face(rig, meshes, frame, strength, fps):
     face(rig, frame - 1, {"eyeBlinkLeft": 0.0, "eyeBlinkRight": 0.0, "eyeWideLeft": 0.0, "eyeWideRight": 0.0,
                           "browInnerUp": 0.0}, meshes)
     face(rig, frame + 0.03 * fps, {"eyeBlinkLeft": strength, "eyeBlinkRight": strength}, meshes)
     face(rig, frame + 0.2 * fps, {"eyeBlinkLeft": 0.0, "eyeBlinkRight": 0.0, "eyeWideLeft": 0.8 * strength,
                                   "eyeWideRight": 0.8 * strength, "browInnerUp": 0.9 * strength}, meshes)
+
+
+def _startle_body(rig, frame, strength, fps, until):
     wave = {"Head": (0.09, (0, 2, 0)), "Neck1": (0.08, (0, 6, 0)), "Spine1": (0.11, (0, 5, 0)),
             "LeftShoulder": (0.11, (0, 0, -9)), "RightShoulder": (0.11, (0, 0, 9)),
             "LeftArm": (0.16, (0, 0, -6)), "RightArm": (0.16, (0, 0, 6)),
@@ -563,7 +576,7 @@ def startle(rig, frame, strength=1.0, fps=24):
             k = 0.0 if t < 0 else (t / 0.08 if t < 0.08 else math.exp(-(t - 0.08) / 0.35))   # snap, then settle
             out[bone] = tuple(r * k * strength for r in rot)
         return out
-    _layer(rig, int(frame), int(frame + 1.6 * fps), offsets)
+    _layer(rig, int(frame), int(until or frame + 1.6 * fps), offsets)
 
 
 # --- motion capture -------------------------------------------------------------------------------
@@ -733,7 +746,7 @@ def plant_feet(rig, start, end, floor=0.0, blend=3):
     return lift
 
 
-def _two_bone(rig, rest, pose, frame, up, low, foot, target):
+def _two_bone(rig, rest, pose, frame, up, low, foot, target, pole=(0, -1, 0), end_rot=None):
     """Analytic two-bone IK in armature space; keys the thigh, shin and foot rotations at `frame`."""
     from mathutils import Matrix
     H, K, A = pose[up].translation, pose[low].translation, pose[foot].translation
@@ -742,7 +755,8 @@ def _two_bone(rig, rest, pose, frame, up, low, foot, target):
     d = max(abs(l1 - l2) + 1e-4, min(l1 + l2 - 1e-4, reach.length))
     u = reach.normalized()
     bend = (K - H) - (K - H).project(A - H)                                    # the knee's mocap direction
-    bend = (bend - bend.project(u)).normalized() if bend.length > 1e-6 else Vector((0, -1, 0))
+    bend = bend if bend.length > 0.01 * l1 else Vector(pole)          # straight limb: use the natural bend
+    bend = (bend - bend.project(u)).normalized()
     a = (l1 * l1 + d * d - l2 * l2) / (2 * d)
     knee = H + u * a + bend * math.sqrt(max(0.0, l1 * l1 - a * a))
     ankle = H + u * d
@@ -754,7 +768,8 @@ def _two_bone(rig, rest, pose, frame, up, low, foot, target):
     thigh = aimed(pose[up], H, K - H, knee - H)
     shin_start = thigh @ (pose[up].inverted() @ pose[low])                    # shin carried by the new thigh
     shin = aimed(shin_start, knee, (shin_start @ (pose[low].inverted() @ pose[foot])).translation - knee, ankle - knee)
-    foot_m = Matrix.Translation(ankle) @ pose[foot].to_3x3().to_4x4()         # the foot keeps its own angle
+    turned = end_rot if end_rot is not None else pose[foot].to_3x3()          # the foot keeps its own angle
+    foot_m = Matrix.Translation(ankle) @ turned.to_4x4()
     for name, matrix, parent in ((up, thigh, None), (low, shin, thigh), (foot, foot_m, shin)):
         pb = rig.pose.bones[name]
         parent_pose = parent if parent is not None else pb.parent.matrix
@@ -764,6 +779,219 @@ def _two_bone(rig, rest, pose, frame, up, low, foot, target):
         basis = (parent_pose @ rest_rel).inverted() @ matrix
         pb.rotation_quaternion = basis.to_quaternion()
         pb.keyframe_insert("rotation_quaternion", frame=frame)
+
+
+# --- hands, props, beds -------------------------------------------------------------------------------
+def reach(rig, side, start, end, target, blend=8, hand=None):
+    """Arm IK: the hand (wrist) goes to target(frame) -> world point (or None = free), with `blend`-frame
+    ease in and out. Elbows bend back and down. hand: a world 3x3 rotation for the hand (its Y axis along
+    the fingers, Z out of the palm), else it keeps its own angle. For hands on doors, latches, lanterns:
+    in FLV nothing moves unless a hand moves it."""
+    scene = bpy.context.scene
+    bpy.context.view_layer.update()
+    rest = {b.name: b.matrix_local.copy() for b in rig.data.bones}
+    chain = (f"{side}Arm", f"{side}ForeArm", f"{side}Hand")
+    parent = rig.pose.bones[chain[0]].parent.name
+    frames = list(range(start, end + 1))
+    goals = {f: target(f) for f in frames}
+    on = [f for f in frames if goals[f] is not None]
+    if not on:
+        return
+    first, last = on[0], on[-1]
+    to_arm = rig.matrix_world.inverted()
+    weight = {}
+    for f in frames:
+        w = 1.0 if first <= f <= last else 0.0
+        if f < first and first - f <= blend:
+            w = 1 - (first - f) / (blend + 1)
+        if f > last and f - last <= blend:
+            w = 1 - (f - last) / (blend + 1)
+        if w > 0:
+            weight[f] = w
+    poses = {}
+    for f in weight:                          # the arm as it was, before any IK key (else the blends drift)
+        scene.frame_set(f)
+        poses[f] = {n: rig.pose.bones[n].matrix.copy() for n in chain + (parent,)}
+    for f, w in weight.items():
+        goal = goals[f] if goals[f] is not None else goals[first if f < first else last]
+        pose = poses[f]
+        wrist = pose[chain[2]].translation
+        ease = 0.5 - 0.5 * math.cos(math.pi * w)
+        aim_at = wrist.lerp(to_arm @ Vector(goal), ease)
+        turned = None
+        if hand is not None:
+            want = (to_arm.to_3x3() @ hand).to_quaternion()
+            turned = pose[chain[2]].to_quaternion().slerp(want, ease).to_matrix()
+        _two_bone(rig, rest, pose, f, *chain, aim_at, pole=(0, 0.6, -0.4), end_rot=turned)
+
+
+def hand_frame(fingers, palm):
+    """World rotation for reach(hand=...): fingers point along `fingers`, the palm faces `palm`."""
+    from mathutils import Matrix
+    y = Vector(fingers).normalized()
+    z = Vector(palm) - Vector(palm).project(y)
+    z.normalize()
+    return Matrix((y.cross(z), y, z)).transposed()
+
+
+def grip(rig, side, frame=1, curl=1.0):
+    """Close the fingers round a handle from `frame` on (MPFB cmu_mb: one finger chain, +X curls)."""
+    scene = bpy.context.scene
+    thumb = "LThumb" if side == "Left" else "RThumb"
+    for name, deg in ((f"{side}FingerBase", 25), (f"{side}HandFinger1", 55), (thumb, 15)):
+        pb = rig.pose.bones[name]
+        scene.frame_set(frame)
+        pb.keyframe_insert("rotation_quaternion", frame=frame - 4)
+        pb.rotation_quaternion = pb.rotation_quaternion @ Quaternion((1, 0, 0), math.radians(deg * curl))
+        pb.keyframe_insert("rotation_quaternion", frame=frame)
+
+
+ARM_BONES = [f"{s}{b}" for s in ("Left", "Right") for b in ("Arm", "ForeArm", "Hand", "FingerBase", "HandFinger1")] \
+    + ["LThumb", "RThumb"]
+
+
+def bedsheet(name, coll, material, rig, center, size, top, drop=0.3, clearance=0.035, step=0.025, frame=1):
+    """A blanket over someone in bed, tucked in at the foot end (-y), open at +y: heights are cast down
+    onto the body and clothes (arms left out, so hands can rest on top), spread and smoothed the way fabric
+    spans the gaps, and the two long sides hang `drop` metres. Static: legs stay put in a bed."""
+    import bmesh
+    import numpy as np
+    from mathutils.bvhtree import BVHTree
+    scene = bpy.context.scene
+    scene.frame_set(frame)
+    deps = bpy.context.evaluated_depsgraph_get()
+    trees = []
+    for obj in [o for o in rig.children if o.type == "MESH"]:
+        bm = bmesh.new()
+        bm.from_object(obj, deps)
+        bm.transform(obj.matrix_world)
+        layer = bm.verts.layers.deform.active
+        arms = {obj.vertex_groups[b].index for b in ARM_BONES if b in obj.vertex_groups}
+        if layer is not None and arms:
+            bmesh.ops.delete(bm, geom=[v for v in bm.verts if sum(w for g, w in v[layer].items() if g in arms) > 0.5],
+                             context="VERTS")
+        trees.append(BVHTree.FromBMesh(bm))
+        bm.free()
+    hw, hl = size[0] / 2, size[1] / 2
+    nx, ny = int(size[0] / step) + 1, int(size[1] / step) + 1
+    xs, ys = np.linspace(-hw, hw, nx), np.linspace(-hl, hl, ny)
+    H = np.full((ny, nx), float(top))
+    for j, y in enumerate(ys):
+        for i, x in enumerate(xs):
+            for tree in trees:
+                hit = tree.ray_cast(Vector((center[0] + x, center[1] + y, top + 2.0)), Vector((0, 0, -1)))[0]
+                if hit is not None:
+                    H[j, i] = max(H[j, i], hit.z)
+    raw = H.copy()
+    for d in ((1, 0), (-1, 0), (0, 1), (0, -1)):        # small peaks (toes) fall between samples
+        raw = np.maximum(raw, np.roll(H, d, (0, 1)))
+    H = raw + clearance
+    spread = H.copy()                                   # fabric spans gaps: dilate a little, then smooth
+    for dj in range(-2, 3):
+        for di in range(-2, 3):
+            if dj * dj + di * di <= 4:
+                spread = np.maximum(spread, np.roll(np.roll(H, dj, 0), di, 1))
+    kernel = np.exp(-0.5 * (np.arange(-10, 11) / 3.5) ** 2)
+    kernel /= kernel.sum()
+    pad = np.pad(spread, 10, mode="edge")
+    pad = np.apply_along_axis(lambda r: np.convolve(r, kernel, "same"), 0, pad)
+    pad = np.apply_along_axis(lambda r: np.convolve(r, kernel, "same"), 1, pad)
+    H = np.maximum(pad[10:-10, 10:-10], H)
+    H[0, :] = np.minimum(H[0, :], top + 0.01)            # tucked in at the foot
+    H[1, :] = (H[0, :] + H[2, :]) / 2
+    # extend round the three closed sides and let them hang
+    k = int(drop / step)
+    us = np.concatenate([-hw - step * np.arange(k, 0, -1), xs, hw + step * np.arange(1, k + 1)])
+    vs = ys
+    bm = bmesh.new()
+    rows = []
+    for v in vs:
+        row = []
+        for u in us:
+            over = max(abs(u) - hw, -hl - v, 0.0)
+            i = int(round((min(max(u, -hw), hw) + hw) / step))
+            j = int(round((min(max(v, -hl), hl) + hl) / step))
+            x = math.copysign(min(abs(u), hw) + 0.15 * max(abs(u) - hw, 0), u)
+            y = max(v, -hl) - 0.15 * max(-hl - v, 0)
+            z = H[min(j, ny - 1), min(i, nx - 1)] - over          # the hang carries on from the edge
+            row.append(bm.verts.new((center[0] + x, center[1] + y, z)))
+        rows.append(row)
+    for j in range(len(rows) - 1):
+        for i in range(len(us) - 1):
+            bm.faces.new((rows[j][i], rows[j][i + 1], rows[j + 1][i + 1], rows[j + 1][i]))
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
+        poly.use_smooth = True
+    obj = bpy.data.objects.new(name, mesh)
+    coll.objects.link(obj)
+    obj.data.materials.append(material)
+    obj.modifiers.new("Thickness", "SOLIDIFY").thickness = 0.01
+    obj.modifiers.new("Soft", "SUBSURF").render_levels = 1
+    return obj, (lambda x, y: float(H[min(max(int(round((y - center[1] + hl) / step)), 0), ny - 1),
+                                        min(max(int(round((x - center[0] + hw) / step)), 0), nx - 1)]))
+
+
+def hold(rig, prop, side="Right", frame=1):
+    """Put a prop in a hand: from `frame` on it moves only with that hand (bone parent, world pose kept)."""
+    bpy.context.scene.frame_set(frame)
+    bpy.context.view_layer.update()
+    world = prop.matrix_world.copy()
+    prop.parent, prop.parent_type, prop.parent_bone = rig, "BONE", f"{side}Hand"
+    bpy.context.view_layer.update()
+    prop.matrix_world = world
+
+
+def sit_up(rig, frame, until, seconds=0.45, angle=72.0, fps=24):
+    """Sit up from lying on the back, hinging at the hips (legs stay on the bed): fast like a startle,
+    a small overshoot, then held until `until`."""
+    def k(f):
+        t = (f - frame) / (seconds * fps)
+        if t <= 0:
+            return 0.0
+        if t < 1:
+            return 0.5 - 0.5 * math.cos(math.pi * t)
+        return 1.0 + 0.06 * math.exp(-(t - 1) * 3) * math.sin((t - 1) * 9)      # settle
+    def offsets(f):
+        a = angle * k(f)
+        return {"Hips": (0, a * 0.8, 0), "LeftUpLeg": (0, -a * 0.8, 0), "RightUpLeg": (0, -a * 0.8, 0),
+                "LowerBack": (0, a * 0.12, 0), "Spine": (0, a * 0.08, 0), "Neck1": (0, -a * 0.05, 0)}
+    _layer(rig, frame, until, offsets)
+
+
+def chuckle(rig, start, end, fps=24):
+    """A stifled laugh: shoulders and chest bounce ~4.5 times a second, lips pressed into a smile."""
+    meshes = face_meshes(rig)
+    face(rig, start - 3, {"mouthSmileLeft": 0.0, "mouthSmileRight": 0.0, "mouthPressLeft": 0.0,
+                          "mouthPressRight": 0.0, "cheekSquintLeft": 0.0, "cheekSquintRight": 0.0}, meshes)
+    for f in range(start, end + 1, 3):
+        pulse = 0.5 + 0.5 * math.sin(2 * math.pi * 4.5 * (f - start) / fps)
+        face(rig, f, {"mouthSmileLeft": 0.45, "mouthSmileRight": 0.4, "mouthPressLeft": 0.35 + 0.2 * pulse,
+                      "mouthPressRight": 0.35 + 0.2 * pulse, "cheekSquintLeft": 0.3, "cheekSquintRight": 0.3,
+                      "noseSneerLeft": 0.15 * pulse, "noseSneerRight": 0.15 * pulse}, meshes)
+    face(rig, end + 6, {"mouthSmileLeft": 0.15, "mouthSmileRight": 0.1, "mouthPressLeft": 0.0,
+                        "mouthPressRight": 0.0, "cheekSquintLeft": 0.0, "cheekSquintRight": 0.0,
+                        "noseSneerLeft": 0.0, "noseSneerRight": 0.0}, meshes)
+
+    def offsets(f):
+        env = min(1.0, (f - start) / 6, (end - f) / 6) if start <= f <= end else 0.0
+        b = math.sin(2 * math.pi * 4.5 * (f - start) / fps) * env
+        return {"Spine1": (0, 1.2 * b, 0), "LeftShoulder": (0, 0, -1.8 * b), "RightShoulder": (0, 0, 1.8 * b),
+                "Head": (0, -0.8 * b, 0)}
+    _layer(rig, start, end + 6, offsets)
+
+
+def tremble(rig, start, end, strength=1.0, seed=1):
+    """Lips trembling in fear: small fast irregular movements of the lips and chin."""
+    rng = random.Random(seed)
+    meshes = face_meshes(rig)
+    for f in range(start, end + 1, 2):
+        face(rig, f, {"mouthPressLeft": strength * rng.uniform(0.05, 0.35),
+                      "mouthPressRight": strength * rng.uniform(0.05, 0.35),
+                      "mouthShrugLower": strength * rng.uniform(0.1, 0.45),
+                      "mouthRollLower": strength * rng.uniform(0.0, 0.2),
+                      "mouthFrownLeft": strength * 0.3, "mouthFrownRight": strength * 0.3}, meshes)
 
 
 def _selfcheck():
@@ -806,8 +1034,22 @@ def _selfcheck():
                  for f in range(1, end + 1) if not bpy.context.scene.frame_set(f) for s in ("Left", "Right"))
     assert drift < 3.0, f"plant_feet changed knee bend by {drift:.1f} degrees on average"
     assert lowest > -0.01, f"a foot went {-lowest * 100:.1f} cm through the floor"
+    # reach: the wrist gets to its target, and once let go the arm is exactly as it was
+    scene = bpy.context.scene
+    arm = lambda f: [not scene.frame_set(f) and (target.matrix_world @ target.pose.bones[n].matrix).to_quaternion()
+                     for n in ("LeftArm", "LeftForeArm", "LeftHand")]
+    wrist = lambda f: not scene.frame_set(f) and target.matrix_world @ target.pose.bones["LeftHand"].head
+    goal = wrist(20) + Vector((0.12, 0.08, 0.15))
+    untouched = {f: arm(f) for f in (8, 34)}
+    reach(target, "Left", 1, end, lambda f: goal if 15 <= f <= 25 else None, blend=5)
+    missed = (wrist(20) - goal).length
+    back = max(math.degrees(min(x.rotation_difference(y).angle, 2 * math.pi - x.rotation_difference(y).angle))
+               for f, qs in untouched.items() for x, y in zip(qs, arm(f)))
+    assert missed < 0.01, f"reach missed its target by {missed * 100:.1f} cm"
+    assert back < 0.1, f"reach left the arm {back:.2f} degrees off after letting go"
     print(f"humans selfcheck OK: {len(target.pose.bones)} bones x {end} frames, worst error {math.degrees(worst):.5f} deg; "
-          f"plant_feet knee change {drift:.2f} deg, lowest toe {lowest * 100:+.1f} cm")
+          f"plant_feet knee change {drift:.2f} deg, lowest toe {lowest * 100:+.1f} cm; "
+          f"reach miss {missed * 100:.2f} cm, arm after release {back:.3f} deg")
 
 
 if __name__ == "__main__" and "--selfcheck" in sys.argv:

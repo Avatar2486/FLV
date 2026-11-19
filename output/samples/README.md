@@ -96,4 +96,36 @@ Files:
 
 **Your choice:** keep this look, or tell me what to change.
 
+## 6. Everything together: "the eighth night" (film shots 3.1–3.10), about 53 s
+**File:** `output/renders/the_tell_tale_heart_v2_preview/the_tell_tale_heart_v2_preview.mp4`
+
+The new pipeline in a real scene from the film:
+- MPFB characters
+- Chatterbox voices
+- lips driven by the voice
+- eyes, blinks, breathing and sway
+- recorded sound and Chopin's Prelude No. 15
+
+**What happens:**
+
+| Shot | Action |
+|---|---|
+| 3.1 | The narrator's right hand pushes the door open, slowly and steadily. It moves only while his hand is on it. |
+| 3.3 | He chuckles silently in the gap: shoulders shaking, lips pressed into a smile. |
+| 3.4 | The sleeping old man jerks in bed; his eyes stay shut. |
+| 3.5 | Close on the narrator, holding his breath. |
+| 3.6 | He holds the lantern by its ring. His thumb slips on the catch (*clink*) and he flinches; the lantern jerks with his hand. |
+| 3.7 | The old man springs up in bed: a startle running head to toe. His hands stay on the blanket and he cries "Who's there?" |
+| 3.8 | Both are frozen, listening. |
+| 3.10 | The old man's trembling lips, then the groan. |
+
+**Also new:**
+- The blanket is shaped over the sleeping man: his feet make tents, it is tucked in at the foot, and
+  his hands rest on top.
+- The speckled grain all over the earlier renders is fixed. It came from the moon light's soft shadows;
+  the moon is now a small, sharp light.
+
+**Your choice:** whether this is the right direction for the full rebuild, and anything that looks or
+sounds wrong (timing, faces, hands, light, voices).
+
 Sources and licences: `assets/THIRD_PARTY.md`.

@@ -1,0 +1,72 @@
+[
+ {
+  "text": "Upon the eighth night I was more than usually cautious in opening the door. A watch's minute hand moves more quickly than did mine.",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.5,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v2/3.1_N.wav"
+ },
+ {
+  "text": "I fairly chuckled at the idea; and perhaps he heard me;",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.6,
+  "cfg": 0.45,
+  "out": "audio/voiceovers/the_tell_tale_heart_v2/3.3_N.wav"
+ },
+ {
+  "text": "for he moved on the bed suddenly, as if startled.",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.5,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v2/3.4_N.wav"
+ },
+ {
+  "text": "Now you may think that I drew back. But no. I kept pushing it on steadily, steadily.",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.55,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v2/3.5_N.wav"
+ },
+ {
+  "text": "I had my head in, and was about to open the lantern, when my thumb slipped upon the tin fastening,",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.55,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v2/3.6_N.wav"
+ },
+ {
+  "text": "and the old man sprang up in the bed, crying out,",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.65,
+  "cfg": 0.45,
+  "out": "audio/voiceovers/the_tell_tale_heart_v2/3.7_N.wav"
+ },
+ {
+  "text": "Who's there?",
+  "ref": "audio/voice_refs/old_man.wav",
+  "exaggeration": 0.85,
+  "cfg": 0.35,
+  "out": "audio/voiceovers/the_tell_tale_heart_v2/3.7_OM.wav"
+ },
+ {
+  "text": "I kept quite still and said nothing. For a whole hour I did not move a muscle.",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.45,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v2/3.8_N.wav"
+ },
+ {
+  "text": "Presently I heard a slight groan, and I knew it was the groan of mortal terror.",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.5,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v2/3.10_N.wav"
+ },
+ {
+  "text": "Ohhh...",
+  "ref": "audio/voice_refs/old_man.wav",
+  "exaggeration": 0.9,
+  "cfg": 0.3,
+  "out": "audio/voiceovers/the_tell_tale_heart_v2/3.10_OM_groan.wav"
+ }
+]

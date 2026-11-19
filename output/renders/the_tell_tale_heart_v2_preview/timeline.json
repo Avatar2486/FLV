@@ -1,0 +1,133 @@
+{
+ "fps": 24,
+ "seconds": 52.56,
+ "frames": 1261,
+ "shots": [
+  {
+   "id": "3.1",
+   "camera": "door_from_room",
+   "start": 0.0,
+   "seconds": 8.7,
+   "lines": [
+    {
+     "file": "3.1_N.wav",
+     "who": "N",
+     "start": 0.4,
+     "seconds": 7.6
+    }
+   ]
+  },
+  {
+   "id": "3.3",
+   "camera": "gap",
+   "start": 8.7,
+   "seconds": 4.7,
+   "lines": [
+    {
+     "file": "3.3_N.wav",
+     "who": "N",
+     "start": 9.1,
+     "seconds": 3.6
+    }
+   ]
+  },
+  {
+   "id": "3.4",
+   "camera": "corner",
+   "start": 13.4,
+   "seconds": 4.5,
+   "lines": [
+    {
+     "file": "3.4_N.wav",
+     "who": "N",
+     "start": 13.8,
+     "seconds": 3.4
+    }
+   ]
+  },
+  {
+   "id": "3.5",
+   "camera": "gap",
+   "start": 17.9,
+   "seconds": 6.86,
+   "lines": [
+    {
+     "file": "3.5_N.wav",
+     "who": "N",
+     "start": 18.3,
+     "seconds": 5.76
+    }
+   ]
+  },
+  {
+   "id": "3.6",
+   "camera": "lantern",
+   "start": 24.76,
+   "seconds": 7.38,
+   "lines": [
+    {
+     "file": "3.6_N.wav",
+     "who": "N",
+     "start": 25.16,
+     "seconds": 6.28
+    }
+   ]
+  },
+  {
+   "id": "3.7",
+   "camera": "bed",
+   "start": 32.14,
+   "seconds": 5.97,
+   "lines": [
+    {
+     "file": "3.7_N.wav",
+     "who": "N",
+     "start": 32.54,
+     "seconds": 3.56
+    },
+    {
+     "file": "3.7_OM.wav",
+     "who": "OM",
+     "start": 36.45,
+     "seconds": 0.96
+    }
+   ]
+  },
+  {
+   "id": "3.8",
+   "camera": "corner",
+   "start": 38.11,
+   "seconds": 7.0,
+   "lines": [
+    {
+     "file": "3.8_N.wav",
+     "who": "N",
+     "start": 38.51,
+     "seconds": 5.24
+    }
+   ]
+  },
+  {
+   "id": "3.10",
+   "camera": "old_face",
+   "start": 45.11,
+   "seconds": 7.45,
+   "lines": [
+    {
+     "file": "3.10_N.wav",
+     "who": "N",
+     "start": 45.51,
+     "seconds": 5.0
+    },
+    {
+     "file": "3.10_OM_groan.wav",
+     "who": "OM",
+     "start": 50.86,
+     "seconds": 1.0
+    }
+   ]
+  }
+ ],
+ "click": 31.208333333333332,
+ "wake": 32.416666666666664
+}

@@ -128,6 +128,43 @@ How sneaking differs from walking:
 - **The method:** `plant_feet()` detects contacts on the ball of the foot (the pivot in these gaits), lowers or raises the whole body once so planted feet meet the floor, locks each contact to its average spot, solves two-bone leg IK (knee direction and foot angle kept), and blends over 3 frames, as Kovar et al. 2002 advise.
 - **The result:** sliding falls to about 1–2 cm/s (mostly the blend frames), knee bend is kept, and no foot goes through the floor.
 
+## Hands, props and the bed: `reach()`, `grip()`, `hold()`, `bedsheet()`
+- **Nothing moves by itself.** Every moving prop has a hand on it.
+  - `reach()` is two-bone arm IK: the wrist follows a target point (on the door, the lantern ring, the
+    blanket), easing in and out over a few frames. It reads the arm's own motion before keying, so after
+    release the arm returns exactly to where it was. The self-check measures this: 0.000° after release.
+  - `hold()` puts a prop in a hand, so it moves only when that hand moves. When the narrator flinches at
+    his own slip, the lantern jerks with his hand.
+  - `grip()` curls the fingers round a handle; on the MPFB rig, +X on the finger bones curls them.
+- **The door** opens only while his right hand is on it and stops when the hand stops.
+- **The lantern** hangs from its top ring, palm down, the fingers curled through the ring. At the "tin
+  fastening" his thumb slips (a 28° thumb jerk), then the startle follows.
+- **Sleep:**
+  - Slow, shallow breathing: 12 per minute, almost no shoulder movement.
+  - A small body-only jerk when he "moved on the bed suddenly"; his eyes stay shut.
+- **Sitting up in fright:** a fast hip hinge, 0.45 s with a small overshoot, while the legs stay on the
+  bed. A full startle runs on top of it. His hands stay on the blanket, so the arms bend as the shoulders
+  rise.
+- **The blanket** is shaped over the sleeper:
+  - Heights are cast down onto his body and clothes, leaving the arms out so the hands can rest on top.
+  - It is spread and smoothed the way cloth spans gaps, so the feet make tents.
+  - It is tucked in at the foot and hangs down both long sides.
+- **A stifled chuckle** pulses the shoulders and chest at about 4.5 per second, close to the roughly
+  210 ms spacing of laugh notes (Provine 1996), with the lips pressed into a smile.
+
+## Light and grain (Eevee, Blender 5.3)
+- **The speckle came from the moon light's size.** Fine grain on every moonlit surface came from the
+  shadows of the large (1.2 × 1.4 m) area light.
+- **What didn't help:**
+  - More samples (160)
+  - More shadow rays or steps
+  - A finer shadow map
+  - Hiding the haze
+  - Turning raytracing off
+  - Jitter on the big light, which gave blocky shadow tiles instead
+- **The fix:** a small moon light (0.15 m; the real moon is a small, sharp source) with jittered
+  shadows, overblur 0. Fill lights cast no shadows. The film's old "haze speckle" glitch was this.
+
 ## Sources
 - [JALI (Edwards et al. 2016)](https://www.dgp.toronto.edu/~elf/jali.html)
 - [Lip-sync theory (Flawless)](https://kb.flawlessai.com/lip-sync-theory)
@@ -144,6 +181,7 @@ How sneaking differs from walking:
 - [Postural oscillations and empathy (Treal et al. 2021)](https://www.nature.com/articles/s41598-021-91710-5.pdf)
 - [Idle animation believability (2025)](https://arxiv.org/pdf/2509.05023)
 - [Startle response](https://Www.Wikipedia.org/wiki/Startle)
+- Provine, R. R. (1996), "Laughter", *American Scientist* 84(1): laugh notes about 75 ms long, every 210 ms
 - [Fox walk / nature observation (Princeton)](https://swh.princeton.edu/~oa/nature/naturobs.pdf)
 - [How to Walk Like a Fox](https://www.chelseagreen.com/2021/how-to-walk-like-a-fox-and-see-in-the-dark)
 - [Stealthy walking mechanics (cats)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2583958/)
