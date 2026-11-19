@@ -4,6 +4,8 @@ Mix a story's soundtrack: voices + sound effects + heartbeat + score, timed from
     .venv/bin/python -I scripts/mix_story.py stories/the_tell_tale_heart
 
 Writes output/renders/<story>/soundtrack.wav (48 kHz stereo, loudness-normalised to -16 LUFS).
+With --real, cues listed in the film's REAL_SFX use recorded Freesound takes and the film's SCORE (Chopin)
+plays under the drones; that version is written to soundtrack_real.wav.
 """
 import importlib.util
 import json
@@ -20,6 +22,8 @@ from sound_library import LOOPS, RATE, heart, loop, music, sfx  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 VOICE_DB = -18.0       # RMS level every spoken line is brought to
 MUSIC_GAIN = 0.4       # score sits well under the voice
+PIANO_GAIN = 0.32      # recorded score (--real); the synth drone drops to DRONE_UNDER under it
+DRONE_UNDER = 0.45
 VOICE = {"N": (1.0, 0.0), "NS": (1.0, 0.0), "OM": (0.95, -0.12), "O1": (0.9, -0.25), "O2": (0.9, 0.25),
          "O3": (0.9, 0.1)}                      # gain, pan for each speaker
 
@@ -36,6 +40,26 @@ def read_wav(path):
         assert w.getframerate() == RATE, path
         data = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768
     return data if w.getnchannels() == 1 else data[::2]
+
+
+def read_audio(path):
+    """Any audio file -> mono float32 at RATE (ffmpeg decodes)."""
+    out = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", str(path), "-f", "f32le", "-ac", "1", "-ar", str(RATE),
+                          "-"], capture_output=True, check=True).stdout
+    return np.frombuffer(out, np.float32).copy()
+
+
+def fitted(x, seconds, fade=0.05):
+    """Trim or loop x to `seconds`, with short fades so cuts never click; peak-normalised to 0.9."""
+    n = int(seconds * RATE)
+    if len(x) < n:
+        x = np.tile(x, n // len(x) + 1)
+    x = x[:n].copy()
+    f = min(int(fade * RATE), n // 2)
+    if f:
+        x[:f] *= np.linspace(0, 1, f)
+        x[-f:] *= np.linspace(1, 0, f)
+    return x / (np.max(np.abs(x)) + 1e-9) * 0.9
 
 
 class Mix:
@@ -65,8 +89,16 @@ def heartbeat_times(film, start_of):
     return runs
 
 
-def main(folder):
+def main(folder, real=False):
     film = load_story(folder)
+    real_sfx = getattr(film, "REAL_SFX", {}) if real else {}
+    score = getattr(film, "SCORE", {}) if real else {}
+    recordings = {}
+
+    def recording(path):
+        if path not in recordings:
+            recordings[path] = read_audio(path)
+        return recordings[path]
     tl = json.loads((folder / "timeline.json").read_text())
     fps = tl["fps"]
     shots = {s["id"]: s for s in tl["shots"]}
@@ -77,8 +109,17 @@ def main(folder):
     # score: continuous per cue, with short fades only where the cue changes
     cues = [(s["id"], s["music"] or "silence") for s in film.SHOTS]
     fade = int(0.5 * RATE)
+    run_start = {}
     for i, (sid, cue) in enumerate(cues):
+        if i == 0 or cues[i - 1][1] != cue:
+            run_start[cue] = start_of[sid]
         seg = music(cue, start_of[sid], shots[sid]["seconds"]).copy()
+        if cue in score:     # the piece plays on from where this run of the cue began
+            piano = recording(ROOT / "audio" / "music" / "chopin" / score[cue])
+            a = int((start_of[sid] - run_start[cue]) * RATE) % len(piano)
+            piece = np.roll(piano, -a)[:len(seg)]
+            piece = np.pad(piece, (0, len(seg) - len(piece)))
+            seg = seg * DRONE_UNDER + piece * (PIANO_GAIN / MUSIC_GAIN)
         if i and cues[i - 1][1] != cue and len(seg) > fade:
             seg[:fade] *= np.linspace(0, 1, fade)
         if i + 1 < len(cues) and cues[i + 1][1] != cue and len(seg) > fade:
@@ -93,7 +134,12 @@ def main(folder):
             if gain <= 0:
                 continue                                 # timing markers (heartbeat starts)
             at = offset if offset >= 0 else dur + offset
-            if cue in LOOPS:
+            if cue in real_sfx:
+                file, longest = real_sfx[cue]
+                x = recording(ROOT / "audio" / "sfx" / "freesound" / file)
+                span = max(0.1, dur - at) if cue in LOOPS else min(longest or 1e9, len(x) / RATE)
+                x = fitted(x if cue not in LOOPS else np.roll(x, -int((start_of[sid] + at) * RATE) % len(x)), span)
+            elif cue in LOOPS:
                 x = loop(cue, max(0.1, dur - at), start_of[sid] + at)
             else:
                 x = cache.setdefault(cue, sfx(cue))
@@ -116,15 +162,16 @@ def main(folder):
             mix.put(x, start_of[shot["id"]] + line["offset"], gain, pan)
 
     out_dir = ROOT / "output" / "renders" / folder.name
+    name = "soundtrack_real" if real else "soundtrack"
     out_dir.mkdir(parents=True, exist_ok=True)
-    raw = out_dir / "soundtrack_raw.wav"
+    raw = out_dir / f"{name}_raw.wav"
     data = mix.buf / max(1e-6, np.max(np.abs(mix.buf))) * 0.95
     with wave.open(str(raw), "wb") as w:
         w.setnchannels(2)
         w.setsampwidth(2)
         w.setframerate(RATE)
         w.writeframes((data * 32767).astype(np.int16).tobytes())
-    final = out_dir / "soundtrack.wav"
+    final = out_dir / f"{name}.wav"
     subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(raw), "-af",
                     "loudnorm=I=-16:TP=-1.5:LRA=14", "-ar", str(RATE), str(final)], check=True)
     raw.unlink()
@@ -132,4 +179,4 @@ def main(folder):
 
 
 if __name__ == "__main__":
-    main(Path(sys.argv[1]).resolve())
+    main(Path(sys.argv[1]).resolve(), real="--real" in sys.argv)

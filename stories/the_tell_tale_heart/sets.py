@@ -428,6 +428,146 @@ def exterior(coll, lights):
     return out
 
 
+def gas_lamp(coll, name, location, lights, energy=450):
+    """1840s cast-iron gas street lamp: fluted post, ladder bar, four-pane lantern, cap."""
+    x, y, z = location
+    iron = M("MAT_Metal")
+    su.cylinder(f"{name}_Base", coll, iron, 0.15, 0.45, (x, y, z + 0.225), segments=12)
+    su.cylinder(f"{name}_Post", coll, iron, 0.055, 2.7, (x, y, z + 1.8), segments=12)
+    su.box(f"{name}_Ladder_Bar", coll, iron, (0.7, 0.04, 0.04), (x, y, z + 2.85), bevel=0.005)
+    glass = bpy.data.materials.get("MAT_Gas_Glass") or bpy.data.materials.new("MAT_Gas_Glass")
+    glass.use_nodes = True
+    g = glass.node_tree.nodes["Principled BSDF"].inputs
+    g["Base Color"].default_value = (1.0, 0.78, 0.5, 1)
+    g["Emission Color"].default_value, g["Emission Strength"].default_value = (1.0, 0.6, 0.28, 1), 1.6
+    g["Roughness"].default_value = 0.2
+    lantern = su.box(f"{name}_Lantern", coll, glass, (0.32, 0.32, 0.46), (x, y, z + 3.4), bevel=0.01)
+    lantern.visible_shadow = False        # the flame's light must get out through the glass
+    for dx in (-0.17, 0.17):
+        for dy in (-0.17, 0.17):
+            su.box(f"{name}_Frame_{dx}_{dy}", coll, iron, (0.03, 0.03, 0.5), (x + dx, y + dy, z + 3.4), bevel=0)
+    bm = bmesh.new()
+    su.add_cylinder(bm, 0.3, 0.28, (0, 0, 0), radius_top=0.02, segments=4)
+    su.make_object(f"{name}_Cap", coll, iron, bm, (x, y, z + 3.77), (0, 0, math.radians(45)), bevel=0)
+    lights[f"{name}_light"] = su.light(f"{name}_LIGHT", coll, "POINT", (x, y, z + 3.4), energy, (1.0, 0.68, 0.38),
+                                       shadow_soft_size=0.12)
+
+
+def row_house(coll, name, x, y, facing, width=6.0, height=9.5, brick="MAT_Ex_Brick", door_x=1.6, lit=()):
+    """Philadelphia-style brick row house: shuttered windows, white marble steps with iron rails,
+    cornice, slate roof, chimney. facing=+1 if the front faces -Y (house side), -1 if it faces +Y."""
+    s = facing          # front is at y; the house body extends away from the street
+    su.box(f"{name}_Front", coll, bpy.data.materials[brick], (width, 0.5, height), (x, y + s * 0.25, height / 2), bevel=0)
+    trim, shutter = M("MAT_Trim_White"), bpy.data.materials["MAT_Ex_Shutter"]
+    glass = bpy.data.materials["MAT_Ex_Window"]
+    for floor, wz in enumerate((1.9, 4.9, 7.6)):
+        xs = (-1.6, 0.0) if floor == 0 else (-1.9, 0.0, 1.9)
+        for wx in xs:
+            wx = x + wx * s
+            key = (floor, round(wx - x, 1))
+            mat = bpy.data.materials["MAT_Ex_Window_Lit"] if key in lit else glass
+            su.box(f"{name}_Win_{floor}_{wx:.1f}", coll, mat, (1.0, 0.06, 1.55 - 0.15 * floor), (wx, y - s * 0.01, wz), bevel=0)
+            su.box(f"{name}_Sill_{floor}_{wx:.1f}", coll, trim, (1.2, 0.14, 0.08), (wx, y - s * 0.05, wz - 0.84 + 0.07 * floor), bevel=0.01)
+            su.box(f"{name}_Lintel_{floor}_{wx:.1f}", coll, trim, (1.2, 0.1, 0.14), (wx, y - s * 0.03, wz + 0.85 - 0.07 * floor), bevel=0.01)
+            h = 1.55 - 0.15 * floor
+            for gx in (-0.17, 0.17):     # glazing bars: six-over-six sash windows
+                su.box(f"{name}_Bar_{floor}_{wx:.1f}_{gx}", coll, trim, (0.035, 0.03, h), (wx + gx, y - s * 0.05, wz), bevel=0)
+            for gz in (-h / 6, h / 6):
+                su.box(f"{name}_Rail_{floor}_{wx:.1f}_{gz:.2f}", coll, trim, (1.0, 0.03, 0.035), (wx, y - s * 0.05, wz + gz), bevel=0)
+            for sx in (-0.72, 0.72):     # shutters, folded open against the brick
+                su.box(f"{name}_Shutter_{floor}_{wx:.1f}_{sx}", coll, shutter, (0.42, 0.05, h - 0.05),
+                       (wx + sx, y - s * 0.04, wz), bevel=0.005)
+    dx = x + door_x * s
+    su.box(f"{name}_Door", coll, bpy.data.materials["MAT_Ex_Door"], (1.0, 0.08, 2.3), (dx, y - s * 0.02, 0.45 + 1.15), bevel=0.01)
+    su.box(f"{name}_Door_Frame", coll, trim, (1.3, 0.1, 0.12), (dx, y - s * 0.05, 2.85), bevel=0.01)
+    su.box(f"{name}_Fanlight", coll, bpy.data.materials["MAT_Ex_Window"], (0.9, 0.04, 0.35), (dx, y - s * 0.03, 3.05), bevel=0)
+    marble = bpy.data.materials["MAT_Ex_Marble"]
+    for i in range(3):              # the famous white marble steps
+        depth = 0.32 * (3 - i)
+        su.box(f"{name}_Step_{i}", coll, marble, (1.5, depth, 0.15), (dx, y - s * depth / 2, 0.15 + 0.15 * i + 0.075), bevel=0.01)
+    for side in (-0.82, 0.82):      # iron railings beside the steps
+        su.cylinder(f"{name}_Rail_Post_{side}", coll, M("MAT_Metal"), 0.018, 0.95, (dx + side, y - s * 0.95, 0.62), segments=8)
+        su.box(f"{name}_Rail_{side}", coll, M("MAT_Metal"), (0.03, 1.0, 0.03), (dx + side, y - s * 0.48, 1.1), (s * 25, 0, 0), bevel=0)
+    su.box(f"{name}_Cornice", coll, trim, (width + 0.1, 0.5, 0.35), (x, y - s * 0.05, height - 0.1), bevel=0.02)
+    roof = su.box(f"{name}_Roof", coll, bpy.data.materials["MAT_Ex_Slate"], (width + 0.1, 3.6, 0.15),
+                  (x, y + s * 1.6, height + 1.0), (-s * 32, 0, 0), bevel=0)
+    su.box(f"{name}_Chimney", coll, bpy.data.materials[brick], (0.7, 0.6, 1.8), (x + 2.0 * s, y + s * 2.2, height + 1.9), bevel=0.01)
+    su.box(f"{name}_Chimney_Cap", coll, trim, (0.85, 0.75, 0.1), (x + 2.0 * s, y + s * 2.2, height + 2.85), bevel=0.01)
+    return dx
+
+
+def street(coll, lights):
+    """The 1843 street outside the house at 4 a.m.: wet cobbles, brick sidewalks with stone curbs,
+    red-brick row houses with white marble steps, gas lamps, a bare tree, mist, moon and clouds."""
+    from material_library import textured
+    x0 = SET_X["exterior"]
+    out = {}
+    cobble = textured("MAT_Ex_Cobble", "cobblestone_floor_04", 0.5, (0.8, 0.8, 0.82), wet=0.8)
+    pave = textured("MAT_Ex_Pavement", "brick_pavement", 0.55, (0.85, 0.75, 0.7), wet=0.4)
+    curb = textured("MAT_Ex_Curb", "stone_floor", 0.6, (0.75, 0.75, 0.78), wet=0.3)
+    textured("MAT_Ex_Brick", "red_brick", 0.45, (0.85, 0.7, 0.65))
+    textured("MAT_Ex_Brick_B", "worn_brick_wall", 0.45, (0.78, 0.62, 0.56))
+    textured("MAT_Ex_Slate", "roof_slates_02", 0.5, (0.6, 0.62, 0.68), wet=0.5)
+    textured("MAT_Ex_Shutter", "wood_peeling_paint_weathered", 0.8, (0.16, 0.22, 0.18))
+    textured("MAT_Ex_Door", "wood_peeling_paint_weathered", 0.8, (0.2, 0.12, 0.08))
+    marble = bpy.data.materials.get("MAT_Ex_Marble") or bpy.data.materials.new("MAT_Ex_Marble")
+    marble.use_nodes = True
+    mb = marble.node_tree.nodes["Principled BSDF"].inputs
+    mb["Base Color"].default_value, mb["Roughness"].default_value = (0.78, 0.77, 0.74, 1), 0.3
+    for name, colour, emit in (("MAT_Ex_Window", (0.02, 0.025, 0.03), 0), ("MAT_Ex_Window_Lit", (1.0, 0.62, 0.3), 3.5)):
+        mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+        mat.use_nodes = True
+        w = mat.node_tree.nodes["Principled BSDF"].inputs
+        w["Base Color"].default_value, w["Roughness"].default_value = (*colour, 1), 0.05
+        w["Emission Color"].default_value, w["Emission Strength"].default_value = (*colour, 1), emit
+
+    su.box("EX_Street", coll, cobble, (60, 8, 0.1), (x0, -7, -0.05), bevel=0)
+    for y in (-1.5, -12.5):
+        su.box(f"EX_Sidewalk_{y}", coll, pave, (60, 3, 0.15), (x0, y, 0.075), bevel=0)
+    for y in (-3.1, -10.9):
+        su.box(f"EX_Curb_{y}", coll, curb, (60, 0.25, 0.2), (x0, y, 0.05), bevel=0.01)
+
+    for i, dx in enumerate((-18, -12, -6, 0, 6, 12, 18)):
+        brick = "MAT_Ex_Brick" if i % 2 else "MAT_Ex_Brick_B"
+        door = row_house(coll, f"EX_House_{i}", x0 + dx, 0.0, 1, height=9.2 + (i % 3) * 0.6, brick=brick)
+        if dx == 0:
+            out["door"] = (door, -0.1)                          # the old man's door
+        row_house(coll, f"EX_Opposite_{i}", x0 + dx, -14.0, -1, height=9.6 - (i % 2) * 0.5, brick=brick,
+                  lit={(1, -1.9)} if dx == 0 else ())             # the neighbour who heard the shriek
+    lights["ex_window"] = su.light("EX_LIGHT_Neighbour", coll, "POINT", (x0 + 1.9, -15.0, 4.9), 60, (1.0, 0.62, 0.3),
+                                   shadow_soft_size=0.3)
+    gas_lamp(coll, "EX_Gas_Lamp", (x0 + 4.2, -2.75, 0.15), lights)
+    gas_lamp(coll, "EX_Gas_Lamp_Far", (x0 - 15.0, -2.75, 0.15), lights, energy=350)
+    gas_lamp(coll, "EX_Gas_Lamp_Opp", (x0 - 6.0, -11.25, 0.15), lights, energy=300)
+    su.cylinder("EX_Hitching_Post", coll, M("MAT_Metal"), 0.05, 1.0, (x0 - 2.2, -2.85, 0.65), segments=10)
+    ph("Barrel_01", coll, "EX_Rain_Barrel", (x0 - 3.1, -0.45, 0.15), rotation=20)
+    ph("shrub_02", coll, "EX_Shrub", (x0 + 3.0, -0.4, 0.15), scale=0.8)
+    ph("dry_branches_medium_01", coll, "EX_Branches", (x0 - 7.5, -2.3, 0.15), rotation=40)
+    # a bare winter tree on the near sidewalk (Sapling Tree Gen), framing the left of the street
+    bpy.ops.curve.tree_add(seed=7, levels=3, bevel=True, showLeaves=False, scale=9.0, scaleV=1.0,
+                           baseSize=0.35, ratio=0.018, prune=False)
+    tree = bpy.context.active_object
+    tree.name = "EX_Bare_Tree"
+    tree.location = (x0 - 9.0, -2.4, 0.15)
+    bpy.ops.object.convert(target="MESH")
+    tree.data.materials.clear()
+    tree.data.materials.append(textured("MAT_Ex_Bark", "brown_mud_leaves_01", 1.5, (0.18, 0.15, 0.13)))
+    for c in tree.users_collection:
+        c.objects.unlink(tree)
+    coll.objects.link(tree)
+    # a church steeple at the end of the street, half lost in the mist
+    su.box("EX_Steeple_Tower", coll, bpy.data.materials["MAT_Ex_Brick"], (3, 3, 18), (x0 - 46, -7, 9), bevel=0)
+    bm = bmesh.new()
+    su.add_cylinder(bm, 2.2, 9, (0, 0, 0), radius_top=0.05, segments=4)
+    su.make_object("EX_Steeple_Spire", coll, bpy.data.materials["MAT_Ex_Slate"], bm, (x0 - 46, -7, 22.5),
+                   (0, 0, math.radians(45)), bevel=0)
+    lights["ex_moon"] = su.light("EX_LIGHT_Moon", coll, "SUN", (x0, -10, 10), 0.35, (0.55, 0.68, 1.0),
+                                 target=(x0 + 6, 4, 0), angle=math.radians(3))
+    haze("EX_Mist_Low", coll, (x0, -7, 1.2), (70, 30, 2.4), 0.035)   # ground mist
+    haze("EX_Mist_High", coll, (x0, -7, 9), (110, 60, 14), 0.006)    # distance haze, lamp halos
+    return out
+
+
 def eye_macro(coll, lights):
     """Close-up rig of the old man's 'vulture eye', built 10x real size (like a macro miniature):
     eyeball, milky pale-blue iris under a cataract film, lids with lashes, skin around it."""

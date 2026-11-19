@@ -53,6 +53,22 @@ FPS = 24
 RESOLUTION = (1920, 1080)          # 16:9 master for long-form YouTube; key action kept centre-safe
 
 # Who speaks, with which voice. Every voice here is licensed for commercial use.
+# Recorded sound (scripts/mix_story.py --real): cue -> (file in audio/sfx/freesound, longest seconds used).
+# Cues not listed keep their synthesised sound (death-watch beetles, clock strikes, voices).
+REAL_SFX = {
+    "bed_creak": ("floorboard_creak_506661.mp3", 1.7), "wind_gust": ("wind_chimney_26189.mp3", 4.5),
+    "wind_loop": ("wind_chimney_872557.mp3", None), "mouse": ("mouse_scurry_638668.mp3", 2.2),
+    "cricket": ("cricket_chirp_164485.mp3", 0.6), "knock3": ("knock_street_door_119833.mp3", 3.7),
+    "steps_wood": ("stairs_footsteps_51149.mp3", 5.5), "steps_group": ("stairs_footsteps_210573.mp3", 6.0),
+    "steps_heavy": ("stairs_footsteps_210573.mp3", 8.0), "door_open": ("door_creak_275471.mp3", 4.6),
+    "door_creak_soft": ("door_latch_710510.mp3", 3.0), "chair_place": ("chair_scrape_485141.mp3", 2.0),
+    "chair_scrape": ("chair_scrape_485144.mp3", 5.3), "bell_toll": ("church_bell_454855.mp3", 7.0),
+    "bed_drag": ("bed_drag_735345.mp3", 2.6),
+}
+# Score: Chopin (Musopen, CC0) under the synthesised drones. cue -> file in audio/music/chopin
+SCORE = {"drone_low": "nocturne_op48_no1.mp3", "drone_night": "nocturne_op27_no1.mp3",
+         "drone_tension": "prelude_op28_no15.mp3", "drone_rise": "prelude_op28_no24.mp3"}
+
 CAST = {
     "N":  {"name": "The Narrator (voice-over)", "model": "en_US-john-medium", "speaker": None,
            "length_scale": 0.97, "fx": "narration", "licence": "public domain (LibriVox reader)"},

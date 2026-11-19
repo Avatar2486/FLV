@@ -146,6 +146,80 @@ def material(name):
     return mat
 
 
+def textured(name, texture_id, scale=1.0, tint=(1, 1, 1), wet=0.0):
+    """Material from a Poly Haven texture in assets/textures/polyhaven, box-projected in object space
+    (no UV unwrap needed). scale = texture repeats per metre; tint multiplies the colour;
+    wet (0-1) adds glossy puddles, as on a street after rain."""
+    from pathlib import Path
+    mat = bpy.data.materials.get(name)
+    if mat:
+        return mat
+    folder = Path(__file__).resolve().parent.parent / "assets" / "textures" / "polyhaven" / texture_id
+    mat = bpy.data.materials.new(name)
+    if mat.node_tree is None:
+        mat.use_nodes = True
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    bsdf = nodes["Principled BSDF"]
+    coord = nodes.new("ShaderNodeTexCoord")
+    mapping = nodes.new("ShaderNodeMapping")
+    mapping.inputs["Scale"].default_value = (scale, scale, scale)
+    links.new(coord.outputs["Object"], mapping.inputs["Vector"])
+
+    def image(kind, colour=True):
+        files = sorted(folder.glob(f"*_{kind}_*.jpg"))
+        if not files:
+            return None
+        node = nodes.new("ShaderNodeTexImage")
+        node.image = bpy.data.images.load(str(files[0]), check_existing=True)
+        node.image.colorspace_settings.name = "sRGB" if colour else "Non-Color"
+        node.projection, node.projection_blend = "BOX", 0.25
+        links.new(mapping.outputs["Vector"], node.inputs["Vector"])
+        return node
+
+    tinted = nodes.new("ShaderNodeMix")
+    tinted.data_type, tinted.blend_type = "RGBA", "MULTIPLY"
+    tinted.inputs["Factor"].default_value = 1.0
+    tinted.inputs["B"].default_value = (*tint, 1)
+    links.new(image("diff").outputs["Color"], tinted.inputs["A"])
+    links.new(tinted.outputs["Result"], bsdf.inputs["Base Color"])
+    rough = image("rough", colour=False)
+    rough_out = rough.outputs["Color"] if rough else None
+    if wet:     # puddles: a noise mask pulls roughness down and darkens the colour where water sits
+        noise = nodes.new("ShaderNodeTexNoise")
+        noise.inputs["Scale"].default_value = 0.35
+        noise.inputs["Detail"].default_value = 4
+        links.new(coord.outputs["Object"], noise.inputs["Vector"])
+        ramp = nodes.new("ShaderNodeMapRange")
+        ramp.inputs["From Min"].default_value, ramp.inputs["From Max"].default_value = 0.5, 0.58
+        links.new(noise.outputs["Fac"], ramp.inputs["Value"])
+        puddle = nodes.new("ShaderNodeMath")
+        puddle.operation, puddle.inputs[1].default_value = "MULTIPLY", wet
+        links.new(ramp.outputs["Result"], puddle.inputs[0])
+        wet_rough = nodes.new("ShaderNodeMix")
+        wet_rough.data_type = "FLOAT"
+        wet_rough.inputs["A"].default_value = 0.8
+        if rough_out:
+            links.new(rough_out, wet_rough.inputs["A"])
+        wet_rough.inputs["B"].default_value = 0.04
+        links.new(puddle.outputs["Value"], wet_rough.inputs["Factor"])
+        rough_out = wet_rough.outputs["Result"]
+        darker = nodes.new("ShaderNodeMix")
+        darker.data_type, darker.blend_type = "RGBA", "MULTIPLY"
+        darker.inputs["B"].default_value = (0.55, 0.55, 0.58, 1)
+        links.new(puddle.outputs["Value"], darker.inputs["Factor"])
+        links.new(tinted.outputs["Result"], darker.inputs["A"])
+        links.new(darker.outputs["Result"], bsdf.inputs["Base Color"])
+    if rough_out:
+        links.new(rough_out, bsdf.inputs["Roughness"])
+    nor = image("nor_gl", colour=False)
+    if nor:
+        normal = nodes.new("ShaderNodeNormalMap")
+        links.new(nor.outputs["Color"], normal.inputs["Color"])
+        links.new(normal.outputs["Normal"], bsdf.inputs["Normal"])
+    mat.diffuse_color = (*tint, 1.0)
+    return mat
+
+
 def haze_material(name="MAT_Atmosphere_Haze", density=0.03, color=(0.75, 0.82, 1.0)):
     """Thin fog that makes light beams visible (a Principled Volume, not a surface)."""
     mat = bpy.data.materials.get(name)
