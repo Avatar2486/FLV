@@ -95,6 +95,39 @@ as measured on our MPFB characters.
 - **No learned motion model is used.** The ones found (AMASS-, BEAT- and Bandai Namco-trained) carry
   non-commercial licences.
 
+## Creeping and tiptoeing: `retarget()` + `plant_feet()`
+**Field technique.** Trackers' "fox walk":
+- Place the outer edge of the ball of the foot first, then roll inward onto the ball with the heel still up.
+- Feel the ground before committing weight, keeping the knees bent to absorb each step.
+- Slow pace and pauses.
+- Some teach heel-first instead (Princeton nature-observation notes; *How to Walk Like a Fox*).
+
+**Measured from real recordings** (`scripts/gait_stats.py` on the motion library; lengths in leg lengths):
+
+| Clip | Speed | Cadence (steps/min) | Step | Knee bend in stance | Foot pitch in stance | Trunk lean | Both feet down | Paused |
+|---|---|---|---|---|---|---|---|---|
+| 100STYLE Neutral (baseline) | 0.81 | 90 | 0.54 | 14° | 31° | 4° | 22% | 2% |
+| 100STYLE Tiptoe | 0.77 | 104 | 0.45 | 21° | 44° | 4° | 30% | 2% |
+| 100STYLE OnToesCrouched | 0.64 | 96 | 0.40 | 46° | 44° | 24° | 35% | 2% |
+| 100STYLE Crouched | 0.76 | 99 | 0.46 | 37° | 32° | 25° | 25% | 2% |
+| 100STYLE InTheDark | 0.58 | 102 | 0.34 | 18° | 30° | 4° | 36% | 2% |
+| CMU 77_29 creeping walk | 0.78 | 86 | 0.55 | 46° | 25° | 32° | 43% | 6% |
+| CMU 77_34 creep and pause | 0.53 | 70 | 0.45 | 45° | 23° | 33° | 68% | 26% |
+| CMU 91_18 careful walk, looking around | 0.46 | 69 | 0.40 | 25° | 16° | 4° | 19% | 14% |
+
+How sneaking differs from walking:
+- Slower and shorter steps.
+- Knees bent two to three times more.
+- A forward lean of 25–50° when crouched.
+- Much longer with both feet down (weight tested before it is committed, up to 68%).
+- Frequent pauses (up to 26% of the time).
+- Tiptoeing adds quick, small steps with the heels about 13° higher.
+
+**Footskate cleanup.**
+- **The problem:** retargeted feet slid 3–7 cm/s while planted.
+- **The method:** `plant_feet()` detects contacts on the ball of the foot (the pivot in these gaits), lowers or raises the whole body once so planted feet meet the floor, locks each contact to its average spot, solves two-bone leg IK (knee direction and foot angle kept), and blends over 3 frames, as Kovar et al. 2002 advise.
+- **The result:** sliding falls to about 1–2 cm/s (mostly the blend frames), knee bend is kept, and no foot goes through the floor.
+
 ## Sources
 - [JALI (Edwards et al. 2016)](https://www.dgp.toronto.edu/~elf/jali.html)
 - [Lip-sync theory (Flawless)](https://kb.flawlessai.com/lip-sync-theory)
@@ -111,3 +144,11 @@ as measured on our MPFB characters.
 - [Postural oscillations and empathy (Treal et al. 2021)](https://www.nature.com/articles/s41598-021-91710-5.pdf)
 - [Idle animation believability (2025)](https://arxiv.org/pdf/2509.05023)
 - [Startle response](https://Www.Wikipedia.org/wiki/Startle)
+- [Fox walk / nature observation (Princeton)](https://swh.princeton.edu/~oa/nature/naturobs.pdf)
+- [How to Walk Like a Fox](https://www.chelseagreen.com/2021/how-to-walk-like-a-fox-and-see-in-the-dark)
+- [Stealthy walking mechanics (cats)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2583958/)
+- [Toe-walking biomechanics (Frontiers 2022)](https://www.frontiersin.org/articles/10.3389/fbioe.2022.810560/full)
+- [Footskate cleanup (Kovar et al.)](https://research.cs.wisc.edu/graphics/Gallery/kovar.vol/Cleanup)
+- [Skeleton-Aware Networks: contact locking](https://arxiv.org/pdf/2005.05732)
+- [UnderPressure: foot contact](https://arxiv.org/pdf/2208.04598)
+- [Sneak walk animation (Animation Mentor)](https://www.animationmentor.com/blog/tutorial-animating-sneak-walk-cycle-with-personality/)

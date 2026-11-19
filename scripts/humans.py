@@ -643,6 +643,129 @@ def retarget(rig, bvh, start_frame=1, bone_map=None, max_frames=None, root_motio
     return start_frame + (b - a)
 
 
+def straight_stretch(bvh, frames, fps=24):
+    """Frames to skip so a `frames`-long window of a clip is its straightest walking (100STYLE actors walk
+    back and forth and turn at the ends of the capture area): the window where the hips travel farthest."""
+    scene = bpy.context.scene
+    old = scene.render.fps
+    scene.render.fps = fps
+    before = set(bpy.data.objects)
+    bpy.ops.import_anim.bvh(filepath=str(bvh), use_fps_scale=True, update_scene_fps=False, update_scene_duration=False)
+    src = (set(bpy.data.objects) - before).pop()
+    a, b = (int(x) for x in src.animation_data.action.frame_range)
+    path = []
+    for f in range(a, b + 1):
+        scene.frame_set(f)
+        path.append((src.matrix_world @ src.pose.bones[0].head).xy.copy())
+    bpy.data.objects.remove(src)
+    scene.render.fps = old
+    if len(path) <= frames:
+        return 0
+    return max(range(len(path) - frames), key=lambda s: (path[s + frames] - path[s]).length)
+
+
+def plant_feet(rig, start, end, floor=0.0, blend=3):
+    """Footskate cleanup (Kovar et al. 2002; contact locking as in Skeleton-Aware Networks 2020).
+    The ball of the foot is the contact point in creeping and tiptoeing (the heel rises around it), so:
+    find the frames each ball is planted (low and nearly still); set the whole body's height once so planted
+    balls rest on the floor (moving the body, not stretching the legs); lock each planted ball to its average
+    spot for that contact; solve the leg with two-bone IK (knee keeps its mocap direction, foot keeps its own
+    angle); blend in and out over `blend` frames so nothing pops. Returns the height change applied."""
+    import statistics
+    scene = bpy.context.scene
+    bpy.context.view_layer.update()              # the rig may just have been moved: refresh its matrix first
+    rest = {b.name: b.matrix_local.copy() for b in rig.data.bones}
+    frames = list(range(start, end + 1))
+    sides = {"Left": ("LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase"),
+             "Right": ("RightUpLeg", "RightLeg", "RightFoot", "RightToeBase")}
+    names = [n for c in sides.values() for n in c] + [rig.pose.bones[c[0]].parent.name for c in sides.values()]
+    pose = {}
+    for f in frames:
+        scene.frame_set(f)
+        pose[f] = {n: rig.pose.bones[n].matrix.copy() for n in names}
+    floor_local = (rig.matrix_world.inverted() @ Vector((0, 0, floor))).z
+    ball_rest = {s: rest[c[3]].translation.z - min(rest[c[3]].translation.z, rest[c[2]].translation.z) + 0.022
+                 for s, c in sides.items()}                                     # ball joint height when flat
+    ball = {s: {f: pose[f][c[3]].translation.copy() for f in frames} for s, c in sides.items()}
+    lowest = min(min(ball[s][f].z for f in frames) for s in sides)
+
+    def planted_flags(s):
+        flags = []
+        for i, f in enumerate(frames):
+            prev = frames[max(0, i - 1)]
+            speed = (ball[s][f].xy - ball[s][prev].xy).length * scene.render.fps
+            flags.append(ball[s][f].z - lowest < 0.04 and speed < 0.2)
+        for i in range(1, len(flags) - 1):                                       # fill 1-frame gaps
+            flags[i] = flags[i] or (flags[i - 1] and flags[i + 1])
+        return flags
+
+    flags = {s: planted_flags(s) for s in sides}
+    heights = [ball[s][f].z for s in sides for i, f in enumerate(frames) if flags[s][i]]
+    lift = (floor_local + ball_rest["Left"]) - (statistics.median(heights) if heights else lowest)
+    rig.location.z += lift                       # the body comes down (or up) to the floor as a whole
+    bpy.context.view_layer.update()
+    for side, (up, low, foot, toe) in sides.items():
+        spans, i = [], 0
+        while i < len(frames):
+            if flags[side][i]:
+                j = i
+                while j + 1 < len(frames) and flags[side][j + 1]:
+                    j += 1
+                if j - i >= 2:
+                    spans.append((i, j))
+                i = j + 1
+            else:
+                i += 1
+        weight, target = {}, {}
+        for i, j in spans:
+            fs = frames[i:j + 1]
+            spot = sum((ball[side][f] for f in fs), Vector()) / len(fs)
+            for k in range(max(0, i - blend), min(len(frames), j + blend + 1)):
+                f = frames[k]
+                w = 1.0 if i <= k <= j else 1 - min(abs(k - i), abs(k - j)) / (blend + 1)
+                if w > weight.get(f, 0.0):
+                    weight[f] = w
+                    b = ball[side][f]
+                    locked = Vector((spot.x, spot.y, b.z))          # lock where it is, keep its height
+                    target[f] = pose[f][foot].translation + (b.lerp(locked, w) - b)
+        for f, w in weight.items():
+            _two_bone(rig, rest, pose[f], f, up, low, foot, target[f])
+    return lift
+
+
+def _two_bone(rig, rest, pose, frame, up, low, foot, target):
+    """Analytic two-bone IK in armature space; keys the thigh, shin and foot rotations at `frame`."""
+    from mathutils import Matrix
+    H, K, A = pose[up].translation, pose[low].translation, pose[foot].translation
+    l1, l2 = (K - H).length, (A - K).length
+    reach = target - H
+    d = max(abs(l1 - l2) + 1e-4, min(l1 + l2 - 1e-4, reach.length))
+    u = reach.normalized()
+    bend = (K - H) - (K - H).project(A - H)                                    # the knee's mocap direction
+    bend = (bend - bend.project(u)).normalized() if bend.length > 1e-6 else Vector((0, -1, 0))
+    a = (l1 * l1 + d * d - l2 * l2) / (2 * d)
+    knee = H + u * a + bend * math.sqrt(max(0.0, l1 * l1 - a * a))
+    ankle = H + u * d
+
+    def aimed(matrix, head, old_dir, new_dir):
+        turn = old_dir.rotation_difference(new_dir).to_matrix().to_4x4()
+        return Matrix.Translation(head) @ turn @ Matrix.Translation(-matrix.translation) @ matrix
+
+    thigh = aimed(pose[up], H, K - H, knee - H)
+    shin_start = thigh @ (pose[up].inverted() @ pose[low])                    # shin carried by the new thigh
+    shin = aimed(shin_start, knee, (shin_start @ (pose[low].inverted() @ pose[foot])).translation - knee, ankle - knee)
+    foot_m = Matrix.Translation(ankle) @ pose[foot].to_3x3().to_4x4()         # the foot keeps its own angle
+    for name, matrix, parent in ((up, thigh, None), (low, shin, thigh), (foot, foot_m, shin)):
+        pb = rig.pose.bones[name]
+        parent_pose = parent if parent is not None else pb.parent.matrix
+        rest_rel = rest[pb.parent.name].inverted() @ rest[name]
+        if parent is None:                       # the hip joint is unchanged: its pose at this frame
+            parent_pose = pose[pb.parent.name]
+        basis = (parent_pose @ rest_rel).inverted() @ matrix
+        pb.rotation_quaternion = basis.to_quaternion()
+        pb.keyframe_insert("rotation_quaternion", frame=frame)
+
+
 def _selfcheck():
     """Retarget a CMU clip onto a second copy of its own skeleton: world rotations must match."""
     bvh = ROOT / "assets" / "mocap" / "cmu" / "77_14.bvh"
@@ -666,7 +789,25 @@ def _selfcheck():
         moved = (hips(target) - hips(source) - Vector((2, 0, 0))).length
         assert moved < 1e-4, f"hips off by {moved:.5f} at frame {f}"
     assert worst < 1e-3, f"retarget drifted by {math.degrees(worst):.3f} degrees"
-    print(f"humans selfcheck OK: {len(target.pose.bones)} bones x {end} frames, worst error {math.degrees(worst):.5f} deg")
+    # plant_feet: knees keep their mocap bend and no foot ends up below the floor
+    def knees():
+        out = []
+        for f in range(1, end + 1):
+            bpy.context.scene.frame_set(f)
+            for s in ("Left", "Right"):
+                h, k, a = (target.pose.bones[n].head for n in (f"{s}UpLeg", f"{s}Leg", f"{s}Foot"))
+                out.append(math.degrees((h - k).angle(a - k)))
+        return out
+    before = knees()
+    plant_feet(target, 1, end)
+    after = knees()
+    drift = sum(abs(x - y) for x, y in zip(before, after)) / len(before)
+    lowest = min((target.matrix_world @ target.pose.bones[f"{s}ToeBase"].tail).z
+                 for f in range(1, end + 1) if not bpy.context.scene.frame_set(f) for s in ("Left", "Right"))
+    assert drift < 3.0, f"plant_feet changed knee bend by {drift:.1f} degrees on average"
+    assert lowest > -0.01, f"a foot went {-lowest * 100:.1f} cm through the floor"
+    print(f"humans selfcheck OK: {len(target.pose.bones)} bones x {end} frames, worst error {math.degrees(worst):.5f} deg; "
+          f"plant_feet knee change {drift:.2f} deg, lowest toe {lowest * 100:+.1f} cm")
 
 
 if __name__ == "__main__" and "--selfcheck" in sys.argv:

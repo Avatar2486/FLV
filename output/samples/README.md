@@ -48,13 +48,28 @@ Files:
 
 **Your choice:** keep these looks, or tell me what to change (age, build, hair, clothes, face).
 
-## 3. Motion: `motion/`
-The narrator creeping, with real motion capture retargeted onto him:
-- **A:** CMU "careful creeping": crouched, arms forward, sneaking.
-- **B:** 100STYLE "Tiptoe": upright, light steps.
-- **`compare_A_left_B_right.mp4`:** both side by side.
+## 3. Motion: `motion/` (version 2: researched creeping and tiptoeing)
+The research is in `docs/realism_research.md`. It combines the trackers' "fox walk" with 20 real
+recordings I measured, and shows that people sneaking:
+- walk slower, with shorter steps
+- bend their knees two to three times more and lean forward
+- keep both feet down much longer, testing the floor before committing their weight
+- pause often
+- when tiptoeing, take quick small steps with the heels lifted
 
-**Your choice:** A or B for the night visits (the other can still be used elsewhere).
+The feet are now locked to the floor where they're planted, which fixes the sliding and floating in the
+first version. Planted-foot sliding fell from 3–7 cm/s to about 1–2 cm/s, with the knee bend kept.
+
+The narrator creeps toward the door, holding his breath, tense, eyes on the floor ahead, with the lamp
+carried in front:
+- **`A_creep_and_pause.mp4`:** CMU "creep and pause": knees bent 46°, leaning, pausing 16% of the time.
+- **`B_on_toes_crouched.mp4`:** 100STYLE "on toes, crouched": a low tiptoe, knees bent 48°.
+- **`C_tiptoe.mp4`:** 100STYLE "tiptoe": upright, light, quick steps.
+- **`compare_A_left_B_middle_C_right.mp4`:** all three side by side.
+
+The numbers measured on each clip are in `gait_measured.json`.
+
+**Your choice:** A, B or C for the night visits (or a mix: for example A to cross the room, B at the bed).
 
 ## 4. Sound: `sound/`
 The same film footage with two soundtracks:
