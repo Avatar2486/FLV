@@ -7,6 +7,7 @@ only by hands, Chatterbox voices, recorded sound and Chopin.
     blender -b --python stories/the_tell_tale_heart/preview_v2.py -- build      # -> blender/scenes/..._v2_preview.blend
     blender -b blender/scenes/tell_tale_heart_v2_preview.blend --python stories/the_tell_tale_heart/preview_v2.py -- render A B
     .venv/bin/python -I stories/the_tell_tale_heart/preview_v2.py mix           # soundtrack + final mp4
+    (soundtrack alone, to check it before the frames are done: ... preview_v2.py soundtrack)
 """
 import json
 import math
@@ -157,9 +158,9 @@ def build():
     humans.face(om, 1, {"eyeBlinkLeft": 1.0, "eyeBlinkRight": 1.0}, meshes)
     humans.face(om, wake - 1, {"eyeBlinkLeft": 1.0, "eyeBlinkRight": 1.0}, meshes)
     humans.breathe(om, 1, wake, style="sleep", seed=3)
-    humans.startle(om, line_frame["3.4_N"] + 6, strength=0.35, face_too=False)
+    humans.startle(om, line_frame["3.4_N"] + 6, strength=0.35, face_too=False, legs=False)
     humans.sit_up(om, wake, end)
-    humans.startle(om, wake, strength=1.0, until=end)
+    humans.startle(om, wake, strength=1.0, until=end, legs=False)
     humans.face(om, wake + 8, {**cast3d.NEUTRAL, **cast3d.FEAR}, meshes)
     who = humans.lip_sync(om, VO / "3.7_OM.wav", start_frame=line_frame["3.7_OM"])
     humans.eyes(om, wake + 4, end, mode="fear", look=(-35.0, -5.0), pauses=who["pauses"], seed=21)
@@ -200,7 +201,7 @@ def build():
         marker.camera = cams[s["camera"]]
     scene.camera = cams[tl["shots"][0]["camera"]]
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "timeline.json").write_text(json.dumps(dict(tl, click=click / FPS, wake=wake / FPS), indent=1))
+    (OUT / "timeline.json").write_text(json.dumps(dict(tl, click=(click - 1) / FPS, wake=(wake - 1) / FPS), indent=1))
     BLEND.parent.mkdir(parents=True, exist_ok=True)
     su.save_blend(BLEND, compress=True)
     print(f"PREVIEW built: {len(tl['shots'])} shots, {end} frames ({tl['seconds']:.1f} s) -> {BLEND.name}")
@@ -234,7 +235,8 @@ def render(part, parts):
 
 
 # ----------------------------------------------------------------------------------------------- sound
-def mix():
+def soundtrack():
+    """Room tone, Chopin, recorded effects and the voices -> soundtrack_raw.wav (before loudness)."""
     import subprocess
     import numpy as np
     sys.path.insert(0, str(ROOT / "scripts"))
@@ -273,6 +275,16 @@ def mix():
     with wave.open(str(raw), "wb") as w:
         w.setnchannels(2); w.setsampwidth(2); w.setframerate(RATE)
         w.writeframes((data * 32767).astype(np.int16).tobytes())
+    print(f"PREVIEW soundtrack: {raw}")
+    return raw
+
+
+def mix():
+    import subprocess
+    tl = json.loads((OUT / "timeline.json").read_text())
+    missing = [f for f in range(1, tl["frames"] + 1) if not (OUT / "frames" / f"{f:05d}.png").exists()]
+    assert not missing, f"{len(missing)} frames not rendered yet, first {missing[0]}"
+    raw = soundtrack()
     final = OUT / "the_tell_tale_heart_v2_preview.mp4"
     subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(FPS), "-i", str(OUT / "frames" / "%05d.png"),
                     "-i", str(raw), "-af", "loudnorm=I=-16:TP=-1.5:LRA=14", "-c:v", "libx264", "-preset", "slow",
@@ -284,4 +296,4 @@ def mix():
 
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
-    {"build": lambda: build(), "render": lambda: render(*args[1:3]), "mix": lambda: mix()}[args[0]]()
+    {"build": build, "render": lambda: render(*args[1:3]), "soundtrack": soundtrack, "mix": mix}[args[0]]()

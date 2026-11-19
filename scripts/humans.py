@@ -544,12 +544,13 @@ def sway(rig, start, end, amount=1.0, seed=1):
 # Startle (acoustic startle reflex, Brown et al. 1991): a cranio-caudal wave - blink ~20-40 ms, head and neck
 # 60-120 ms, shoulders 100-120 ms, arms 125-195 ms, legs 145-395 ms - flexing the neck and trunk, raising the
 # shoulders, bending the elbows; it peaks fast and settles over most of a second.
-def startle(rig, frame, strength=1.0, fps=24, face_too=True, until=None):
-    """face_too=False: a jerk in sleep (eyes stay shut). until: hold the layer's keys to this frame."""
+def startle(rig, frame, strength=1.0, fps=24, face_too=True, until=None, legs=True):
+    """face_too=False: a jerk in sleep (eyes stay shut). until: hold the layer's keys to this frame.
+    legs=False: legs stay put (under a blanket in bed)."""
     meshes = face_meshes(rig)
     if face_too:
         _startle_face(rig, meshes, frame, strength, fps)
-    _startle_body(rig, frame, strength, fps, until)
+    _startle_body(rig, frame, strength, fps, until, legs)
 
 
 def _startle_face(rig, meshes, frame, strength, fps):
@@ -560,7 +561,7 @@ def _startle_face(rig, meshes, frame, strength, fps):
                                   "eyeWideRight": 0.8 * strength, "browInnerUp": 0.9 * strength}, meshes)
 
 
-def _startle_body(rig, frame, strength, fps, until):
+def _startle_body(rig, frame, strength, fps, until, legs=True):
     wave = {"Head": (0.09, (0, 2, 0)), "Neck1": (0.08, (0, 6, 0)), "Spine1": (0.11, (0, 5, 0)),
             "LeftShoulder": (0.11, (0, 0, -9)), "RightShoulder": (0.11, (0, 0, 9)),
             "LeftArm": (0.16, (0, 0, -6)), "RightArm": (0.16, (0, 0, 6)),
@@ -570,7 +571,7 @@ def _startle_body(rig, frame, strength, fps, until):
     def offsets(f):
         out = {}
         for bone, (delay, rot) in wave.items():
-            if bone not in rig.pose.bones:
+            if bone not in rig.pose.bones or (not legs and "Leg" in bone):
                 continue
             t = (f - frame) / fps - delay
             k = 0.0 if t < 0 else (t / 0.08 if t < 0.08 else math.exp(-(t - 0.08) / 0.35))   # snap, then settle
