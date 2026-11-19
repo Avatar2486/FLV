@@ -26,9 +26,14 @@ Built with MPFB (MakeHuman):
 
 Files:
 - Stills of both faces, front and three-quarter, and of both full bodies.
-- **`talking_test.mp4`:** expressions, blinks, lip sync to the current voice, and small head movement:
-  - the old man frightened ("It is nothing but the wind in the chimney…")
-  - the narrator going from tense to a sly smile ("True! nervous…")
+- **`talking_test.mp4`:** the old man frightened ("It is nothing but the wind in the chimney…") and the
+  narrator going from tense to a sly smile ("True! nervous…"), both in the chosen Chatterbox voices.
+- **Lip sync, new version:** made by a model learned from real talking faces (Wav2ARKit), so:
+  - the jaw opens only a little and the lips do most of the work
+  - sounds blend into each other, and the lips close fully on m, b and p
+  - the face moves a frame before the sound, as real lips do
+  - the mouth rests closed in pauses
+  - expressions, blinks and small head movements play underneath the speech
 
 **Your choice:** keep these looks, or tell me what to change (age, build, hair, clothes, face).
 

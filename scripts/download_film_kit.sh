@@ -33,10 +33,10 @@ for f in faceunits01 visemes01; do      # ARKit face units and visemes (expressi
 done
 "$B" -b --python scripts/install_makehuman_packs.py 2>&1 | grep -E "installed|assets in MPFB"   # load them into MPFB
 
-# 3. Rhubarb Lip Sync 1.14 (MIT): mouth shapes from speech
-get https://github.com/DanielSWolf/rhubarb-lip-sync/releases/download/v1.14.0/Rhubarb-Lip-Sync-1.14.0-macOS.zip \
-    tools/rhubarb/Rhubarb-Lip-Sync-1.14.0-macOS.zip
-unzip -q -n tools/rhubarb/Rhubarb-Lip-Sync-1.14.0-macOS.zip -d tools/rhubarb
+# 3. Speech -> face: Wav2ARKit (Apache-2.0; wav2vec2 + LAM Audio2Expression), used by scripts/speech_face.py
+for f in config.json README.md wav2arkit_cpu.onnx wav2arkit_cpu.onnx.data; do
+    get "https://huggingface.co/myned-ai/wav2arkit_cpu/resolve/main/$f" "voices/wav2arkit/$f"
+done
 
 # 4. Voices. Kokoro v1.0 (Apache 2.0) in the project venv; Chatterbox (MIT) in its own venv (it pins torch 2.6)
 get https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx voices/kokoro/kokoro-v1.0.onnx

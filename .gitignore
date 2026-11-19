@@ -41,4 +41,5 @@ output/renders/*/*_master.mp4
 assets/makehuman_packs/
 *.part
 voices/kokoro/
+voices/wav2arkit/
 tools/

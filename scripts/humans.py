@@ -5,7 +5,7 @@ Realistic characters for FLV films, built with MPFB (MakeHuman for Blender) insi
     rig = humans.build(SPEC)                       # body, skin, hair, eyes, clothes, face shapes, rig
     humans.relax_arms(rig)                         # out of the T/A pose
     humans.face(rig, frame, {"browInnerUp": 0.7})  # ARKit face units, keyframed
-    humans.lip_sync(rig, "line.wav", "words", start_frame=1)
+    humans.lip_sync(rig, "line.wav", start_frame=1)   # face from the voice (scripts/speech_face.py)
     humans.blinks(rig, 1, 240)
     humans.retarget(rig, "assets/mocap/cmu/77_14.bvh", start_frame=1)
 
@@ -30,11 +30,6 @@ from mathutils import Matrix, Vector
 
 ROOT = Path(__file__).resolve().parent.parent
 TEXTURES = ROOT / "assets" / "textures" / "polyhaven"
-RHUBARB = ROOT / "tools" / "rhubarb" / "Rhubarb-Lip-Sync-1.14.0-macOS" / "rhubarb"
-
-# Rhubarb mouth shapes -> MPFB Microsoft visemes (https://github.com/DanielSWolf/rhubarb-lip-sync#mouth-shapes)
-MOUTH = {"A": "p_b_m_21", "B": "s_z_15", "C": "ey_eh_uh_04", "D": "aa_02", "E": "ao_03", "F": "w_uw_07",
-         "G": "f_v_18", "H": "l_14", "X": "sil_00"}
 
 # BVH bone -> cmu_mb rig bone. CMU clips use the rig's own names; 100STYLE (XSens) needs a map.
 CMU = {"LeftHandIndex1": "LeftHandFinger1", "RightHandIndex1": "RightHandFinger1"}
@@ -77,7 +72,7 @@ def build(spec, location=(0, 0, 0)):
         "alternative_materials": alt,
     }
     body = HumanService.deserialize_from_dict(info, HumanService.get_default_deserialization_settings())
-    FaceService.load_targets(body, load_microsoft_visemes=True, load_arkit_faceunits=True)
+    FaceService.load_targets(body, load_microsoft_visemes=False, load_arkit_faceunits=True)
     FaceService.interpolate_targets(body)
     rig = body.parent
     rig.location = location
@@ -89,6 +84,9 @@ def build(spec, location=(0, 0, 0)):
     for part, key in ((hair, "hair_tint"), (spec["eyebrows"], "brow_tint")):
         if spec.get(key) and part in parts:
             tint_material(parts[part], spec[key])
+    for obj in face_meshes(rig):          # lips closed at rest (lip_sync fades this out while speaking)
+        if "mouthShrugLower" in obj.data.shape_keys.key_blocks:
+            obj.data.shape_keys.key_blocks["mouthShrugLower"].value = REST_SEAL
     garments = [parts[c] for c, *_ in spec.get("clothes", [])]
     hide_under(body, garments)
     for i, g in enumerate(garments):     # clothes are listed inner to outer: socks under trousers under shirt
@@ -270,26 +268,56 @@ def face(rig, frame, values, meshes=None):
                 keys[name].keyframe_insert("value", frame=frame)
 
 
-def lip_sync(rig, wav, text, start_frame, fps=24, strength=0.85):
-    """Mouth shapes from Rhubarb (phonetic recognition + the known text), keyframed from start_frame."""
-    dialog = Path(bpy.app.tempdir) / "rhubarb_dialog.txt"
-    dialog.write_text(text)
-    out = subprocess.run([str(RHUBARB), "-q", "-f", "json", "--dialogFile", str(dialog), str(wav)],
-                         capture_output=True, text=True, check=True).stdout
+# MPFB's face units are weaker than ARKit's in the jaw and stronger in the lip raisers: without this the
+# teeth stay clenched and the lips pull back off them (a grimace, not speech). Real speech opens mostly
+# with the jaw, the teeth part, and the lips stay soft over the teeth. Prefix -> gain on the model output.
+SPEECH_GAIN = {"jawOpen": 2.4, "mouthUpperUp": 0.4, "mouthLowerDown": 0.6, "mouthShrugUpper": 0.6}
+REST_SEAL = 0.3     # mouthShrugLower: MakeHuman's neutral mouth hangs slightly open; a relaxed mouth is closed
+
+
+def lip_sync(rig, wav, start_frame, fps=24, lead=1.0, gain=1.0):
+    """Lips, jaw, cheeks and tongue driven by the voice itself: scripts/speech_face.py runs Wav2ARKit, a model
+    learned from real talking faces, so the jaw opens only a little while the lips do most of the work, sounds
+    blend into each other (coarticulation) and the lips close fully on m/b/p. The result is added on top of
+    the expression already keyed (fear, a smile). `lead` frames: the face moves just before the sound, as lips
+    shape a sound before it is heard. Blinks and eye direction stay with the shot (blinks(), face())."""
+    import numpy as np
+    out = Path(bpy.app.tempdir) / "speech_face.json"
+    subprocess.run([str(ROOT / ".venv" / "bin" / "python"), "-I", str(ROOT / "scripts" / "speech_face.py"), str(wav),
+                    str(out)], check=True, capture_output=True)
+    data = json.loads(out.read_text())
+    weights, src_fps = np.array(data["frames"]), data["fps"]
+    # the model's own resting face is slightly open: measure each shape at its quietest and subtract that,
+    # then gate by voice activity so pauses between phrases close the mouth
+    weights = np.clip(weights - np.percentile(weights, 10, axis=0), 0, None) * np.array(data["voice"])[:, None]
+    scale = {}
+    for name in data["names"]:
+        if name.startswith(("eyeBlink", "eyeLook")):
+            continue                                   # the shot owns blinks and gaze
+        scale[name] = 0.6 if name.startswith("brow") else 0.5 if name.startswith(("eyeSquint", "eyeWide")) else gain
+        scale[name] *= next((g for prefix, g in SPEECH_GAIN.items() if name.startswith(prefix)), 1.0)
     meshes = face_meshes(rig)
-    face(rig, start_frame - 4, {v: 0.0 for v in MOUTH.values()}, meshes)     # mouth at rest until the line
-    previous = None
-    for cue in json.loads(out)["mouthCues"]:
-        frame = start_frame + cue["start"] * fps
-        shape = MOUTH[cue["value"]]
-        values = {shape: 0.0 if cue["value"] == "X" else strength}
-        if previous and previous != shape:
-            values[previous] = 0.0
-        face(rig, frame, values, meshes)
-        if previous and previous != shape:         # hold the old shape until just before the new one
-            face(rig, frame - 1.5, {previous: strength}, meshes)
-        previous = shape
-    face(rig, frame + 2, {previous: 0.0}, meshes)
+    body = next(o for o in meshes if o.name.endswith(".body"))
+    keys = body.data.shape_keys.key_blocks
+    frames = int(len(weights) / src_fps * fps) + 2
+    columns = {n: i for i, n in enumerate(data["names"])}
+    scene = bpy.context.scene
+    base = {}                                          # the expression underneath, read before we key anything
+    for i in range(frames):
+        scene.frame_set(start_frame + i)
+        base[i] = {n: keys[n].value for n in scale if n in keys}
+    seal = "mouthShrugLower"
+    for i in range(frames):
+        s = min(max((i + lead) / fps * src_fps, 0), len(weights) - 1)      # sample the 30 fps model at 24 fps
+        a, frac = int(s), s - int(s)
+        b = min(a + 1, len(weights) - 1)
+        row = weights[a] * (1 - frac) + weights[b] * frac
+        opening = row[columns["jawOpen"]] + row[columns["mouthLowerDownLeft"]]
+        rest = max(0.0, 1 - opening / 0.12)            # the resting lip seal (REST_SEAL) gives way as the mouth opens
+        values = {n: min(1.0, base[i][n] * (rest if n == seal else 1) + row[columns[n]] * k)
+                  for n, k in scale.items() if n in base[i]}
+        face(rig, start_frame + i, values, meshes)
+    face(rig, start_frame + frames, base[frames - 1], meshes)          # back to the expression after the line
 
 
 def blinks(rig, start, end, seed=1, fps=24):

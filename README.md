@@ -332,7 +332,7 @@ bash scripts/download_film_kit.sh
 What it fetches:
 - **Blender add-ons:** MPFB (MakeHuman characters) and Sapling Tree Gen.
 - **Characters:** MakeHuman packs (bodies, skins, eyes, hair, face units, visemes, clothes) into `assets/makehuman_packs/`.
-- **Lip sync:** Rhubarb, into `tools/rhubarb/`.
+- **Lip sync:** the Wav2ARKit speech-to-face model, into `voices/wav2arkit/`.
 - **Voices:** Kokoro (`voices/kokoro/`), and Chatterbox in its own environment (`tools/chatterbox/`).
 - **Motion capture:** CMU and 100STYLE clips, into `assets/mocap/`.
 - **Music:** Chopin recordings (CC0), into `audio/music/chopin/`.

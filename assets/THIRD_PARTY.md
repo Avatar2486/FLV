@@ -17,14 +17,14 @@ Everything here is free to use in a published video. It is fetched by `scripts/d
 | CMU Graphics Lab Motion Capture Database, BVH conversion by B. Hahne | https://github.com/sfd158/cmu-mocap (http://mocap.cs.cmu.edu) | Free for research and commercial use | "Motion capture data from mocap.cs.cmu.edu, created with funding from NSF EIA-0196217" (requested by CMU) |
 | 100STYLE dataset (selected styles) | https://ianxmason.github.io/100style/ | **CC BY 4.0** | **credit** "The 100STYLE Dataset – Ian Mason" |
 
-## Voices and lip sync
+## Voices and lip sync (face from the voice)
 | What | Source | Licence | Credit |
 |---|---|---|---|
 | Piper voices: john, joe, bryce, norman | https://huggingface.co/rhasspy/piper-voices | Public domain / CC0 | — |
 | Piper libritts-high, speaker 90 | same | **CC BY 4.0** | **credit** "LibriTTS (Zen et al., 2019)" |
 | Kokoro-82M v1.0 (via kokoro-onnx) | https://github.com/thewh1teagle/kokoro-onnx | Apache-2.0 | — |
 | Chatterbox (Resemble AI) | https://github.com/resemble-ai/chatterbox | MIT (output has an inaudible watermark) | — |
-| Rhubarb Lip Sync 1.14 | https://github.com/DanielSWolf/rhubarb-lip-sync | MIT | — |
+| Wav2ARKit (speech → 52 ARKit face shapes), built on facebook/wav2vec2-base-960h and 3DAIGC/LAM_audio2exp | https://huggingface.co/myned-ai/wav2arkit_cpu | Apache-2.0 | — |
 
 ## Sound and music
 | What | Source | Licence | Credit |
