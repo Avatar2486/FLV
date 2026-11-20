@@ -1,5 +1,7 @@
 # How real people move: the research behind FLV's characters
 
+The project log (choices, every problem we hit and how it was fixed, what is still open) is in [`tell_tale_heart_v2_notes.md`](tell_tale_heart_v2_notes.md).
+
 Each finding below is used in `scripts/humans.py`. Numbers are from the cited studies unless marked
 as measured on our MPFB characters.
 
