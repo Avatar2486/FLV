@@ -110,18 +110,21 @@ The new pipeline in a real scene from the film:
 
 | Shot | Action |
 |---|---|
-| 3.1 | The narrator's right hand pushes the door open, slowly and steadily. It moves only while his hand is on it. |
-| 3.3 | He chuckles silently in the gap: shoulders shaking, lips pressed into a smile. |
+| 3.1 | The narrator's right palm, flat on the door at chest height and away from the handle, pushes it open slowly and steadily. It moves only while his hand is on it. |
+| 3.3 | Seen through the slot between the jamb and the door's edge, he chuckles silently: shoulders shaking, lips pressed into a smile. |
 | 3.4 | The sleeping old man jerks in bed; his eyes stay shut. |
 | 3.5 | Close on the narrator, holding his breath. |
-| 3.6 | He holds the lantern by its ring. His thumb slips on the catch (*clink*) and he flinches; the lantern jerks with his hand. |
-| 3.7 | The old man springs up in bed: a startle running head to toe. His hands stay on the blanket and he cries "Who's there?" |
+| 3.5–3.6 | He leans in only as far as the door has opened; his head is in once it is fully open. He raises the lantern, held by its ring, into the gap. His thumb slips on the catch (*clink*) and he flinches; the lantern jerks with his hand. |
+| 3.7 | The old man wakes in fright: eyes snap open, a startle, a beat to register. Then he rises the way older people do: head first, he props on his right elbow toward the door, pushes up with both hands, and draws his knees up under the blanket. He cries "Who's there?" |
 | 3.8 | Both are frozen, listening. |
 | 3.10 | The old man's trembling lips, then the groan. |
 
 **Also new:**
 - The blanket is shaped over the sleeping man: his feet make tents, it is tucked in at the foot, and
   his hands rest on top.
+- No clipping: the narrator, his hands and the lantern stay clear of the door, frame and walls. Every
+  30th frame is checked by mesh overlap, and the palm on the door is measured 1–4 mm off its surface.
+  The bed things now sit on the real mattress; they had floated about 20 cm above it.
 - The speckled grain all over the earlier renders is fixed. It came from the moon light's soft shadows;
   the moon is now a small, sharp light.
 

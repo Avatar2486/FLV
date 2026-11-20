@@ -9,6 +9,7 @@ only by hands, Chatterbox voices, recorded sound and Chopin.
     .venv/bin/python -I stories/the_tell_tale_heart/preview_v2.py mix           # soundtrack + final mp4
     (soundtrack alone, to check it before the frames are done: ... preview_v2.py soundtrack)
 """
+import functools
 import json
 import math
 import sys
@@ -93,45 +94,75 @@ def build():
 
     # the cast
     om = humans.build(cast3d.OLD_MAN)
-    om.location, om.rotation_euler = (0.9, 0.38, 0.80), Euler((math.radians(-90), 0, 0))   # soles clear the footboard (y 0.30)
+    MATTRESS = 0.44                                                  # the bed's top, raycast
+    om.location, om.rotation_euler = (0.9, 0.38, 0.56), Euler((math.radians(-90), 0, 0))   # back on the mattress; soles clear the footboard (y 0.30)
     nar = humans.build(cast3d.NARRATOR)
-    nar.location, nar.rotation_euler = (-1.80, -2.50, 0.0), Euler((0, 0, math.radians(180)))
+    # in the corridor, square in the doorway (x -1.85..-0.95; wall 0.15 m thick, corridor face y -2.40):
+    # his head and shoulders stay inside the opening, never in the wall or the jamb
+    nar.location, nar.rotation_euler = (-1.58, -2.53, 0.0), Euler((0, 0, math.radians(180)))
     for rig in (om, nar):
         humans.relax_arms(rig)
         for pb in rig.pose.bones:
             pb.keyframe_insert("rotation_quaternion", frame=1)
 
-    # the narrator's body first (leaning into the gap, almost still), then his hands on the door and lantern
-    humans._layer(nar, 1, end, lambda f: {"LowerBack": (0, 5, 0), "Spine": (0, 4, 0), "Head": (6, 2, 0)})
-    humans.sway(nar, 1, end, amount=0.35, seed=11)
-
     # the door opens into the room, steadily, through 3.1-3.5 - pushed by the narrator's right hand
     door = room["door"]
+    door_from, push_until = frame["3.1"] + 12, frame["3.6"] - 6
     door.rotation_euler.z = 0.0
-    door.keyframe_insert("rotation_euler", frame=frame["3.1"] + 12)
+    door.keyframe_insert("rotation_euler", frame=door_from)
     door.rotation_euler.z = math.radians(-30)
-    door.keyframe_insert("rotation_euler", frame=frame["3.6"] - 6)
+    door.keyframe_insert("rotation_euler", frame=push_until)
     for fc in _fcurves(door):
         for k in fc.keyframe_points:
             k.interpolation = "LINEAR"
-    push_until = frame["3.6"] - 6
+    opened = lambda f: min(1.0, max(0.0, (f - door_from) / (push_until - door_from)))     # 0..1 of 30 degrees
 
-    def on_door(f):                                                  # his hand stays on it once it stops
+    # he leans in only as far as the opening door lets him: "I had my head in" once it is open
+    def lean(f):
+        x = min(1.0, max(0.0, (opened(f) - 0.15) / 0.85))
+        x = x * x * (3 - 2 * x)
+        return {"Hips": (0, 9 * x, 0), "LeftUpLeg": (0, -9 * x, 0), "RightUpLeg": (0, -9 * x, 0),
+                "LowerBack": (0, 3 + 4 * x, 0), "Spine": (0, 2 + 3 * x, 0), "Spine1": (0, 4 * x, 0),
+                "Neck1": (0, -6 * x, 0), "Head": (0, -6 * x, 0)}
+    humans._layer(nar, 1, end, lean)
+    humans.sway(nar, 1, end, amount=0.35, seed=11)
+
+    # his right palm flat on the door's corridor face, at chest height and away from the handle
+    @functools.lru_cache(maxsize=None)
+    def door_frame(f):
         scene.frame_set(min(f, push_until))
-        return door.matrix_world @ Vector((0.80, 0.045, 1.08))      # near the free edge, corridor face
-    humans.reach(nar, "Right", 1, end, on_door)
+        m = door.matrix_world
+        out = (m.to_3x3() @ Vector((0, 1, 0))).normalized()             # the corridor-side normal
+        along = (m.to_3x3() @ Vector((1, 0, 0))).normalized()            # hinge -> free edge
+        fingers = (Vector((0, 0, 1)) + 0.35 * along).normalized()
+        fingers = (fingers * math.cos(math.radians(12)) + out * math.sin(math.radians(12))).normalized()
+        # (the rig's fingers curve toward the palm: tilted 12 degrees off the door, with the wrist 4.8 cm
+        # out, the palm rests on it and the fingertips just clear it - measured, instead of sinking 4-5 cm in)
+        return m, out, fingers
 
-    # the dark lantern, closed, in his left hand just behind the gap
+    def on_door(f):
+        m, out, fingers = door_frame(f)
+        return m @ Vector((0.40, 0.02, 1.25)) - fingers * 0.05 + out * 0.048    # wrist, palm on the panel
+    humans.grip(nar, "Right", frame=1, curl=-0.6)                    # a flat hand: fingers straightened
+    humans.reach(nar, "Right", 1, end, on_door,
+                 hand=lambda f: humans.hand_frame(door_frame(f)[2], -door_frame(f)[1]))
+
+    # the dark lantern, closed, in his left hand: held low at his side behind the door until he has his
+    # head in, then raised into the gap for 3.6
     lantern, shutter, beam, glow = sets.dark_lantern(C["PROPS"])
     beam.data.energy, glow.data.energy = 0.0, 6.0                    # a closed dark lantern leaks at its seams
-    spill = su.light("V2_LIGHT_Moon_Spill", C["SET"], "AREA", (-1.75, -1.6, 1.9), 11, (0.55, 0.65, 1.0),
-                     target=(-1.85, -2.5, 1.55), size=0.2)          # moonlight from the room through the gap
+    spill = su.light("V2_LIGHT_Moon_Spill", C["SET"], "AREA", (-1.75, -1.6, 1.9), 15, (0.55, 0.65, 1.0),
+                     target=(-1.6, -2.4, 1.55), size=0.2)           # moonlight from the room through the gap
     spill.data.use_shadow_jitter, spill.data.shadow_jitter_overblur = True, 0.0
+    low, high = Vector((-1.81, -2.575, 1.02)), Vector((-1.70, -2.27, 1.29))   # lantern clear of wall and thigh
+    raise_from, raise_to = frame["3.6"] - 36, frame["3.6"]
 
-    # held by its top ring: palm down, fingers forward and curled through the ring
-    humans.grip(nar, "Left", frame=1)
-    humans.reach(nar, "Left", 1, end, lambda f: Vector((-1.80, -2.24, 1.30)),
-                 hand=humans.hand_frame((0, 0.85, -0.5), (0, 0, -1)))
+    def lantern_hand(f):
+        x = min(1.0, max(0.0, (f - raise_from) / (raise_to - raise_from)))
+        x = x * x * (3 - 2 * x)
+        return low.lerp(high, x) + Vector((0, 0, 0.05 * math.sin(math.pi * x)))
+    humans.grip(nar, "Left", frame=1)                                # palm down, fingers through the ring
+    humans.reach(nar, "Left", 1, end, lantern_hand, hand=humans.hand_frame((0, 0.85, -0.5), (0, 0, -1)))
     scene.frame_set(1)
     pb = nar.pose.bones
     ring = nar.matrix_world @ ((pb["LeftFingerBase"].tail + pb["LeftHandFinger1"].tail) / 2)
@@ -152,15 +183,23 @@ def build():
     humans.startle(nar, click + 2, strength=0.45)                                   # his own slip makes him jump
     humans.face(nar, click + 30, cast3d.TENSE)
 
-    # the old man: asleep; a jerk at 3.4; springs up at 3.7, cries out, listens, trembles, groans
+    # the old man: asleep; a jerk at 3.4; at 3.7 the startle wakes him (eyes open, a blink, the jerk), a
+    # beat to register, then he rises the way older people do (rise_in_bed), turning toward the door
     meshes = humans.face_meshes(om)
     wake = frame["3.7"] + 6
+    rise = wake + 7                                                  # ~0.3 s to register the sound
     humans.face(om, 1, {"eyeBlinkLeft": 1.0, "eyeBlinkRight": 1.0}, meshes)
     humans.face(om, wake - 1, {"eyeBlinkLeft": 1.0, "eyeBlinkRight": 1.0}, meshes)
     humans.breathe(om, 1, wake, style="sleep", seed=3)
     humans.startle(om, line_frame["3.4_N"] + 6, strength=0.35, face_too=False, legs=False)
-    humans.sit_up(om, wake, end)
     humans.startle(om, wake, strength=1.0, until=end, legs=False)
+    humans.rise_in_bed(om, rise, end, seconds=1.1, lead="Right")
+
+    def pillow(f):                                                  # the pillow props his head; gone as he rises
+        x = min(1.0, max(0.0, (f - rise) / (0.6 * 1.1 * FPS)))
+        k = 1 - x * x * (3 - 2 * x)
+        return {"Neck1": (0, 8 * k, 0), "Head": (0, 4 * k, 0)}
+    humans._layer(om, 1, end, pillow)
     humans.face(om, wake + 8, {**cast3d.NEUTRAL, **cast3d.FEAR}, meshes)
     who = humans.lip_sync(om, VO / "3.7_OM.wav", start_frame=line_frame["3.7_OM"])
     humans.eyes(om, wake + 4, end, mode="fear", look=(-35.0, -5.0), pauses=who["pauses"], seed=21)
@@ -169,22 +208,36 @@ def build():
     humans.tremble(om, frame["3.10"], end, strength=0.8)
     humans.lip_sync(om, VO / "3.10_OM_groan.wav", start_frame=groan)
 
-    # the blanket, shaped over his legs and feet as he lies; his hands rest on it, and stay on his lap as he
-    # sits up (arm IK last, so it holds the hands through the startle)
+    # the blanket over his legs and feet; it moves only as his knees draw up under it
     sheet, height = humans.bedsheet("V2_Blanket", C["SET"], room["blanket"].active_material, om,
-                                    center=(0.9, 0.835), size=(1.35, 1.05), top=0.64)
-    for side, dx in (("Left", 0.17), ("Right", -0.17)):
-        spot = Vector((0.9 + dx, 1.23, height(0.9 + dx, 1.23) + 0.03))
-        humans.reach(om, side, 1, end, lambda f, s=spot: s, hand=humans.hand_frame((0, -1, 0), (0, 0, -1)))
+                                    center=(0.9, 0.725), size=(1.35, 0.85), top=MATTRESS,
+                                    frames=[1] + list(range(rise, rise + 40, 2)))
+    # his hands: at his sides on the blanket in sleep; on the rise one elbow props and both hands push on
+    # the mattress beside his hips (right first, toward the door), and stay planted as he sits listening
+    def hands(side, dx, lead_in):
+        rest = Vector((0.9 + dx, 1.12, height(0.9 + dx, 1.12) + 0.03))
+        push = Vector((0.9 + dx * 1.25, 1.40, MATTRESS + 0.035))
+        a, b = rise + lead_in, rise + lead_in + 7
+
+        def at(f):
+            x = min(1.0, max(0.0, (f - a) / (b - a)))
+            x = x * x * (3 - 2 * x)
+            return rest.lerp(push, x) + Vector((0, 0, 0.06 * math.sin(math.pi * x)))
+        return at
+    for side, dx, lead_in in (("Right", -0.24, 0), ("Left", 0.24, 3)):
+        humans.reach(om, side, 1, end, hands(side, dx, lead_in),
+                     hand=humans.hand_frame((0.3 * (1 if dx > 0 else -1), -1, 0), (0, 0, -1)))
 
     # cameras, cut on markers
     scene.frame_set(frame["3.10"] + 10)
     face_at = om.matrix_world @ om.pose.bones["Head"].head + Vector((0, -0.08, 0.0))
     rigs = {
         "door_from_room": dict(at=(0.25, 0.1, 1.25), look=(-1.45, -2.2, 1.25), lens=28, focus=(-1.6, -2.2, 1.3)),
-        "gap": dict(at=(-2.15, -1.55, 1.62), look=(-1.82, -2.35, 1.6), lens=85, focus=(-1.8, -2.32, 1.62)),
+        # his face is only visible through the slot between the jamb and the door's edge: 123-151 degrees
+        # round from his head (measured on the set), so the camera sits at ~140
+        "gap": dict(at=(-2.31, -1.79, 1.62), look=(-1.60, -2.36, 1.58), lens=75, focus=(-1.58, -2.34, 1.6)),
         "corner": dict(at=(2.25, -1.95, 2.7), look=(-0.2, 0.4, 0.7), lens=22, focus=(0.6, 0.2, 0.9)),
-        "lantern": dict(at=(-2.35, -1.40, 1.45), look=(-1.82, -2.25, 1.36), lens=26, focus=(-1.8, -2.22, 1.25)),
+        "lantern": dict(at=(-2.35, -1.40, 1.45), look=(-1.64, -2.20, 1.36), lens=26, focus=(-1.70, -2.18, 1.25)),
         "bed": dict(at=(2.05, -0.75, 1.35), look=(0.85, 1.15, 1.0), lens=30, focus=(0.9, 1.0, 1.1)),
         "old_face": dict(at=tuple(face_at + Vector((0.18, -0.95, 0.0))), look=tuple(face_at), lens=85,
                          focus=tuple(face_at)),
@@ -201,7 +254,7 @@ def build():
         marker.camera = cams[s["camera"]]
     scene.camera = cams[tl["shots"][0]["camera"]]
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "timeline.json").write_text(json.dumps(dict(tl, click=(click - 1) / FPS, wake=(wake - 1) / FPS), indent=1))
+    (OUT / "timeline.json").write_text(json.dumps(dict(tl, click=(click - 1) / FPS, wake=(wake - 1) / FPS, rise=(rise - 1) / FPS), indent=1))
     BLEND.parent.mkdir(parents=True, exist_ok=True)
     su.save_blend(BLEND, compress=True)
     print(f"PREVIEW built: {len(tl['shots'])} shots, {end} frames ({tl['seconds']:.1f} s) -> {BLEND.name}")
@@ -256,7 +309,7 @@ def soundtrack():
               ("door_creak_275471.mp3", shot["3.5"]["start"] + 1.5, 0.08, 3.0),     # opening it silently
               ("floorboard_creak_506661.mp3", shot["3.4"]["start"] + LEAD + 0.25, 0.45, 1.7),   # he stirs
               ("lantern_shutter_278204.mp3", tl["click"], 0.9, 0.5),                     # CLINK
-              ("floorboard_creak_506662.mp3", tl["wake"], 0.6, 1.6)]                     # he springs up
+              ("floorboard_creak_506662.mp3", tl["rise"], 0.6, 1.6)]                     # the bed as he rises
     for name, at, gain, longest in events:
         x = read_audio(sfx / name)
         mix.put(fitted(x, min(longest, len(x) / RATE)) * gain, at)

@@ -786,7 +786,7 @@ def _two_bone(rig, rest, pose, frame, up, low, foot, target, pole=(0, -1, 0), en
 def reach(rig, side, start, end, target, blend=8, hand=None):
     """Arm IK: the hand (wrist) goes to target(frame) -> world point (or None = free), with `blend`-frame
     ease in and out. Elbows bend back and down. hand: a world 3x3 rotation for the hand (its Y axis along
-    the fingers, Z out of the palm), else it keeps its own angle. For hands on doors, latches, lanterns:
+    the fingers, Z out of the palm), or a function frame -> rotation, else it keeps its own angle. For hands on doors, latches, lanterns:
     in FLV nothing moves unless a hand moves it."""
     scene = bpy.context.scene
     bpy.context.view_layer.update()
@@ -820,18 +820,19 @@ def reach(rig, side, start, end, target, blend=8, hand=None):
         ease = 0.5 - 0.5 * math.cos(math.pi * w)
         aim_at = wrist.lerp(to_arm @ Vector(goal), ease)
         turned = None
-        if hand is not None:
-            want = (to_arm.to_3x3() @ hand).to_quaternion()
+        rot = hand(f) if callable(hand) else hand
+        if rot is not None:
+            want = (to_arm.to_3x3() @ rot).to_quaternion()
             turned = pose[chain[2]].to_quaternion().slerp(want, ease).to_matrix()
         _two_bone(rig, rest, pose, f, *chain, aim_at, pole=(0, 0.6, -0.4), end_rot=turned)
 
 
 def hand_frame(fingers, palm):
-    """World rotation for reach(hand=...): fingers point along `fingers`, the palm faces `palm`."""
-    from mathutils import Matrix
+    """World rotation for reach(hand=...): fingers point along `fingers`, the palm faces `palm`.
+    MPFB cmu_mb hands: Y runs along the fingers and the palm is on -Z (measured on both hands of both
+    characters: curling the fingers (+X) moves the tips toward -Z)."""
     y = Vector(fingers).normalized()
-    z = Vector(palm) - Vector(palm).project(y)
-    z.normalize()
+    z = -(Vector(palm) - Vector(palm).project(y)).normalized()
     return Matrix((y.cross(z), y, z)).transposed()
 
 
@@ -847,79 +848,88 @@ def grip(rig, side, frame=1, curl=1.0):
         pb.keyframe_insert("rotation_quaternion", frame=frame)
 
 
-ARM_BONES = [f"{s}{b}" for s in ("Left", "Right") for b in ("Arm", "ForeArm", "Hand", "FingerBase", "HandFinger1")] \
-    + ["LThumb", "RThumb"]
+LEG_BONES = [f"{s}{b}" for s in ("Left", "Right") for b in ("UpLeg", "Leg", "Foot", "ToeBase")]
 
 
-def bedsheet(name, coll, material, rig, center, size, top, drop=0.3, clearance=0.035, step=0.025, frame=1):
-    """A blanket over someone in bed, tucked in at the foot end (-y), open at +y: heights are cast down
-    onto the body and clothes (arms left out, so hands can rest on top), spread and smoothed the way fabric
-    spans the gaps, and the two long sides hang `drop` metres. Static: legs stay put in a bed."""
+def bedsheet(name, coll, material, rig, center, size, top, drop=0.3, clearance=0.035, step=0.025, frames=(1,)):
+    """A blanket over someone in bed, tucked in at the foot end (-y), open at +y. Its heights are cast
+    down onto the legs and feet (body and clothes), so hands rest on top and the sleeper can sit up out
+    of it; it is spread and smoothed the way fabric spans gaps, and the long sides hang `drop` metres.
+    With several `frames` it follows the legs (one shape key per frame, blended), so it moves only when
+    the legs under it move. Returns (object, height(x, y) at the first frame)."""
     import bmesh
     import numpy as np
     from mathutils.bvhtree import BVHTree
     scene = bpy.context.scene
-    scene.frame_set(frame)
-    deps = bpy.context.evaluated_depsgraph_get()
-    trees = []
-    for obj in [o for o in rig.children if o.type == "MESH"]:
-        bm = bmesh.new()
-        bm.from_object(obj, deps)
-        bm.transform(obj.matrix_world)
-        layer = bm.verts.layers.deform.active
-        arms = {obj.vertex_groups[b].index for b in ARM_BONES if b in obj.vertex_groups}
-        if layer is not None and arms:
-            bmesh.ops.delete(bm, geom=[v for v in bm.verts if sum(w for g, w in v[layer].items() if g in arms) > 0.5],
-                             context="VERTS")
-        trees.append(BVHTree.FromBMesh(bm))
-        bm.free()
     hw, hl = size[0] / 2, size[1] / 2
     nx, ny = int(size[0] / step) + 1, int(size[1] / step) + 1
     xs, ys = np.linspace(-hw, hw, nx), np.linspace(-hl, hl, ny)
-    H = np.full((ny, nx), float(top))
-    for j, y in enumerate(ys):
-        for i, x in enumerate(xs):
-            for tree in trees:
-                hit = tree.ray_cast(Vector((center[0] + x, center[1] + y, top + 2.0)), Vector((0, 0, -1)))[0]
-                if hit is not None:
-                    H[j, i] = max(H[j, i], hit.z)
-    raw = H.copy()
-    for d in ((1, 0), (-1, 0), (0, 1), (0, -1)):        # small peaks (toes) fall between samples
-        raw = np.maximum(raw, np.roll(H, d, (0, 1)))
-    H = raw + clearance
-    spread = H.copy()                                   # fabric spans gaps: dilate a little, then smooth
-    for dj in range(-2, 3):
-        for di in range(-2, 3):
-            if dj * dj + di * di <= 4:
-                spread = np.maximum(spread, np.roll(np.roll(H, dj, 0), di, 1))
-    kernel = np.exp(-0.5 * (np.arange(-10, 11) / 3.5) ** 2)
-    kernel /= kernel.sum()
-    pad = np.pad(spread, 10, mode="edge")
-    pad = np.apply_along_axis(lambda r: np.convolve(r, kernel, "same"), 0, pad)
-    pad = np.apply_along_axis(lambda r: np.convolve(r, kernel, "same"), 1, pad)
-    H = np.maximum(pad[10:-10, 10:-10], H)
-    H[0, :] = np.minimum(H[0, :], top + 0.01)            # tucked in at the foot
-    H[1, :] = (H[0, :] + H[2, :]) / 2
-    # extend round the three closed sides and let them hang
     k = int(drop / step)
     us = np.concatenate([-hw - step * np.arange(k, 0, -1), xs, hw + step * np.arange(1, k + 1)])
-    vs = ys
+
+    def heights(frame):
+        scene.frame_set(frame)
+        deps = bpy.context.evaluated_depsgraph_get()
+        trees = []
+        for obj in [o for o in rig.children if o.type == "MESH"]:
+            legs = {obj.vertex_groups[b].index for b in LEG_BONES if b in obj.vertex_groups}
+            bm = bmesh.new()
+            bm.from_object(obj, deps)
+            bm.transform(obj.matrix_world)
+            layer = bm.verts.layers.deform.active
+            if not legs or layer is None:
+                bm.free()
+                continue
+            bmesh.ops.delete(bm, geom=[v for v in bm.verts if sum(w for g, w in v[layer].items() if g in legs) < 0.5],
+                             context="VERTS")
+            if bm.verts:
+                trees.append(BVHTree.FromBMesh(bm))
+            bm.free()
+        assert trees, f"bedsheet: no leg geometry found on {rig.name}"
+        H = np.full((ny, nx), float(top))
+        for j, y in enumerate(ys):
+            for i, x in enumerate(xs):
+                for tree in trees:
+                    hit = tree.ray_cast(Vector((center[0] + x, center[1] + y, top + 2.0)), Vector((0, 0, -1)))[0]
+                    if hit is not None:
+                        H[j, i] = max(H[j, i], hit.z)
+        raw = H.copy()
+        for d in ((1, 0), (-1, 0), (0, 1), (0, -1)):        # small peaks (toes) fall between samples
+            raw = np.maximum(raw, np.roll(H, d, (0, 1)))
+        H = raw + clearance
+        spread = H.copy()                                   # fabric spans gaps: dilate a little, then smooth
+        for dj in range(-2, 3):
+            for di in range(-2, 3):
+                if dj * dj + di * di <= 4:
+                    spread = np.maximum(spread, np.roll(np.roll(H, dj, 0), di, 1))
+        kernel = np.exp(-0.5 * (np.arange(-10, 11) / 3.5) ** 2)
+        kernel /= kernel.sum()
+        pad = np.pad(spread, 10, mode="edge")
+        pad = np.apply_along_axis(lambda r: np.convolve(r, kernel, "same"), 0, pad)
+        pad = np.apply_along_axis(lambda r: np.convolve(r, kernel, "same"), 1, pad)
+        H = np.maximum(pad[10:-10, 10:-10], H)
+        H[0, :] = np.minimum(H[0, :], top + 0.01)            # tucked in at the foot
+        H[1, :] = (H[0, :] + H[2, :]) / 2
+        return H
+
+    def coords(H):                                          # the two long sides hang from the edge
+        out = []
+        for j in range(ny):
+            for u in us:
+                over = max(abs(u) - hw, 0.0)
+                i = int(round((min(max(u, -hw), hw) + hw) / step))
+                out.append((center[0] + math.copysign(min(abs(u), hw) + 0.15 * over, u), center[1] + ys[j],
+                            H[j, min(i, nx - 1)] - over))
+        return out
+
+    shapes = [heights(f) for f in frames]
     bm = bmesh.new()
-    rows = []
-    for v in vs:
-        row = []
-        for u in us:
-            over = max(abs(u) - hw, -hl - v, 0.0)
-            i = int(round((min(max(u, -hw), hw) + hw) / step))
-            j = int(round((min(max(v, -hl), hl) + hl) / step))
-            x = math.copysign(min(abs(u), hw) + 0.15 * max(abs(u) - hw, 0), u)
-            y = max(v, -hl) - 0.15 * max(-hl - v, 0)
-            z = H[min(j, ny - 1), min(i, nx - 1)] - over          # the hang carries on from the edge
-            row.append(bm.verts.new((center[0] + x, center[1] + y, z)))
-        rows.append(row)
-    for j in range(len(rows) - 1):
-        for i in range(len(us) - 1):
-            bm.faces.new((rows[j][i], rows[j][i + 1], rows[j + 1][i + 1], rows[j + 1][i]))
+    verts = [bm.verts.new(c) for c in coords(shapes[0])]
+    width = len(us)
+    for j in range(ny - 1):
+        for i in range(width - 1):
+            a = j * width + i
+            bm.faces.new((verts[a], verts[a + 1], verts[a + width + 1], verts[a + width]))
     mesh = bpy.data.meshes.new(name)
     bm.to_mesh(mesh)
     bm.free()
@@ -928,10 +938,23 @@ def bedsheet(name, coll, material, rig, center, size, top, drop=0.3, clearance=0
     obj = bpy.data.objects.new(name, mesh)
     coll.objects.link(obj)
     obj.data.materials.append(material)
+    if len(frames) > 1:
+        obj.shape_key_add(name="Basis")
+        for n, (f, H) in enumerate(zip(frames, shapes)):
+            if n == 0:
+                continue
+            key = obj.shape_key_add(name=f"legs_{f}", from_mix=False)
+            for point, c in zip(key.data, coords(H)):
+                point.co = c
+            keys = [(frames[n - 1], 0.0), (f, 1.0)] + ([(frames[n + 1], 0.0)] if n + 1 < len(frames) else [])
+            for at, value in keys:
+                key.value = value
+                key.keyframe_insert("value", frame=at)
     obj.modifiers.new("Thickness", "SOLIDIFY").thickness = 0.01
     obj.modifiers.new("Soft", "SUBSURF").render_levels = 1
-    return obj, (lambda x, y: float(H[min(max(int(round((y - center[1] + hl) / step)), 0), ny - 1),
-                                        min(max(int(round((x - center[0] + hw) / step)), 0), nx - 1)]))
+    first = shapes[0]
+    return obj, (lambda x, y: float(first[min(max(int(round((y - center[1] + hl) / step)), 0), ny - 1),
+                                            min(max(int(round((x - center[0] + hw) / step)), 0), nx - 1)]))
 
 
 def hold(rig, prop, side="Right", frame=1):
@@ -944,20 +967,33 @@ def hold(rig, prop, side="Right", frame=1):
     prop.matrix_world = world
 
 
-def sit_up(rig, frame, until, seconds=0.45, angle=72.0, fps=24):
-    """Sit up from lying on the back, hinging at the hips (legs stay on the bed): fast like a startle,
-    a small overshoot, then held until `until`."""
-    def k(f):
-        t = (f - frame) / (seconds * fps)
-        if t <= 0:
-            return 0.0
-        if t < 1:
-            return 0.5 - 0.5 * math.cos(math.pi * t)
-        return 1.0 + 0.06 * math.exp(-(t - 1) * 3) * math.sin((t - 1) * 9)      # settle
+def rise_in_bed(rig, frame, until, seconds=1.1, fps=24, lead="Left"):
+    """Sit up from lying on the back the way older people do (Watanabe et al. 2019, J Phys Ther Sci):
+    the head lifts first, the trunk turns a little toward the propping elbow, the trunk curls only ~37
+    degrees (young people ~63) while the hips and the arms' push do the rest, the head comes upright, and
+    the knees draw up late (they reached ~75 degrees in the study; 40 here, under a blanket). `seconds`
+    is the rise; place the arms with reach() (elbow prop, then a push on the mattress)."""
+    span = seconds * fps
+    turn = 1 if lead == "Left" else -1
+
+    def ease(a, b, x):
+        u = min(1.0, max(0.0, (x - a) / (b - a)))
+        return u * u * (3 - 2 * u)
+
     def offsets(f):
-        a = angle * k(f)
-        return {"Hips": (0, a * 0.8, 0), "LeftUpLeg": (0, -a * 0.8, 0), "RightUpLeg": (0, -a * 0.8, 0),
-                "LowerBack": (0, a * 0.12, 0), "Spine": (0, a * 0.08, 0), "Neck1": (0, -a * 0.05, 0)}
+        x = (f - frame) / span
+        if x <= 0:
+            return {}
+        settle = 0.05 * math.exp(-(x - 1) * 4) * math.sin((x - 1) * 10) if x > 1 else 0.0
+        hinge = 64 * (ease(0.30, 1.0, x) + settle)                         # the hips lift the trunk
+        curl = 37 * ease(0.15, 0.54, x) - 22 * ease(0.54, 1.0, x)          # curls, then straightens to 15
+        neck = 30 * ease(0.0, 0.26, x) - 34 * ease(0.40, 0.85, x)          # head first, then upright
+        twist = turn * (9 * ease(0.10, 0.34, x) - 9 * ease(0.40, 0.70, x))  # toward the propping elbow
+        knee = ease(0.62, 0.90, x)
+        return {"Hips": (0, hinge, 0), "LeftUpLeg": (0, -hinge - 20 * knee, 0), "RightUpLeg": (0, -hinge - 20 * knee, 0),
+                "LeftLeg": (0, 40 * knee, 0), "RightLeg": (0, 40 * knee, 0),
+                "LowerBack": (0.4 * twist, 0.40 * curl, 0), "Spine": (0.3 * twist, 0.35 * curl, 0),
+                "Spine1": (0.3 * twist, 0.25 * curl, 0), "Neck1": (0, 0.6 * neck, 0), "Head": (0, 0.4 * neck, 0)}
     _layer(rig, frame, until, offsets)
 
 

@@ -222,11 +222,12 @@ def chamber(coll, lights):
     lib.side_table(coll, (2.15, 0.95, 0), prefix="CH_Washstand")
     ph("fancy_picture_frame_01", coll, "CH_Portrait", (-0.2, 2.2, 1.9), rotation=180)
 
-    # Bedclothes: blanket and pillow on the gothic bed (mattress top measured at ~0.62 m)
-    out["blanket"] = su.drape("CH_Blanket", coll, M("MAT_Nightshirt"), 1.35, 1.45, 0.3, (0.9, 0.85, 0.66),
+    # Bedclothes: blanket and pillow on the gothic bed (mattress top raycast at z 0.44; they floated ~0.2 m
+    # above it before)
+    out["blanket"] = su.drape("CH_Blanket", coll, M("MAT_Nightshirt"), 1.35, 1.45, 0.3, (0.9, 0.85, 0.46),
                               sides=("left", "right", "front"), flare=0.05, wrinkles=0.03)
-    out["pillow"] = su.pillow("CH_Pillow", coll, M("MAT_Pillow"), (0.7, 0.42, 0.16), (0.9, 1.85, 0.7),
-                              rotation=(15, 0, 0))
+    out["pillow"] = su.pillow("CH_Pillow", coll, M("MAT_Pillow"), (0.7, 0.42, 0.11), (0.9, 1.85, 0.50),
+                              rotation=(10, 0, 0))
     out["wall_clock"] = lib.wall_clock(coll, (-2.05, -2.24, 2.05), rotation=180, radius=0.15,
                                        prefix="CH_Wall_Clock")
     out["clock_hands"] = bpy.data.objects["CH_Wall_Clock_Hands"]

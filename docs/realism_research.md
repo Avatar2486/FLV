@@ -131,26 +131,80 @@ How sneaking differs from walking:
 ## Hands, props and the bed: `reach()`, `grip()`, `hold()`, `bedsheet()`
 - **Nothing moves by itself.** Every moving prop has a hand on it.
   - `reach()` is two-bone arm IK: the wrist follows a target point (on the door, the lantern ring, the
-    blanket), easing in and out over a few frames. It reads the arm's own motion before keying, so after
-    release the arm returns exactly to where it was. The self-check measures this: 0.000° after release.
+    mattress), easing in and out over a few frames. The hand's angle can change per frame, so the palm
+    stays flat on a turning door. `reach()` reads the arm's own motion before keying, so after release
+    the arm returns exactly to where it was. The self-check measures this: 0.000° after release.
   - `hold()` puts a prop in a hand, so it moves only when that hand moves. When the narrator flinches at
     his own slip, the lantern jerks with his hand.
-  - `grip()` curls the fingers round a handle; on the MPFB rig, +X on the finger bones curls them.
-- **The door** opens only while his right hand is on it and stops when the hand stops.
-- **The lantern** hangs from its top ring, palm down, the fingers curled through the ring. At the "tin
-  fastening" his thumb slips (a 28° thumb jerk), then the startle follows.
+  - `grip()` curls the fingers round a handle. A negative curl straightens them for a flat hand.
+- **Measured on the MPFB hands:**
+  - +X on the finger bones curls them.
+  - The palm is on the hand's −Z (curling moves the fingertips toward −Z, on both hands of both
+    characters). `hand_frame()` had this backwards at first, so the hands lay palm-up.
+- **Touching, not passing through.** Each contact is checked by mesh overlap (BVH) against the door,
+  frame and walls every 30 frames, and by the hand's depth relative to the door face.
+- **The door:**
+  - His right palm pushes flat on the door's corridor face at chest height, away from the handle (gripping
+    the handle looked wrong).
+  - The rig's fingers curve toward the palm, so the hand is tilted 12° off the door with the wrist 4.8 cm
+    out. Measured: the palm rests 1–4 mm off the surface, and nothing goes inside.
+  - The door opens only while his hand pushes it, and stops when the hand stops.
+- **Staging in the doorway:**
+  - The wall is 0.15 m thick and the opening is 0.9 m wide.
+  - He stands square in the opening, so his head and shoulders never enter the wall or jamb. Before, his
+    face and shoulder were 4–6 cm into the jamb.
+  - He leans in only as far as the opening door allows: his head is "in" once the door is fully open.
+  - His face can be seen from the room only through the slot between the jamb and the door's edge, 123–151°
+    around from his head. The close-up camera sits at about 140°.
+- **The lantern:**
+  - Held low at his side behind the door until his head is in, then raised into the gap.
+  - It hangs from its top ring, palm down, fingers through the ring. At the "tin fastening" his thumb
+    slips (a 28° thumb jerk), then the startle follows.
+- **The bed:**
+  - The mattress top is at z 0.44, from a raycast. The old note said 0.62, so the pillow, blanket and
+    sleeper had floated about 0.2 m above it.
+  - He lies on the mattress, his head on the pillow with the neck slightly bent.
 - **Sleep:**
   - Slow, shallow breathing: 12 per minute, almost no shoulder movement.
   - A small body-only jerk when he "moved on the bed suddenly"; his eyes stay shut.
-- **Sitting up in fright:** a fast hip hinge, 0.45 s with a small overshoot, while the legs stay on the
-  bed. A full startle runs on top of it. His hands stay on the blanket, so the arms bend as the shoulders
-  rise.
-- **The blanket** is shaped over the sleeper:
-  - Heights are cast down onto his body and clothes, leaving the arms out so the hands can rest on top.
+- **The blanket** is shaped over the sleeper's legs and feet:
+  - Its heights are cast onto the leg geometry only, so the hands rest on top and he can sit up out of it.
   - It is spread and smoothed the way cloth spans gaps, so the feet make tents.
   - It is tucked in at the foot and hangs down both long sides.
+  - It follows his legs (shape keys every 2 frames), so it rises only when his knees draw up under it.
 - **A stifled chuckle** pulses the shoulders and chest at about 4.5 per second, close to the roughly
   210 ms spacing of laugh notes (Provine 1996), with the lips pressed into a smile.
+
+## Waking in fright and rising from bed: `startle()` + `rise_in_bed()`
+**How people sit up from lying.**
+- *The order (Cordo et al. 2003):* the sit-up is serial. The neck and upper trunk flex first, then the
+  lumbar trunk lifts, then the pelvis rotates. The head lifts first, and the body comes up in a wave
+  toward the hips.
+- *How older adults do it:* Watanabe et al. (2019) compared older adults (65–74) rising from lying to
+  sitting with young adults.
+
+  | Measure | Older adults | Young adults |
+  |---|---|---|
+  | Trunk flexion | 37° | 63° |
+  | Elbow flexion | 92° | 84° |
+  | Shoulder extension | 31–33° | 17–22° |
+  | Hip flexion | 80° | 56° |
+  | Knee flexion | 74–78° | 55–60° |
+
+  Older adults curl the trunk much less and "often selected the push up": an elbow props and both arms
+  push. Head and neck rotation come before the trunk. Neck flexion peaks at about 26% of the movement,
+  trunk flexion at about 54%, and the knees at 67–82%.
+- *Startle:* the startle comes first (Brown et al. 1991, above). Animators stage a fright as notice →
+  register → react: a short beat before the big move (AnimSchool).
+
+**How we apply it, for the old man at "the old man sprang up in the bed":**
+
+| When | What happens |
+|---|---|
+| 0 s | The startle: his eyes snap open with a blink; neck, shoulders and arms flex. His legs stay still under the blanket. |
+| +0.3 s | A beat to register the sound. |
+| Rise, 1.1 s (startled, so fast) | The head lifts first (neck flexion peaks at 26%). He turns about 9° toward the door and props on his right elbow; the right hand, then the left, goes to the mattress beside his hips and pushes. The trunk curls to 37° at 54%, then straightens to about 15° as the hips lift him to sitting. The head comes upright. The knees draw up late (hip about 20°, knee about 40° under the blanket, which rises with them). |
+| End | A small settle. His hands stay planted behind him as he sits listening, and his eyes and head turn to the door. |
 
 ## Light and grain (Eevee, Blender 5.3)
 - **The speckle came from the moon light's size.** Fine grain on every moonlit surface came from the
@@ -182,6 +236,9 @@ How sneaking differs from walking:
 - [Idle animation believability (2025)](https://arxiv.org/pdf/2509.05023)
 - [Startle response](https://Www.Wikipedia.org/wiki/Startle)
 - Provine, R. R. (1996), "Laughter", *American Scientist* 84(1): laugh notes about 75 ms long, every 210 ms
+- [Watanabe et al. 2019, supine to sitting in young and elderly (J Phys Ther Sci 31:102)](https://pmc.ncbi.nlm.nih.gov/articles/PMC6348188/)
+- [Cordo et al. 2003, the sit-up: complex kinematics (J Electromyogr Kinesiol 13:239)](https://pubmed.ncbi.nlm.nih.gov/12706604/)
+- [AnimSchool: staging a reaction](https://blog.animschool.edu/tag/staging/)
 - [Fox walk / nature observation (Princeton)](https://swh.princeton.edu/~oa/nature/naturobs.pdf)
 - [How to Walk Like a Fox](https://www.chelseagreen.com/2021/how-to-walk-like-a-fox-and-see-in-the-dark)
 - [Stealthy walking mechanics (cats)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2583958/)
