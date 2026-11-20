@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Matrix, Quaternion, Vector
+from mathutils import Euler, Matrix, Quaternion, Vector
 
 ROOT = Path(__file__).resolve().parent.parent
 TEXTURES = ROOT / "assets" / "textures" / "polyhaven"
@@ -97,10 +97,12 @@ def build(spec, location=(0, 0, 0)):
     return rig
 
 
-def hide_under(body, garments, reach=0.03, margin=0.006, poking=True):
+def hide_under(body, garments, reach=0.03, margin=0.006, poking=True, keep_rim=0.06):
     """Mask the parts of `body` (skin, or a garment) that sit under the given garments, so knees, elbows and
     sock tops don't poke through (some MakeHuman clothes ship without a delete group). poking=True also hides
-    surface just outside a garment, away from its hems."""
+    surface just outside a garment, away from its hems. Skin within `keep_rim` of an opening (collar, cuff,
+    hem) stays - also when the pack's own Delete.<garment> group hid it: it shows through the opening, and
+    hiding it left a dark hole inside the collar."""
     from mathutils.bvhtree import BVHTree
     deps = bpy.context.evaluated_depsgraph_get()
     saved = [(m, m.show_viewport) for m in body.modifiers]
@@ -126,15 +128,22 @@ def hide_under(body, garments, reach=0.03, margin=0.006, poking=True):
             edges.insert(mesh.vertices[v].co, v)
         edges.balance()
         to_local = garment.matrix_world.inverted() @ body.matrix_world
+        packed = body.vertex_groups.get("Delete." + garment.name.split(".", 1)[-1])   # the pack's own group
+        reopen = []
         for i, co in enumerate(coords):
             p = to_local @ co
             loc, normal, _, dist = tree.find_nearest(p)
             if loc is None or dist > reach:
                 continue
-            inside = (p - loc).dot(normal) < margin
-            outside_close = poking and dist < 0.015 and (not rim or edges.find(loc)[2] > 0.04)   # mid-garment
+            to_rim = edges.find(loc)[2] if rim else 1.0
+            if to_rim <= keep_rim:
+                reopen.append(i)
+            inside = (p - loc).dot(normal) < margin and to_rim > keep_rim
+            outside_close = poking and dist < 0.015 and to_rim > 0.04                  # mid-garment
             if inside or outside_close:
                 hidden.add(i)
+        if packed is not None and reopen:
+            packed.remove(reopen)
     if not hidden:
         return
     group = body.vertex_groups.new(name="Delete.under_clothes")
@@ -747,7 +756,7 @@ def plant_feet(rig, start, end, floor=0.0, blend=3):
     return lift
 
 
-def _two_bone(rig, rest, pose, frame, up, low, foot, target, pole=(0, -1, 0), end_rot=None):
+def _two_bone(rig, rest, pose, frame, up, low, foot, target, pole=(0, -1, 0), end_rot=None, wrist=None, ease=1.0):
     """Analytic two-bone IK in armature space; keys the thigh, shin and foot rotations at `frame`."""
     from mathutils import Matrix
     H, K, A = pose[up].translation, pose[low].translation, pose[foot].translation
@@ -769,7 +778,26 @@ def _two_bone(rig, rest, pose, frame, up, low, foot, target, pole=(0, -1, 0), en
     thigh = aimed(pose[up], H, K - H, knee - H)
     shin_start = thigh @ (pose[up].inverted() @ pose[low])                    # shin carried by the new thigh
     shin = aimed(shin_start, knee, (shin_start @ (pose[low].inverted() @ pose[foot])).translation - knee, ankle - knee)
+    if wrist is not None:                     # the hand carries on the forearm's line, bent toward the palm
+        bend, palm = wrist
+        line = (ankle - knee).normalized()
+        side = (palm - palm.project(line)).normalized()
+        y = (line * math.cos(bend) + side * math.sin(bend)).normalized()
+        z = -(palm - palm.project(y)).normalized()
+        want = Matrix((y.cross(z), y, z)).transposed()
+        end_rot = pose[foot].to_quaternion().slerp(want.to_quaternion(), ease).to_matrix()
     turned = end_rot if end_rot is not None else pose[foot].to_3x3()          # the foot keeps its own angle
+    if end_rot is not None:
+        # turning the hand palm up or down happens mostly in the forearm (pronation/supination), not at the
+        # wrist: give the forearm 3/4 of the hand's twist about its own axis, so sleeves and wrists don't
+        # wring (a shirt cuff flipped out into a flap when the wrist took it all)
+        neutral = rest[low].inverted() @ rest[foot]
+        rel = ((shin.to_3x3() @ neutral.to_3x3()).inverted() @ turned).to_quaternion()
+        axis = (neutral.to_3x3().inverted() @ Vector((0, 1, 0))).normalized()
+        along = Vector((rel.x, rel.y, rel.z)).dot(axis)
+        angle = 2 * math.atan2(along, rel.w)
+        angle = (angle + math.pi) % (2 * math.pi) - math.pi
+        shin = shin @ Matrix.Rotation(0.75 * angle, 4, "Y")
     foot_m = Matrix.Translation(ankle) @ turned.to_4x4()
     for name, matrix, parent in ((up, thigh, None), (low, shin, thigh), (foot, foot_m, shin)):
         pb = rig.pose.bones[name]
@@ -783,10 +811,12 @@ def _two_bone(rig, rest, pose, frame, up, low, foot, target, pole=(0, -1, 0), en
 
 
 # --- hands, props, beds -------------------------------------------------------------------------------
-def reach(rig, side, start, end, target, blend=8, hand=None):
+def reach(rig, side, start, end, target, blend=8, hand=None, wrist=None):
     """Arm IK: the hand (wrist) goes to target(frame) -> world point (or None = free), with `blend`-frame
     ease in and out. Elbows bend back and down. hand: a world 3x3 rotation for the hand (its Y axis along
-    the fingers, Z out of the palm), or a function frame -> rotation, else it keeps its own angle. For hands on doors, latches, lanterns:
+    the fingers, palm on -Z), or a function frame -> rotation, else it keeps its own angle. wrist:
+    (bend degrees, palm direction in world) instead - the hand carries on the line of the solved forearm,
+    bent that much toward the palm side, so the wrist stays in a natural range (holding things). For hands on doors, latches, lanterns:
     in FLV nothing moves unless a hand moves it."""
     scene = bpy.context.scene
     bpy.context.view_layer.update()
@@ -816,15 +846,16 @@ def reach(rig, side, start, end, target, blend=8, hand=None):
     for f, w in weight.items():
         goal = goals[f] if goals[f] is not None else goals[first if f < first else last]
         pose = poses[f]
-        wrist = pose[chain[2]].translation
+        at_wrist = pose[chain[2]].translation
         ease = 0.5 - 0.5 * math.cos(math.pi * w)
-        aim_at = wrist.lerp(to_arm @ Vector(goal), ease)
+        aim_at = at_wrist.lerp(to_arm @ Vector(goal), ease)
         turned = None
         rot = hand(f) if callable(hand) else hand
         if rot is not None:
             want = (to_arm.to_3x3() @ rot).to_quaternion()
             turned = pose[chain[2]].to_quaternion().slerp(want, ease).to_matrix()
-        _two_bone(rig, rest, pose, f, *chain, aim_at, pole=(0, 0.6, -0.4), end_rot=turned)
+        bent = None if wrist is None else (math.radians(wrist[0]), (to_arm.to_3x3() @ Vector(wrist[1])).normalized())
+        _two_bone(rig, rest, pose, f, *chain, aim_at, pole=(0, 0.6, -0.4), end_rot=turned, wrist=bent, ease=ease)
 
 
 def hand_frame(fingers, palm):
@@ -967,6 +998,38 @@ def hold(rig, prop, side="Right", frame=1):
     prop.matrix_world = world
 
 
+def hang(prop, rig, side, start, end, ring=(0.0, 0.0, 0.255), length=0.155, fps=24, damping=2.5, yaw=0.0):
+    """A prop hanging from a hand by its ring (a lantern, a pail): the ring follows the grip point (in the
+    crook of the curled fingers) while the prop hangs plumb under gravity and swings as a damped
+    pendulum when the hand accelerates - so it moves only because the hand moves. `length`: ring to
+    centre of mass. Keys location and rotation every frame from start to end."""
+    scene = bpy.context.scene
+    pb = rig.pose.bones
+    grips = {}
+    for f in range(start - 1, end + 2):
+        scene.frame_set(f)
+        grips[f] = rig.matrix_world @ pb[f"{side}FingerBase"].tail.lerp(pb[f"{side}HandFinger1"].tail, 0.3)
+    g, sub = 9.81, 8
+    dt = 1.0 / (fps * sub)
+    angle = [0.0, 0.0]                                   # tilt toward +x and +y, radians
+    speed = [0.0, 0.0]
+    prop.animation_data_clear()
+    prop.parent = None
+    for f in range(start, end + 1):
+        accel = (grips[f + 1] - 2 * grips[f] + grips[f - 1]) * fps * fps if start < f < end else Vector((0, 0, 0))
+        for _ in range(sub):
+            for i, a in enumerate((accel.x, accel.y)):
+                # pivot accelerating one way swings the weight the other way: theta'' = -(g sin + a cos)/L
+                acc = -(g * math.sin(angle[i]) + a * math.cos(angle[i])) / length - damping * speed[i]
+                speed[i] += acc * dt
+                angle[i] += speed[i] * dt
+        turn = Euler((-angle[1], angle[0], 0.0)).to_matrix() @ Euler((0.0, 0.0, yaw)).to_matrix()
+        prop.rotation_euler = turn.to_euler()
+        prop.location = grips[f] - turn @ Vector(ring)
+        prop.keyframe_insert("rotation_euler", frame=f)
+        prop.keyframe_insert("location", frame=f)
+
+
 def rise_in_bed(rig, frame, until, seconds=1.1, fps=24, lead="Left"):
     """Sit up from lying on the back the way older people do (Watanabe et al. 2019, J Phys Ther Sci):
     the head lifts first, the trunk turns a little toward the propping elbow, the trunk curls only ~37
@@ -997,26 +1060,80 @@ def rise_in_bed(rig, frame, until, seconds=1.1, fps=24, lead="Left"):
     _layer(rig, frame, until, offsets)
 
 
-def chuckle(rig, start, end, fps=24):
-    """A stifled laugh: shoulders and chest bounce ~4.5 times a second, lips pressed into a smile."""
+def chuckle(rig, start, fps=24, rest=None, seed=1):
+    """A stifled, silent laugh (about half of real laughs are unvoiced). A quick in-breath, then two small
+    'ha' pulses and, after a catch, a bigger run (animators break a laugh into small-small-big rather than
+    even beats). Each pulse is a sharp contraction ~75 ms long, ~210 ms apart (Provine 1996; laughter's
+    ~5 Hz bursts), all on one out-breath, so the chest sinks and the head bows as the lungs empty; the
+    shoulders lead each pulse and the head follows. The face holds a felt smile - lip corners up (AU12)
+    with the cheeks raised (AU6) - but the mouth stays shut (no AU25/26): the lips press and the nostrils
+    flare a little on each pulse. rest: the expression to settle back to. Returns the last frame."""
+    rng = random.Random(seed)
     meshes = face_meshes(rig)
-    face(rig, start - 3, {"mouthSmileLeft": 0.0, "mouthSmileRight": 0.0, "mouthPressLeft": 0.0,
-                          "mouthPressRight": 0.0, "cheekSquintLeft": 0.0, "cheekSquintRight": 0.0}, meshes)
-    for f in range(start, end + 1, 3):
-        pulse = 0.5 + 0.5 * math.sin(2 * math.pi * 4.5 * (f - start) / fps)
-        face(rig, f, {"mouthSmileLeft": 0.45, "mouthSmileRight": 0.4, "mouthPressLeft": 0.35 + 0.2 * pulse,
-                      "mouthPressRight": 0.35 + 0.2 * pulse, "cheekSquintLeft": 0.3, "cheekSquintRight": 0.3,
-                      "noseSneerLeft": 0.15 * pulse, "noseSneerRight": 0.15 * pulse}, meshes)
-    face(rig, end + 6, {"mouthSmileLeft": 0.15, "mouthSmileRight": 0.1, "mouthPressLeft": 0.0,
-                        "mouthPressRight": 0.0, "cheekSquintLeft": 0.0, "cheekSquintRight": 0.0,
-                        "noseSneerLeft": 0.0, "noseSneerRight": 0.0}, meshes)
+    rest = dict(rest or {})
+    pulses, t = [], 0.22
+    for amp in (0.5, 0.42):                                          # two small ones
+        pulses.append((t, amp))
+        t += 0.21 + rng.uniform(-0.02, 0.02)
+    t += 0.25                                                        # a catch of breath
+    for amp in (1.0, 0.85, 0.7, 0.55, 0.4):                          # then the bigger run, dying away
+        pulses.append((t, amp))
+        t += 0.21 + rng.uniform(-0.02, 0.02)
+    last = pulses[-1][0]
+    length = last + 1.6
+
+    def pulse(x):
+        total = 0.0
+        for at, amp in pulses:
+            d = x - at
+            if 0 <= d < 0.08:
+                total += amp * d / 0.08                             # the sharp 'ha' contraction
+            elif d >= 0.08:
+                total += amp * math.exp(-(d - 0.08) / 0.07)         # and its release
+        return total
+
+    def smooth(a, b, x):
+        u = min(1.0, max(0.0, (x - a) / (b - a)))
+        return u * u * (3 - 2 * u)
+
+    def empty(x):                                                    # lungs emptying, then the in-breath
+        spent = sum(amp * 0.17 for at, amp in pulses if x >= at)
+        return min(1.0, spent) * (1 - smooth(last + 0.35, last + 0.9, x))
+
+    def inhale(x):
+        return smooth(0.0, 0.18, x) * (1 - smooth(0.22, 0.45, x)) + 0.6 * smooth(last + 0.35, last + 0.9, x) * (
+            1 - smooth(last + 0.9, last + 1.4, x))
+
+    def smile(x):                                                    # builds, holds, lingers, fades
+        return 0.55 * smooth(0.0, 0.3, x) * (1 - 0.6 * smooth(last + 0.2, last + 0.8, x)) * (
+            1 - smooth(last + 0.9, length, x))
 
     def offsets(f):
-        env = min(1.0, (f - start) / 6, (end - f) / 6) if start <= f <= end else 0.0
-        b = math.sin(2 * math.pi * 4.5 * (f - start) / fps) * env
-        return {"Spine1": (0, 1.2 * b, 0), "LeftShoulder": (0, 0, -1.8 * b), "RightShoulder": (0, 0, 1.8 * b),
-                "Head": (0, -0.8 * b, 0)}
-    _layer(rig, start, end + 6, offsets)
+        x = (f - start) / fps
+        p, e, i = pulse(x), empty(x), inhale(x)
+        lead, follow = pulse(x + 0.04), pulse(x - 0.04)
+        return {"Spine": (0, 1.4 * p + 3.0 * e - 0.8 * i, 0), "Spine1": (0, 0.9 * p + 1.5 * e - 0.6 * i, 0),
+                "LeftShoulder": (0, 0, -(2.0 * lead + 2.5 * i)), "RightShoulder": (0, 0, 2.0 * lead + 2.5 * i),
+                "Neck1": (0, 0.5 * follow + 2.0 * e, 0), "Head": (0, 1.2 * follow + 2.0 * e - 1.0 * i, 0)}
+    end = start + int(math.ceil(length * fps))
+    _layer(rig, start, end, offsets)
+    for f in range(start - 4, end + 1):
+        x = (f - start) / fps
+        s, p = smile(x), pulse(x)
+        k = s / 0.55
+        values = {"mouthSmileLeft": s + 0.05 * p * k, "mouthSmileRight": 0.85 * s + 0.05 * p * k,
+                  "cheekSquintLeft": 1.0 * s, "cheekSquintRight": 0.95 * s,     # AU6 narrows the eyes
+                  "eyeSquintLeft": 0.65 * s + rest.get("eyeSquintLeft", 0.0) * (1 - k),
+                  "eyeSquintRight": 0.65 * s + rest.get("eyeSquintRight", 0.0) * (1 - k),
+                  "mouthPressLeft": rest.get("mouthPressLeft", 0.0) + 0.25 * k + 0.15 * p,
+                  "mouthPressRight": rest.get("mouthPressRight", 0.0) + 0.25 * k + 0.15 * p,
+                  "mouthRollLower": rest.get("mouthRollLower", 0.0) + 0.12 * k,
+                  "noseSneerLeft": rest.get("noseSneerLeft", 0.0) + 0.12 * p,
+                  "noseSneerRight": rest.get("noseSneerRight", 0.0) + 0.12 * p}
+        for brow in ("browDownLeft", "browDownRight"):                # amusement eases the frown
+            values[brow] = rest.get(brow, 0.0) * (1 - 0.6 * k)
+        face(rig, f, values, meshes)
+    return end
 
 
 def tremble(rig, start, end, strength=1.0, seed=1):
@@ -1083,10 +1200,18 @@ def _selfcheck():
     back = max(math.degrees(min(x.rotation_difference(y).angle, 2 * math.pi - x.rotation_difference(y).angle))
                for f, qs in untouched.items() for x, y in zip(qs, arm(f)))
     assert missed < 0.01, f"reach missed its target by {missed * 100:.1f} cm"
+    want = Matrix.Rotation(math.radians(70), 3, "X") @ Matrix.Rotation(math.radians(40), 3, "Z")
+    reach(target, "Right", 1, end, lambda f: None if f < 15 or f > 25 else
+          (not scene.frame_set(f) and target.matrix_world @ target.pose.bones["RightHand"].head), hand=want)
+    scene.frame_set(20)
+    got = (target.matrix_world @ target.pose.bones["RightHand"].matrix).to_quaternion()
+    off = math.degrees(got.rotation_difference(want.to_quaternion()).angle)
+    off = min(off, 360 - off)
+    assert off < 1.0, f"reach left the hand {off:.2f} degrees off the requested angle"
     assert back < 0.1, f"reach left the arm {back:.2f} degrees off after letting go"
     print(f"humans selfcheck OK: {len(target.pose.bones)} bones x {end} frames, worst error {math.degrees(worst):.5f} deg; "
           f"plant_feet knee change {drift:.2f} deg, lowest toe {lowest * 100:+.1f} cm; "
-          f"reach miss {missed * 100:.2f} cm, arm after release {back:.3f} deg")
+          f"reach miss {missed * 100:.2f} cm, arm after release {back:.3f} deg, hand angle off {off:.2f} deg")
 
 
 if __name__ == "__main__" and "--selfcheck" in sys.argv:

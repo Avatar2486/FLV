@@ -143,38 +143,32 @@ def build():
     def on_door(f):
         m, out, fingers = door_frame(f)
         return m @ Vector((0.40, 0.02, 1.25)) - fingers * 0.05 + out * 0.048    # wrist, palm on the panel
-    humans.grip(nar, "Right", frame=1, curl=-0.6)                    # a flat hand: fingers straightened
-    humans.reach(nar, "Right", 1, end, on_door,
-                 hand=lambda f: humans.hand_frame(door_frame(f)[2], -door_frame(f)[1]))
 
     # the dark lantern, closed, in his left hand: held low at his side behind the door until he has his
     # head in, then raised into the gap for 3.6
     lantern, shutter, beam, glow = sets.dark_lantern(C["PROPS"])
     beam.data.energy, glow.data.energy = 0.0, 6.0                    # a closed dark lantern leaks at its seams
-    spill = su.light("V2_LIGHT_Moon_Spill", C["SET"], "AREA", (-1.75, -1.6, 1.9), 15, (0.55, 0.65, 1.0),
-                     target=(-1.6, -2.4, 1.55), size=0.2)           # moonlight from the room through the gap
+    # moonlight from the room, through the same slot between jamb and door the close-up looks through
+    # (from (-1.75, -1.6) the half-open door shadowed his face in 3.3)
+    spill = su.light("V2_LIGHT_Moon_Spill", C["SET"], "AREA", (-2.30, -1.70, 1.90), 9, (0.55, 0.65, 1.0),
+                     target=(-1.60, -2.38, 1.58), size=0.2)
     spill.data.use_shadow_jitter, spill.data.shadow_jitter_overblur = True, 0.0
-    low, high = Vector((-1.81, -2.575, 1.02)), Vector((-1.70, -2.27, 1.29))   # lantern clear of wall and thigh
+    low, high = Vector((-1.86, -2.575, 1.02)), Vector((-1.70, -2.22, 1.31))   # lantern clear of wall, thigh, belly
     raise_from, raise_to = frame["3.6"] - 36, frame["3.6"]
 
     def lantern_hand(f):
         x = min(1.0, max(0.0, (f - raise_from) / (raise_to - raise_from)))
         x = x * x * (3 - 2 * x)
         return low.lerp(high, x) + Vector((0, 0, 0.05 * math.sin(math.pi * x)))
-    humans.grip(nar, "Left", frame=1)                                # palm down, fingers through the ring
-    humans.reach(nar, "Left", 1, end, lantern_hand, hand=humans.hand_frame((0, 0.85, -0.5), (0, 0, -1)))
-    scene.frame_set(1)
-    pb = nar.pose.bones
-    ring = nar.matrix_world @ ((pb["LeftFingerBase"].tail + pb["LeftHandFinger1"].tail) / 2)
-    lantern.location = ring - Vector((0, 0, 0.255))
-    lantern.rotation_euler = (0, 0, math.radians(180))               # the lens faces into the room
-    humans.hold(nar, lantern, "Left", frame=1)
+    humans.grip(nar, "Left", frame=1, curl=1.6)                      # fingers hooked through the ring
+    humans.reach(nar, "Left", 1, end, lantern_hand, wrist=(15, (0, 0, -1)))   # palm down, wrist near straight
+
 
     humans.face(nar, 1, cast3d.TENSE)
     humans.eyes(nar, 1, end, mode="listening", look=(-18.0, -12.0), seed=12, head=False)
-    humans.chuckle(nar, line_frame["3.3_N"] + 4, line_frame["3.3_N"] + 48)
+    humans.chuckle(nar, line_frame["3.3_N"] + 4, rest=cast3d.TENSE)
     click = line_frame["3.6_N"] + int(seconds(VO / "3.6_N.wav") * FPS) - 6     # "...upon the tin fastening"
-    thumb = nar.pose.bones["LThumb"]                                                # the thumb slips on the catch
+    thumb = nar.pose.bones["RThumb"]                                                # his thumb slips on the catch
     scene.frame_set(click - 2)
     rest_thumb = thumb.rotation_quaternion.copy()
     for at, deg in ((click - 2, 0), (click, 28), (click + 10, 8)):
@@ -182,6 +176,39 @@ def build():
         thumb.keyframe_insert("rotation_quaternion", frame=at)
     humans.startle(nar, click + 2, strength=0.45)                                   # his own slip makes him jump
     humans.face(nar, click + 30, cast3d.TENSE)
+
+    # last, after every layer that moves his left arm (chuckle, flinch):
+    # it hangs plumb from his fingers by the ring and swings only when his hand moves; the lens faces the room
+    humans.hang(lantern, nar, "Left", 1, end, ring=(0, 0, 0.32), length=0.22, yaw=math.radians(180))   # by the ring's top wire
+
+    # his right hand pushes the door until it is open, then comes to the lantern and cradles it from below,
+    # fingers curled round the base, ready to work the shutter ("I was about to open the lantern")
+    cup_from, cup_to = push_until, push_until + 26
+    cup_turn = humans.hand_frame((-0.25, 0.95, 0.1), (0.0, 0.0, 1.0))   # palm up under the base
+
+    def at_lantern(f):
+        scene.frame_set(f)
+        return lantern.matrix_world @ Vector((0, 0, 0.0)) + Vector((0.03, -0.085, -0.09))    # curled fingertips meet the base
+
+    def right_hand(f):
+        if f <= cup_from:
+            return on_door(f)
+        x = min(1.0, (f - cup_from) / (cup_to - cup_from))
+        x = x * x * (3 - 2 * x)
+        side = at_lantern(f) + Vector((0.12, -0.08, -0.12))             # first beside and below it,
+        if x < 0.5:                                                      # then up into the cradle
+            return on_door(f).lerp(side, x / 0.5)
+        return side.lerp(at_lantern(f), (x - 0.5) / 0.5)
+
+    def right_turn(f):
+        on = humans.hand_frame(door_frame(f)[2], -door_frame(f)[1])
+        if f <= cup_from:
+            return on
+        x = min(1.0, (f - cup_from) / (cup_to - cup_from))
+        return on.to_quaternion().slerp(cup_turn.to_quaternion(), x * x * (3 - 2 * x)).to_matrix()
+    humans.grip(nar, "Right", frame=1, curl=-0.6)                    # a flat hand on the door
+    humans.grip(nar, "Right", frame=cup_to, curl=1.0)                 # fingers curl up to the base
+    humans.reach(nar, "Right", 1, end, right_hand, hand=right_turn)
 
     # the old man: asleep; a jerk at 3.4; at 3.7 the startle wakes him (eyes open, a blink, the jerk), a
     # beat to register, then he rises the way older people do (rise_in_bed), turning toward the door

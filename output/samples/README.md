@@ -111,10 +111,10 @@ The new pipeline in a real scene from the film:
 | Shot | Action |
 |---|---|
 | 3.1 | The narrator's right palm, flat on the door at chest height and away from the handle, pushes it open slowly and steadily. It moves only while his hand is on it. |
-| 3.3 | Seen through the slot between the jamb and the door's edge, he chuckles silently: shoulders shaking, lips pressed into a smile. |
+| 3.3 | Seen through the slot between the jamb and the door's edge, lit by a sliver of moonlight, he laughs silently as people really do: an in-breath, two small pulses, then a run of five dying away (about 5 per second). His shoulders bob, his chest sinks and his head bows as the breath runs out; his cheeks lift and his eyes narrow, but his lips stay pressed shut. |
 | 3.4 | The sleeping old man jerks in bed; his eyes stay shut. |
 | 3.5 | Close on the narrator, holding his breath. |
-| 3.5–3.6 | He leans in only as far as the door has opened; his head is in once it is fully open. He raises the lantern, held by its ring, into the gap. His thumb slips on the catch (*clink*) and he flinches; the lantern jerks with his hand. |
+| 3.5–3.6 | He leans in only as far as the door has opened; his head is in once it is fully open. He raises the lantern into the gap, where it hangs from his fingers by its ring and swings a little when his hand moves. His right hand leaves the door and cradles the lantern from below. His thumb slips on the catch (*clink*) and he flinches. |
 | 3.7 | The old man wakes in fright: eyes snap open, a startle, a beat to register. Then he rises the way older people do: head first, he props on his right elbow toward the door, pushes up with both hands, and draws his knees up under the blanket. He cries "Who's there?" |
 | 3.8 | Both are frozen, listening. |
 | 3.10 | The old man's trembling lips, then the groan. |

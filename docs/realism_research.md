@@ -172,8 +172,52 @@ How sneaking differs from walking:
   - It is spread and smoothed the way cloth spans gaps, so the feet make tents.
   - It is tucked in at the foot and hangs down both long sides.
   - It follows his legs (shape keys every 2 frames), so it rises only when his knees draw up under it.
-- **A stifled chuckle** pulses the shoulders and chest at about 4.5 per second, close to the roughly
-  210 ms spacing of laugh notes (Provine 1996), with the lips pressed into a smile.
+- **Wrists:**
+  - Turning the hand palm up or down happens mostly in the forearm (pronation and supination), so the
+    arm solver gives the forearm 3/4 of the hand's twist about its own axis. Before this, the wrist took
+    all of it, and a shirt cuff flipped out into a flap.
+  - With `reach(wrist=...)` the hand carries on the line of the solved forearm, bent a little toward
+    the palm. The lantern hand's wrist went from 56° bent to 15°.
+- **Hanging things:** `hang()`.
+  - The lantern hangs plumb from his fingers by its ring's top wire, which rests in the crook of the
+    curled fingers.
+  - It swings as a damped pendulum driven only by the hand's acceleration: up to about 4° when he raises
+    it or flinches.
+  - Before, it was bolted to the hand and tipped over when the wrist turned.
+- **Two hands on the lantern:** once the door is open his right hand leaves it, travels round beside and
+  below the lantern (not through it), and cradles the base: palm up, fingers curled up to it. At "my thumb
+  slipped upon the tin fastening" it is the right thumb that slips, then the flinch.
+- **Measured contacts** (mesh depth):
+  - Fingers on the ring and base: 2–10 mm, which is skin pressing metal.
+  - Lantern against thigh or belly: none.
+  - Palm on the door: 1–4 mm off it.
+- **Skin at collars and cuffs:** skin within 6 cm of a garment's opening stays visible, including where
+  the MakeHuman pack's own delete group hid it. Hiding it had left a dark hole inside his collar.
+
+## Laughing: `chuckle()`
+**Research.**
+- *Pulses:* laughter is a train of short "ha" notes about 75 ms long, about 210 ms apart (Provine). The
+  larynx and breathing muscles burst at about 5 Hz, one burst per note.
+- *Breath:* 4–12 pulses per cycle, all on one out-breath, with a steep fall in lung volume.
+- *Silent laughs:* about half of real laughs are unvoiced.
+- *Face:* a felt laugh is lip corners up (AU12) with the cheeks raised (AU6), which narrows the eyes.
+  A closed-mouth, stifled laugh has no parted lips (AU25) and no dropped jaw (AU26).
+- *Animation practice:* break a laugh into two small laughs and then a bigger one, not even beats. The
+  shoulders lead, and things settle after each beat.
+
+**How we apply it.** The narrator's "I fairly chuckled at the idea" is silent, because he must not be
+heard:
+1. A quick in-breath lifts the shoulders.
+2. Two small pulses, a catch of breath, then five pulses that die away.
+3. Each pulse is a sharp contraction (chest flexes, shoulders bob) with a fast release, 210 ± 20 ms
+   apart. The shoulders lead by a frame and the head nods a frame later.
+4. Over the run the chest sinks and the head bows as the lungs empty.
+5. An in-breath recovers.
+
+Throughout, the smile builds and holds with the cheeks raised and the eyes narrowed. The lips stay
+pressed shut, the nostrils flare a little on each pulse, and the frown eases. Then it settles back to his
+tense face. The old version was an even 4.5 Hz shake with the face keyed every 3 frames, and it ended by
+wiping his tense expression.
 
 ## Waking in fright and rising from bed: `startle()` + `rise_in_bed()`
 **How people sit up from lying.**
@@ -239,6 +283,11 @@ How sneaking differs from walking:
 - [Watanabe et al. 2019, supine to sitting in young and elderly (J Phys Ther Sci 31:102)](https://pmc.ncbi.nlm.nih.gov/articles/PMC6348188/)
 - [Cordo et al. 2003, the sit-up: complex kinematics (J Electromyogr Kinesiol 13:239)](https://pubmed.ncbi.nlm.nih.gov/12706604/)
 - [AnimSchool: staging a reaction](https://blog.animschool.edu/tag/staging/)
+- [Laughter: 210 ms notes (HowStuffWorks, after Provine)](https://people.howstuffworks.com/laughter1.htm)
+- [Laughter pulses and respiration (Frontiers in Communication 2022)](https://www.frontiersin.org/articles/10.3389/fcomm.2022.909913/full)
+- [Laughter phonetics (Trouvain)](https://www.coli.uni-saarland.de/~trouvain/docs/trouvain24_lw.pdf)
+- [Duchenne smile and laughter action units](https://pmc.ncbi.nlm.nih.gov/articles/PMC4235269)
+- [10 subtle tricks for character animation: laughs (CG Channel)](https://www.cgchannel.com/2024/10/10-subtle-tricks-to-improve-your-character-animation/)
 - [Fox walk / nature observation (Princeton)](https://swh.princeton.edu/~oa/nature/naturobs.pdf)
 - [How to Walk Like a Fox](https://www.chelseagreen.com/2021/how-to-walk-like-a-fox-and-see-in-the-dark)
 - [Stealthy walking mechanics (cats)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2583958/)
