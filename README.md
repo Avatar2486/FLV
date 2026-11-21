@@ -32,7 +32,7 @@ FLV/
 │   ├── furniture/polyhaven/   props/polyhaven/   Poly Haven models (glTF, 1K textures)
 │   ├── environments/hdri/     night-sky HDRIs
 │   ├── textures/polyhaven/    floor, wall and fabric texture sets
-│   └── characters/            (empty, for AI-generated characters)
+│   └── characters/            OldMan, Narrator: our generated characters (see its README)
 ├── stories/       story scripts and scene definitions
 ├── audio/         voiceovers and sound effects
 └── output/        previews, renders and the validation report
@@ -332,6 +332,7 @@ bash scripts/download_film_kit.sh
 What it fetches:
 - **Blender add-ons:** MPFB (MakeHuman characters) and Sapling Tree Gen.
 - **Characters:** MakeHuman packs (bodies, skins, eyes, hair, face units, visemes, clothes) into `assets/makehuman_packs/`.
+  Only the older samples need these now: the films use our own characters in `assets/characters/`.
 - **Lip sync:** the Wav2ARKit speech-to-face model, into `voices/wav2arkit/`.
 - **Voices:** Kokoro (`voices/kokoro/`), and Chatterbox in its own environment (`tools/chatterbox/`).
 - **Motion capture:** CMU and 100STYLE clips, into `assets/mocap/`.

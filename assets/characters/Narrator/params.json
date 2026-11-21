@@ -1,0 +1,72 @@
+{
+  "sex": "male",
+  "face": {
+    "Face_Asian": 0.1,
+    "Face_Black": 0.05,
+    "Face_Caucasian": 1.3
+  },
+  "ethnicity": "Caucasian",
+  "build": "average",
+  "body": {
+    "Body_Muscular": 0.2,
+    "Body_Skinny": 0.45,
+    "Body_Overweight": 0.0
+  },
+  "prop": {
+    "leg": 1.0,
+    "arm": 1.0,
+    "torso": 1.0,
+    "neck": 1.0,
+    "head": 1.0,
+    "shoulder": 1.0,
+    "hips": 1.0,
+    "hand": 1.0,
+    "foot": 1.0
+  },
+  "height": 1.76,
+  "facep": {
+    "nose_proj": 0.001,
+    "nose_len": 0.001,
+    "nose_w": 0.0,
+    "bridge": 0.001,
+    "chin_fwd": 0.002,
+    "chin_down": 0.0,
+    "jaw_w": 0.002,
+    "cheek_w": -0.002,
+    "cheek_fwd": 0.0,
+    "brow": 0.001,
+    "lips": 0.0,
+    "mouth_w": 0.0,
+    "forehead": 0.0,
+    "occiput": 0.0,
+    "head_w": 0.0,
+    "crown": 0.0,
+    "ear_out": 0.0
+  },
+  "seed": 4242,
+  "slot": null,
+  "skin_eth": "Caucasian",
+  "skin": {
+    "value": 0.97,
+    "sat": 0.95,
+    "hue": 0.0
+  },
+  "eye_color": 1,
+  "hair_color": "brown",
+  "hair": "short",
+  "beard": "none",
+  "clothes": {
+    "outfit": "shirt_trousers",
+    "pieces": [
+      "md_shirt",
+      "md_pants",
+      "mh:shoes01"
+    ],
+    "shirt": "white",
+    "pants": "brown",
+    "tie": "black",
+    "tint": "white",
+    "tee": "white",
+    "shoes": "black"
+  }
+}

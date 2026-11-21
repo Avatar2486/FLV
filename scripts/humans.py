@@ -1,21 +1,26 @@
 """
-Realistic characters for FLV films, built with MPFB (MakeHuman for Blender) inside Blender.
+Realistic characters for FLV films: our own generated characters (assets/characters/<Name>/<Name>.blend, made
+by the Generated_Characters pipeline: rigged, skinned, textured, dressed, with 47 ARKit-named face shapes).
 
     import humans
-    rig = humans.build(SPEC)                       # body, skin, hair, eyes, clothes, face shapes, rig
-    humans.relax_arms(rig)                         # out of the T/A pose
+    rig = humans.build(SPEC)                       # appends the character: body, eyes, hair, clothes, face shapes, rig
+    humans.relax_arms(rig)                         # out of the A pose
     humans.face(rig, frame, {"browInnerUp": 0.7})  # ARKit face units, keyframed
     humans.lip_sync(rig, "line.wav", start_frame=1)   # face from the voice (scripts/speech_face.py)
     humans.blinks(rig, 1, 240)
     humans.retarget(rig, "assets/mocap/cmu/77_14.bvh", start_frame=1)
 
-A SPEC is a dict: name, age/weight/muscle/height (0-1 MakeHuman sliders; age 0.5 = 25 years, 1.0 = 90),
-skin, hair (+ hair_material, hair_tint), eyebrows (+ brow_tint), eyes=(right, left) eye colours from MPFB's eyes/materials,
-film_eye ("left"/"right": a pale filmed eye), clothes=[(asset, fabric or None, tint)] listed inner to
-outer (socks/shoes, trousers, shirt), where fabric is a
-Poly Haven texture id in assets/textures/polyhaven.
+A SPEC is a dict: name (object names in the scene), character (folder in assets/characters), film_eye
+("left"/"right": a pale filmed eye), fabrics={garment: (Poly Haven texture id in assets/textures/polyhaven,
+tint, scale)} to re-dress a garment (garments are named after the character's meshes: shirt, trousers,
+nightshirt ...), hair_tint / brow_tint / beard_tint (multiplied onto the hair / eyebrow / beard colour).
 
-Needs the MPFB add-on and the MakeHuman packs (scripts/download_film_kit.sh). Self-check of the retargeter:
+Our rigs use Mixamo bone names; build() renames them to the names this toolkit's motion code uses
+(BONE_NAMES: Spine -> LowerBack, Spine1 -> Spine, Spine2 -> Spine1, Neck -> Neck1, fingers LeftHandIndex1 ...),
+and re-rolls the hands so the palm faces the hand bone's -Z and +X curls a finger toward the palm.
+Eyes turn with the LeftEye / RightEye bones; the eyeLookUp/Down face shapes move the lids with them.
+
+Self-check (retargeter, feet, reach, and one of our characters):
     blender -b --python scripts/humans.py -- --selfcheck
 """
 import json
@@ -30,10 +35,17 @@ from mathutils import Euler, Matrix, Quaternion, Vector
 
 ROOT = Path(__file__).resolve().parent.parent
 TEXTURES = ROOT / "assets" / "textures" / "polyhaven"
+CHARACTERS = ROOT / "assets" / "characters"
 
-# BVH bone -> cmu_mb rig bone. CMU clips use the rig's own names; 100STYLE (XSens) needs a map.
-CMU = {"LeftHandIndex1": "LeftHandFinger1", "RightHandIndex1": "RightHandFinger1"}
-STYLE100 = {"Hips": "Hips", "Chest": "LowerBack", "Chest2": "Spine", "Chest4": "Spine1", "Neck": "Neck",
+# our rig (Mixamo names, prefix dropped) -> the toolkit's names, applied in this order
+BONE_NAMES = (("Spine", "LowerBack"), ("Spine1", "Spine"), ("Spine2", "Spine1"), ("Neck", "Neck1"))
+FINGERS = ("Thumb", "Index", "Middle", "Ring", "Pinky")
+
+# BVH bone -> rig bone. CMU clips mostly use the rig's own names (their single finger chain is not mapped:
+# our hands have five fingers, posed by grip()); 100STYLE (XSens) needs a map.
+CMU = {n: "" for s in ("Left", "Right") for n in (f"{s}HandIndex1", f"{s}FingerBase", f"{s[0]}Thumb")}
+CMU.update({"LThumb": "", "RThumb": ""})
+STYLE100 = {"Hips": "Hips", "Chest": "LowerBack", "Chest2": "Spine", "Chest4": "Spine1", "Neck": "Neck1",
             "Head": "Head", "LeftCollar": "LeftShoulder", "LeftShoulder": "LeftArm", "LeftElbow": "LeftForeArm",
             "LeftWrist": "LeftHand", "RightCollar": "RightShoulder", "RightShoulder": "RightArm",
             "RightElbow": "RightForeArm", "RightWrist": "RightHand", "LeftHip": "LeftUpLeg", "LeftKnee": "LeftLeg",
@@ -41,60 +53,86 @@ STYLE100 = {"Hips": "Hips", "Chest": "LowerBack", "Chest2": "Spine", "Chest4": "
             "RightAnkle": "RightFoot", "RightToe": "RightToeBase"}
 
 
-def _mpfb():
-    from bl_ext.blender_org.mpfb.services import FaceService, HumanService, LocationService
-    return HumanService, FaceService, Path(LocationService.get_user_data())
-
-
 def build(spec, location=(0, 0, 0)):
-    """Create a character from a spec; returns its armature (meshes are its children)."""
-    HumanService, FaceService, data = _mpfb()
-    hair = spec.get("hair", "")
-    alt = {}
-    if spec.get("hair_material"):
-        mhclo = data / "hair" / hair / f"{hair}.mhclo"
-        uuid = next(l.split()[1] for l in mhclo.read_text().splitlines() if l.lower().startswith("uuid"))
-        alt[uuid] = f"{hair}/{spec['hair_material']}/{spec['hair_material']}.mhmat"
-    info = {
-        "name": spec["name"],
-        "phenotype": {"gender": spec.get("gender", 1.0), "age": spec["age"], "muscle": spec.get("muscle", 0.5),
-                      "weight": spec.get("weight", 0.5), "proportions": spec.get("proportions", 0.5),
-                      "height": spec.get("height", 0.5), "cupsize": 0.5, "firmness": 0.5,
-                      "race": {"asian": 0.0, "caucasian": 1.0, "african": 0.0}},
-        "rig": "cmu_mb", "proxy": "", "targets": [], "expressions": [],
-        "eyes": "high-poly/high-poly.mhclo", "teeth": "teeth_base/teeth_base.mhclo", "tongue": "tongue01/tongue01.mhclo",
-        "eyebrows": f"{spec['eyebrows']}/{spec['eyebrows']}.mhclo",
-        "eyelashes": f"{spec.get('eyelashes', 'eyelashes01')}/{spec.get('eyelashes', 'eyelashes01')}.mhclo",
-        "hair": f"{hair}/{hair}.mhclo" if hair else "",
-        "clothes": [f"{c}/{c}.mhclo" for c, *_ in spec.get("clothes", [])],
-        "skin_mhmat": f"{spec['skin']}/{spec['skin']}.mhmat", "skin_material_type": "ENHANCED_SSS",
-        "eyes_material_type": "MAKESKIN", "skin_material_settings": {}, "eyes_material_settings": {},
-        "alternative_materials": alt,
-    }
-    body = HumanService.deserialize_from_dict(info, HumanService.get_default_deserialization_settings())
-    FaceService.load_targets(body, load_microsoft_visemes=False, load_arkit_faceunits=True)
-    FaceService.interpolate_targets(body)
-    rig = body.parent
+    """Append one of our characters (assets/characters/<character>/<character>.blend) into the current scene,
+    named after spec["name"]; returns its armature (meshes are its children, named <name>.body, .eyes, .mouth,
+    .hair, .brows, .lashes, .beard and one per garment). Skin under the clothes was already removed when the
+    character was generated, so nothing pokes through."""
+    folder = CHARACTERS / spec["character"]
+    path = folder / f"{spec['character']}.blend"
+    with bpy.data.libraries.load(str(path), link=False) as (src, dst):
+        dst.objects = list(src.objects)
+    rig = next(o for o in dst.objects if o.type == "ARMATURE")
+    keep = {rig} | {o for o in dst.objects if o.type == "MESH" and o.parent is rig}
+    coll = bpy.context.collection
+    for o in dst.objects:
+        if o in keep:
+            coll.objects.link(o)
+        else:                                     # preview cameras and lights saved with the character
+            bpy.data.objects.remove(o)
+    name = spec["name"]
+    prefix = spec["character"] + "_"
+    rig.name = rig.data.name = name
+    for o in rig.children:
+        part = o.name[len(prefix):] if o.name.startswith(prefix) else o.name
+        o.name = o.data.name = f"{name}.{part.lower()}"
+    _rename_bones(rig)
+    _hands_like_toolkit(rig)
     rig.location = location
     for pb in rig.pose.bones:                # one rotation channel for poses, mocap and the living-body layers
         pb.rotation_mode = "QUATERNION"
     parts = {o.name.split(".", 1)[1]: o for o in rig.children}
-    _eyes(parts["high-poly"], data, spec.get("eyes", ("grey", "grey")), spec.get("film_eye"))
-    for asset, fabric_id, tint in spec.get("clothes", []):
-        if fabric_id:
-            fabric(parts[asset], fabric_id, tint, spec.get("fabric_scale", 6))
-    for part, key in ((hair, "hair_tint"), (spec["eyebrows"], "brow_tint")):
+    if spec.get("film_eye"):
+        _film_eye(parts["eyes"], spec["film_eye"])
+    for garment, (fabric_id, tint, scale) in spec.get("fabrics", {}).items():
+        fabric(parts[garment], fabric_id, tint, scale)
+    for part, key in (("hair", "hair_tint"), ("brows", "brow_tint"), ("beard", "beard_tint")):
         if spec.get(key) and part in parts:
             tint_material(parts[part], spec[key])
     for obj in face_meshes(rig):          # lips closed at rest (lip_sync fades this out while speaking)
         if "mouthShrugLower" in obj.data.shape_keys.key_blocks:
             obj.data.shape_keys.key_blocks["mouthShrugLower"].value = REST_SEAL
-    garments = [parts[c] for c, *_ in spec.get("clothes", [])]
-    hide_under(body, garments)
-    for i, g in enumerate(garments):     # clothes are listed inner to outer: socks under trousers under shirt
-        if garments[i + 1:]:
-            hide_under(g, garments[i + 1:], poking=False)
+    bpy.context.view_layer.update()
     return rig
+
+
+def _rename_bones(rig):
+    """mixamorig:Spine -> LowerBack and so on (BONE_NAMES); vertex groups follow the bone names."""
+    for b in rig.data.bones:
+        if b.name.startswith("mixamorig:"):
+            b.name = b.name[len("mixamorig:"):]
+    for old, new in BONE_NAMES:
+        if old in rig.data.bones:
+            rig.data.bones[old].name = new
+    for o in rig.children:
+        for m in o.modifiers:
+            if m.type == "ARMATURE":
+                m.object = rig
+
+
+def _hands_like_toolkit(rig):
+    """Re-roll hand and finger bones (rest pose only; the skin does not move): the hand's palm faces its -Z
+    (as hand_frame() expects) and each finger's +X rotation curls it toward the palm (as grip() expects)."""
+    view = bpy.context.view_layer
+    active = view.objects.active
+    view.objects.active = rig
+    bpy.ops.object.mode_set(mode="EDIT")
+    eb = rig.data.edit_bones
+    for side in ("Left", "Right"):
+        hand, i1, p1 = (eb[f"{side}Hand"].head, eb[f"{side}HandIndex1"].head, eb[f"{side}HandPinky1"].head)
+        back = (i1 - hand).cross(p1 - hand)                  # normal of the plane of the knuckles and wrist
+        thumb = eb[f"{side}HandThumb2"].head - (hand + i1 + p1) / 3
+        if back.dot(thumb) > 0:                              # the thumb sits on the palm side, a few cm off it
+            back = -back
+        back.normalize()
+        eb[f"{side}Hand"].align_roll(back)                   # +Z = back of the hand, palm on -Z
+        for finger in FINGERS:
+            for j in (1, 2, 3):
+                bone = eb.get(f"{side}Hand{finger}{j}")
+                if bone is not None:
+                    bone.align_roll(-back)                   # +Z toward the palm: +X curls the finger in
+    bpy.ops.object.mode_set(mode="OBJECT")
+    view.objects.active = active
 
 
 def hide_under(body, garments, reach=0.03, margin=0.006, poking=True, keep_rim=0.06):
@@ -157,6 +195,10 @@ def tint_material(obj, rgb):
     for mat in obj.data.materials:
         nodes, links = mat.node_tree.nodes, mat.node_tree.links
         bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+        if not bsdf.inputs["Base Color"].links:                  # a flat colour
+            c = bsdf.inputs["Base Color"].default_value
+            bsdf.inputs["Base Color"].default_value = (c[0] * rgb[0], c[1] * rgb[1], c[2] * rgb[2], c[3])
+            continue
         src = bsdf.inputs["Base Color"].links[0].from_socket
         mix = nodes.new("ShaderNodeMix")
         mix.data_type, mix.blend_type = "RGBA", "MULTIPLY"
@@ -166,32 +208,27 @@ def tint_material(obj, rgb):
         links.new(mix.outputs["Result"], bsdf.inputs["Base Color"])
 
 
-def _eyes(obj, data, colours, film_eye):
-    """Iris colour per eye (right, left) from MPFB's eye materials; film_eye gets a milky, pale-blue film."""
+def _film_eye(obj, film_eye):
+    """One eye ("left" / "right") gets a milky, pale-blue film over the iris; the other keeps its colour."""
     base = obj.data.materials[0]
-    mats = []
-    for side, colour in zip(("right", "left"), colours):
-        mat = base.copy()
-        mat.name = f"{base.name}.{side}"
-        tex = mat.node_tree.nodes["diffuseTexture"]
-        tex.image = bpy.data.images.load(str(data / "eyes" / "materials" / f"{colour}_eye.png"), check_existing=True)
-        if film_eye == side:
-            nodes, links = mat.node_tree.nodes, mat.node_tree.links
-            mix = nodes.new("ShaderNodeMix")
-            mix.data_type, mix.blend_type = "RGBA", "MIX"
-            mix.inputs["Factor"].default_value = 0.55
-            mix.inputs["B"].default_value = (0.78, 0.84, 0.88, 1)          # "a pale blue eye, with a film over it"
-            bsdf = nodes["Principled BSDF"]
-            src = bsdf.inputs["Base Color"].links[0].from_socket
-            links.new(src, mix.inputs["A"])
-            links.new(mix.outputs["Result"], bsdf.inputs["Base Color"])
-            bsdf.inputs["Roughness"].default_value = 0.45
-        mats.append(mat)
-    obj.data.materials.clear()
-    for mat in mats:
-        obj.data.materials.append(mat)
-    for poly in obj.data.polygons:   # the character faces -Y, so its left eye is on +X
-        poly.material_index = 1 if sum(obj.data.vertices[v].co.x for v in poly.vertices) > 0 else 0
+    mat = base.copy()
+    mat.name = f"{base.name}.film"
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    mix = nodes.new("ShaderNodeMix")
+    mix.data_type, mix.blend_type = "RGBA", "MIX"
+    mix.inputs["Factor"].default_value = 0.55
+    mix.inputs["B"].default_value = (0.78, 0.84, 0.88, 1)          # "a pale blue eye, with a film over it"
+    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+    src = bsdf.inputs["Base Color"].links[0].from_socket
+    links.new(src, mix.inputs["A"])
+    links.new(mix.outputs["Result"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.45
+    obj.data.materials.append(mat)
+    film = len(obj.data.materials) - 1
+    sign = 1 if film_eye == "left" else -1          # the character faces -Y, so its left eye is on +X
+    for poly in obj.data.polygons:
+        if sign * sum(obj.data.vertices[v].co.x for v in poly.vertices) > 0:
+            poly.material_index = film
 
 
 def fabric(obj, texture_id, tint=(1, 1, 1), scale=6):
@@ -257,7 +294,7 @@ def aim(rig, bone, direction):
 
 
 def relax_arms(rig, spread=0.12, forward=0.08):
-    """Arms down by the sides, elbows slightly bent (MakeHuman rigs rest in a T/A pose). Directions are in
+    """Arms down by the sides, elbows slightly bent (our rigs rest in an A pose). Directions are in
     the character's own frame, so this works standing or lying."""
     bpy.context.view_layer.update()
     to_world = rig.matrix_world.to_3x3()
@@ -282,11 +319,11 @@ def face(rig, frame, values, meshes=None):
                 keys[name].keyframe_insert("value", frame=frame)
 
 
-# MPFB's face units are weaker than ARKit's in the jaw and stronger in the lip raisers: without this the
-# teeth stay clenched and the lips pull back off them (a grimace, not speech). Real speech opens mostly
-# with the jaw, the teeth part, and the lips stay soft over the teeth. Prefix -> gain on the model output.
-SPEECH_GAIN = {"jawOpen": 2.4, "mouthUpperUp": 0.4, "mouthLowerDown": 0.6, "mouthShrugUpper": 0.6}
-REST_SEAL = 0.3     # mouthShrugLower: MakeHuman's neutral mouth hangs slightly open; a relaxed mouth is closed
+# Gain on the speech model's output per shape prefix. Our jawOpen is a real hinge rotation (18 degrees at 1)
+# and the lip raisers are moderate, so speech needs only a little help opening the jaw: real speech opens
+# mostly with the jaw, the teeth part, and the lips stay soft over the teeth.
+SPEECH_GAIN = {"jawOpen": 1.3, "mouthUpperUp": 0.7, "mouthLowerDown": 0.8, "mouthShrugUpper": 0.8}
+REST_SEAL = 0.0     # mouthShrugLower at rest: our characters' neutral mouth is already closed
 
 
 def lip_sync(rig, wav, start_frame, fps=24, lead=1.0, gain=1.0):
@@ -297,10 +334,7 @@ def lip_sync(rig, wav, start_frame, fps=24, lead=1.0, gain=1.0):
     shape a sound before it is heard. Blinks and eye direction stay with the shot (eyes(), face()).
     Returns {"phrases": [(first, last frame)], "pauses": [frame]} for breathe() and eyes()."""
     import numpy as np
-    out = Path(bpy.app.tempdir) / "speech_face.json"
-    subprocess.run([str(ROOT / ".venv" / "bin" / "python"), "-I", str(ROOT / "scripts" / "speech_face.py"), str(wav),
-                    str(out)], check=True, capture_output=True)
-    data = json.loads(out.read_text())
+    data = _speech_face(wav)
     weights, src_fps = np.array(data["frames"]), data["fps"]
     # the model's own resting face is slightly open: measure each shape at its quietest and subtract that,
     # then gate by voice activity so pauses between phrases close the mouth
@@ -355,6 +389,64 @@ def lip_sync(rig, wav, start_frame, fps=24, lead=1.0, gain=1.0):
     return {"phrases": phrases, "pauses": [(b1 + a2) / 2 for (_, b1), (a2, _) in zip(phrases, phrases[1:])]}
 
 
+def _speech_face(wav):
+    """Face-unit weights for a voice line: Wav2ARKit (scripts/speech_face.py) when its Python environment and
+    model are installed (scripts/download_film_kit.sh), else _speech_envelope()."""
+    python = next((p for p in (ROOT / ".venv" / "bin" / "python", ROOT / ".venv" / "Scripts" / "python.exe")
+                   if p.exists()), None)
+    if python is not None and (ROOT / "voices" / "wav2arkit" / "config.json").exists():
+        out = Path(bpy.app.tempdir) / "speech_face.json"
+        subprocess.run([str(python), "-I", str(ROOT / "scripts" / "speech_face.py"), str(wav), str(out)],
+                       check=True, capture_output=True)
+        return json.loads(out.read_text())
+    print(f"humans.lip_sync: Wav2ARKit not installed, using the loudness/spectrum fallback for {Path(wav).name}")
+    return _speech_envelope(wav)
+
+
+def _speech_envelope(wav, fps=30):
+    """Fallback lips from the sound alone (16-bit PCM WAV): the jaw follows loudness, dark (low spectral
+    centroid) vowels round the lips, bright sounds (s, f, ee) spread them and close the jaw. Same output as
+    speech_face.py, so lip_sync() treats both alike. Coarser than the model: no m/b/p closures."""
+    import wave
+    import numpy as np
+    with wave.open(str(wav)) as w:
+        rate, chans, width = w.getframerate(), w.getnchannels(), w.getsampwidth()
+        raw = w.readframes(w.getnframes())
+    pcm = np.frombuffer(raw, {1: np.int8, 2: np.int16, 4: np.int32}[width]).astype(np.float32)
+    pcm = pcm.reshape(-1, chans).mean(1) / float(2 ** (8 * width - 1))
+    hop = rate // fps
+    n = len(pcm) // hop
+    win = np.hanning(2 * hop)
+    rms, cent = np.zeros(n), np.zeros(n)
+    freqs = np.fft.rfftfreq(2 * hop, 1 / rate)
+    for i in range(n):
+        seg = pcm[max(0, i * hop - hop // 2): i * hop - hop // 2 + 2 * hop]
+        seg = np.pad(seg, (0, 2 * hop - len(seg)))
+        rms[i] = np.sqrt(np.mean(seg ** 2) + 1e-12)
+        spec = np.abs(np.fft.rfft(seg * win))
+        cent[i] = (spec * freqs).sum() / (spec.sum() + 1e-9)
+    db = 20 * np.log10(rms / (rms.max() + 1e-12))
+    voice = np.convolve(np.clip((db + 50) / 18, 0, 1), np.ones(3) / 3, mode="same")
+    loud = np.clip((db + 38) / 30, 0, 1) ** 0.8
+    rounded = np.clip((1400 - cent) / 800, 0, 1) * voice
+    spread = np.clip((cent - 1800) / 1500, 0, 1) * voice
+
+    def follow(x, up=0.6, down=0.35):                   # muscles: quick to open, slower to relax
+        out, y = np.zeros_like(x), 0.0
+        for i, v in enumerate(x):
+            y += (up if v > y else down) * (v - y)
+            out[i] = y
+        return out
+    jaw = follow(0.30 * loud * (1 - 0.5 * spread))
+    shapes = {"jawOpen": jaw, "mouthLowerDownLeft": follow(0.25 * loud), "mouthLowerDownRight": follow(0.25 * loud),
+              "mouthUpperUpLeft": follow(0.12 * loud), "mouthUpperUpRight": follow(0.12 * loud),
+              "mouthFunnel": follow(0.35 * rounded * loud), "mouthPucker": follow(0.15 * rounded * loud),
+              "mouthStretchLeft": follow(0.25 * spread), "mouthStretchRight": follow(0.25 * spread)}
+    names = list(shapes)
+    frames = np.stack([shapes[k] for k in names], 1)
+    return {"fps": fps, "names": names, "frames": np.clip(frames, 0, 1).round(4).tolist(), "voice": voice.round(3).tolist()}
+
+
 # --- living body: eyes, breathing, sway, startle --------------------------------------------------------
 # Layers add on top of whatever the bones already do (mocap or a held pose), frame by frame, so they combine.
 #
@@ -365,8 +457,9 @@ def lip_sync(rig, wav, start_frame, fps=24, lead=1.0, gain=1.0):
 #   the head (eyes lead, head follows ~2 frames later and the eyes counter-rotate as it arrives).
 # Blinks: ~17/min at rest, more while speaking, fewer while listening hard or afraid; the lid closes in ~80 ms
 #   and reopens in ~150 ms; big saccades and speech pauses often carry a blink; some blinks are partial.
-# MPFB eye shapes, measured on the mesh: weight 1 turns the eye ~38 deg out/in, 18 deg up, 27 deg down
-#   (looking down also lowers the upper lid, as real lids follow the eye).
+# Gaze range per eyeLook weight: 1 = ~38 deg out/in, 18 deg up, 27 deg down. Our eyeballs turn on their eye
+#   bones by the exact angle; the eyeLookUp/Down shapes move the lids with them (up 9 deg, down 15 deg at 1:
+#   looking down lowers the upper lid, as real lids follow the eye).
 EYE_DEG = {"out": 37.6, "in": 39.5, "up": 18.1, "down": 27.0}
 SACCADE_DIRS = ((0, 15.54), (45, 6.46), (90, 17.69), (135, 7.44), (180, 16.80), (225, 7.89), (270, 20.38),
                 (315, 7.79))
@@ -469,12 +562,26 @@ def eyes(rig, start, end, mode="talking", look=(0.0, 0.0), pauses=(), seed=1, fp
 
 
 def _key_eyes(rig, meshes, frame, gaze):
+    """Turn the eyes to gaze = (degrees to the character's left, degrees up), relative to the head. The
+    eyeballs turn on their LeftEye / RightEye bones; the eyeLook face shapes (on our characters: the lids
+    following the eyes up and down) get the matching weights."""
     yaw, pitch = gaze
     left = {"eyeLookOutLeft": max(yaw, 0) / EYE_DEG["out"], "eyeLookInLeft": max(-yaw, 0) / EYE_DEG["in"]}
     right = {"eyeLookInRight": max(yaw, 0) / EYE_DEG["in"], "eyeLookOutRight": max(-yaw, 0) / EYE_DEG["out"]}
     vertical = {f"eyeLook{d}{s}": v for s in ("Left", "Right") for d, v in
                 (("Up", max(pitch, 0) / EYE_DEG["up"]), ("Down", max(-pitch, 0) / EYE_DEG["down"]))}
     face(rig, frame, {k: min(1.0, v) for k, v in {**left, **right, **vertical}.items()}, meshes)
+    # armature space: the character faces -Y, +X is its left, +Z up. Yaw turns about +Z (toward +X = left);
+    # looking up turns the forward axis toward +Z, i.e. about -X.
+    turn = Quaternion((0, 0, 1), math.radians(yaw)) @ Quaternion((1, 0, 0), math.radians(-pitch))
+    for side in ("Left", "Right"):
+        pb = rig.pose.bones.get(f"{side}Eye")
+        if pb is None:
+            continue
+        rest = pb.bone.matrix_local.to_quaternion()
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = rest.inverted() @ turn @ rest
+        pb.keyframe_insert("rotation_quaternion", frame=frame)
 
 
 def _blink(meshes, frame, rng):
@@ -594,7 +701,7 @@ def _startle_body(rig, frame, strength, fps, until, legs=True):
 def retarget(rig, bvh, start_frame=1, bone_map=None, max_frames=None, root_motion=True, keep_source=False):
     """Bake a BVH clip onto `rig` at the scene frame rate: each bone copies its world-space rotation
     relative to its rest pose. A global turn aligns the two skeletons' facing; a per-bone swing corrects
-    rest-pose differences (T-pose clips onto MakeHuman's pose). Hips motion is scaled by leg length.
+    rest-pose differences (T-pose clips onto our A pose). Hips motion is scaled by leg length.
     Returns the last frame written."""
     if bone_map is None:
         bone_map = STYLE100 if "100style" in str(bvh).lower() else CMU
@@ -860,23 +967,30 @@ def reach(rig, side, start, end, target, blend=8, hand=None, wrist=None):
 
 def hand_frame(fingers, palm):
     """World rotation for reach(hand=...): fingers point along `fingers`, the palm faces `palm`.
-    MPFB cmu_mb hands: Y runs along the fingers and the palm is on -Z (measured on both hands of both
-    characters: curling the fingers (+X) moves the tips toward -Z)."""
+    Hand bones (build() re-rolls ours this way): Y runs along the fingers and the palm is on -Z."""
     y = Vector(fingers).normalized()
     z = -(Vector(palm) - Vector(palm).project(y)).normalized()
     return Matrix((y.cross(z), y, z)).transposed()
 
 
+# degrees per joint (knuckle, middle, tip) at curl=1: about 80 degrees per finger in all, like a loose hook
+GRIP = {"Thumb": (6, 8, 6), "Index": (20, 35, 25), "Middle": (22, 36, 25), "Ring": (24, 37, 25), "Pinky": (26, 38, 25)}
+THUMB = {"Left": "LeftHandThumb1", "Right": "RightHandThumb1"}
+
+
 def grip(rig, side, frame=1, curl=1.0):
-    """Close the fingers round a handle from `frame` on (MPFB cmu_mb: one finger chain, +X curls)."""
+    """Close the fingers round a handle from `frame` on (each finger's three joints; +X curls toward the palm).
+    curl < 0 straightens them a little (a flat hand on a door)."""
     scene = bpy.context.scene
-    thumb = "LThumb" if side == "Left" else "RThumb"
-    for name, deg in ((f"{side}FingerBase", 25), (f"{side}HandFinger1", 55), (thumb, 15)):
-        pb = rig.pose.bones[name]
-        scene.frame_set(frame)
-        pb.keyframe_insert("rotation_quaternion", frame=frame - 4)
-        pb.rotation_quaternion = pb.rotation_quaternion @ Quaternion((1, 0, 0), math.radians(deg * curl))
-        pb.keyframe_insert("rotation_quaternion", frame=frame)
+    for finger, degs in GRIP.items():
+        for j, deg in enumerate(degs, 1):
+            pb = rig.pose.bones.get(f"{side}Hand{finger}{j}")
+            if pb is None:
+                continue
+            scene.frame_set(frame)
+            pb.keyframe_insert("rotation_quaternion", frame=frame - 4)
+            pb.rotation_quaternion = pb.rotation_quaternion @ Quaternion((1, 0, 0), math.radians(deg * curl))
+            pb.keyframe_insert("rotation_quaternion", frame=frame)
 
 
 LEG_BONES = [f"{s}{b}" for s in ("Left", "Right") for b in ("UpLeg", "Leg", "Foot", "ToeBase")]
@@ -1008,7 +1122,7 @@ def hang(prop, rig, side, start, end, ring=(0.0, 0.0, 0.255), length=0.155, fps=
     grips = {}
     for f in range(start - 1, end + 2):
         scene.frame_set(f)
-        grips[f] = rig.matrix_world @ pb[f"{side}FingerBase"].tail.lerp(pb[f"{side}HandFinger1"].tail, 0.3)
+        grips[f] = rig.matrix_world @ pb[f"{side}HandMiddle1"].head.lerp(pb[f"{side}HandMiddle3"].tail, 0.3)
     g, sub = 9.81, 8
     dt = 1.0 / (fps * sub)
     angle = [0.0, 0.0]                                   # tilt toward +x and +y, radians
@@ -1214,6 +1328,64 @@ def _selfcheck():
           f"reach miss {missed * 100:.2f} cm, arm after release {back:.3f} deg, hand angle off {off:.2f} deg")
 
 
+def _selfcheck_character(character="OldMan"):
+    """One of our characters: bone and vertex-group names, the hand/finger convention, the gaze direction of the
+    eye bones, and that eyeBlink really covers the eye."""
+    from mathutils.bvhtree import BVHTree
+    scene = bpy.context.scene
+    who = f"Check{character}"
+    rig = build({"name": who, "character": character})
+    for bone in ("Hips", "LowerBack", "Spine", "Spine1", "Neck1", "Head", "LeftArm", "LeftHand", "LeftHandIndex1",
+                 "RightHandThumb1", "LeftUpLeg", "LeftToeBase", "LeftEye", "RightEye"):
+        assert bone in rig.pose.bones, f"{character}: no bone {bone}"
+    body = next(o for o in rig.children if o.name == f"{who}.body")
+    assert "LowerBack" in body.vertex_groups and "Neck1" in body.vertex_groups, "vertex groups not renamed"
+    keys = body.data.shape_keys.key_blocks
+    for k in ("eyeBlinkLeft", "eyeBlinkRight", "jawOpen", "browInnerUp", "mouthSmileLeft", "eyeLookUpLeft"):
+        assert k in keys, f"{character}: no face shape {k}"
+    # a finger's +X curls toward the palm (-Z of the hand bone)
+    scene.frame_set(1)
+    bpy.context.view_layer.update()
+    pb = rig.pose.bones
+    tip0 = pb["LeftHandIndex3"].tail.copy()
+    palm = -(pb["LeftHand"].matrix.to_3x3() @ Vector((0, 0, 1)))
+    for j in (1, 2, 3):
+        pb[f"LeftHandIndex{j}"].rotation_quaternion = Quaternion((1, 0, 0), math.radians(30))
+    bpy.context.view_layer.update()
+    toward_palm = (pb["LeftHandIndex3"].tail - tip0).dot(palm)
+    for j in (1, 2, 3):
+        pb[f"LeftHandIndex{j}"].rotation_quaternion = Quaternion()
+    assert toward_palm > 0.01, f"finger curl moved the tip {toward_palm * 100:.1f} cm toward the palm"
+    # gaze 20 degrees to the character's left (+X in armature space)
+    _key_eyes(rig, face_meshes(rig), 1, (20.0, 10.0))
+    bpy.context.view_layer.update()
+    look = pb["LeftEye"].matrix.to_3x3() @ Vector((0, 1, 0))
+    yaw, pitch = math.degrees(math.atan2(look.x, -look.y)), math.degrees(math.asin(look.z))
+    assert abs(yaw - 20) < 1 and abs(pitch - 10) < 1, f"eye looks {yaw:.1f} left, {pitch:.1f} up"
+    # a closed eye: a ray straight at the left eyeball hits the eyelid first
+    _key_eyes(rig, face_meshes(rig), 1, (0.0, 0.0))
+    eyes = next(o for o in rig.children if o.name == f"{who}.eyes")
+    deps = bpy.context.evaluated_depsgraph_get()
+    centre = sum((eyes.matrix_world @ v.co for v in eyes.data.vertices if v.co.x > 0), Vector()) / \
+        sum(1 for v in eyes.data.vertices if v.co.x > 0)
+    start = centre + Vector((0, -0.2, 0))
+
+    def first_hit():
+        deps.update()
+        hb = BVHTree.FromObject(body, deps).ray_cast(start, Vector((0, 1, 0)), 0.4)
+        he = BVHTree.FromObject(eyes, deps).ray_cast(start, Vector((0, 1, 0)), 0.4)
+        return "lid" if hb[0] is not None and (he[0] is None or hb[3] < he[3]) else "eye"
+    open_ = first_hit()
+    keys["eyeBlinkLeft"].value = 1.0
+    shut = first_hit()
+    keys["eyeBlinkLeft"].value = 0.0
+    assert (open_, shut) == ("eye", "lid"), f"blink: open eye shows the {open_}, closed shows the {shut}"
+    print(f"humans selfcheck OK ({character}): {len(rig.pose.bones)} bones, {len(keys) - 1} face shapes; finger curl "
+          f"{toward_palm * 100:.1f} cm toward the palm; gaze {yaw:.1f} left {pitch:.1f} up; blink covers the eye")
+
+
 if __name__ == "__main__" and "--selfcheck" in sys.argv:
     bpy.context.scene.render.fps = 24
     _selfcheck()
+    for name in ("OldMan", "Narrator"):
+        _selfcheck_character(name)

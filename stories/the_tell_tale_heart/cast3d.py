@@ -1,21 +1,20 @@
 """
-The Tell-Tale Heart: realistic (MPFB / MakeHuman) characters, built by scripts/humans.py.
-Ages are MakeHuman sliders (0.5 = 25 years, 1.0 = 90). Fabrics are Poly Haven textures, greyed then tinted.
+The Tell-Tale Heart: the cast, our own generated characters (assets/characters/<Name>), loaded by scripts/humans.py.
+Both were made by the Generated_Characters pipeline from a cast spec (fixed choices instead of random ones):
+  OldMan   - slim, 1.68 m, gaunt face, pale and blotchy aged skin, silver hair, white stubble, grey-blue eyes,
+             a long-sleeved nightshirt, barefoot
+  Narrator - average build, 1.76 m, brown hair, brown eyes, white shirt, high-waisted trousers, leather shoes
+Fabrics are Poly Haven textures (assets/textures/polyhaven), greyed then tinted: (texture, tint, scale).
 """
 
-OLD_MAN = dict(name="OldMan", age=0.97, weight=0.22, muscle=0.2, height=0.42, proportions=0.4,
-               skin="old_caucasian_male", hair="short02", hair_material="bogdan666_short_02_gray",
-               eyebrows="eyebrow001", eyes=("grey", "lightblue"),
+OLD_MAN = dict(name="OldMan", character="OldMan",
                film_eye="left",                       # "a pale blue eye, with a film over it"
-               clothes=[("maciekg_wizard_robe", "rough_linen", (1.2, 1.15, 1.02))])      # linen nightshirt
+               brow_tint=(0.6, 0.6, 0.6), beard_tint=(0.55, 0.55, 0.55),   # grey, not glowing white, in moonlight
+               fabrics={"nightshirt": ("rough_linen", (1.2, 1.15, 1.02), 5)})          # linen nightshirt
 
-NARRATOR = dict(name="Narrator", age=0.6, weight=0.25, muscle=0.4, height=0.55, proportions=0.6,
-                skin="middleage_caucasian_male", hair="short02", hair_material="bogdan666_short_02_brown",
-                hair_tint=(0.32, 0.24, 0.2), eyebrows="eyebrow001", brow_tint=(0.35, 0.28, 0.24),
-                eyes=("brownlight", "brownlight"),
-                clothes=[("shoes01", None, None),                                      # inner to outer
-                         ("toigo_wool_pants", "poly_wool_herringbone", (0.32, 0.29, 0.26)),
-                         ("elvs_male_shirt_untucked_bd1", "stretch_poplin", (1.25, 1.2, 1.1))])
+NARRATOR = dict(name="Narrator", character="Narrator",
+                fabrics={"trousers": ("poly_wool_herringbone", (0.32, 0.29, 0.26), 4),
+                         "shirt": ("stretch_poplin", (1.25, 1.2, 1.1), 4)})
 
 # Expressions as ARKit face-unit weights (scripts/humans.py: face()).
 FEAR = {"browInnerUp": 0.85, "browOuterUpLeft": 0.4, "browOuterUpRight": 0.4, "eyeWideLeft": 0.6,

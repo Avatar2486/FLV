@@ -1,6 +1,6 @@
 """
 Tell-Tale Heart v2 preview: "the eighth night" (film shots 3.1-3.10) with the new pipeline:
-MPFB characters, the living-body layers (eyes, breath, sway, startle), voice-driven lips, props moved
+our generated characters (assets/characters), the living-body layers (eyes, breath, sway, startle), voice-driven lips, props moved
 only by hands, Chatterbox voices, recorded sound and Chopin.
 
     tools/chatterbox/.venv/bin/python -I scripts/chatterbox_lines.py stories/the_tell_tale_heart/preview_v2/lines.json
@@ -168,7 +168,7 @@ def build():
     humans.eyes(nar, 1, end, mode="listening", look=(-18.0, -12.0), seed=12, head=False)
     humans.chuckle(nar, line_frame["3.3_N"] + 4, rest=cast3d.TENSE)
     click = line_frame["3.6_N"] + int(seconds(VO / "3.6_N.wav") * FPS) - 6     # "...upon the tin fastening"
-    thumb = nar.pose.bones["RThumb"]                                                # his thumb slips on the catch
+    thumb = nar.pose.bones[humans.THUMB["Right"]]                                   # his thumb slips on the catch
     scene.frame_set(click - 2)
     rest_thumb = thumb.rotation_quaternion.copy()
     for at, deg in ((click - 2, 0), (click, 28), (click + 10, 8)):
