@@ -1,0 +1,156 @@
+{
+ "fps": 24,
+ "seconds": 98.083,
+ "frames": 2354,
+ "shots": [
+  {
+   "id": "3.11",
+   "start": 0.0,
+   "seconds": 12.164,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart/3.11_0_N_f5bcdd24ab.wav",
+     "who": "N",
+     "line": "3.11_0_N",
+     "start": 0.4,
+     "seconds": 2.519
+    },
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart/3.11_1_OM_13951a7ca0.wav",
+     "who": "OM",
+     "line": "3.11_1_OM",
+     "start": 3.269,
+     "seconds": 8.195
+    }
+   ]
+  },
+  {
+   "id": "3.12",
+   "start": 12.164,
+   "seconds": 7.752,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart/3.12_0_N_b222e815b5.wav",
+     "who": "N",
+     "line": "3.12_0_N",
+     "start": 12.564,
+     "seconds": 6.652
+    }
+   ]
+  },
+  {
+   "id": "3.13",
+   "start": 19.916,
+   "seconds": 12.628,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart/3.13_0_N_60b2a1f8df.wav",
+     "who": "N",
+     "line": "3.13_0_N",
+     "start": 20.316,
+     "seconds": 11.528
+    }
+   ]
+  },
+  {
+   "id": "3.14",
+   "start": 32.544,
+   "seconds": 6.255,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart/3.14_0_N_5bd313e765.wav",
+     "who": "N",
+     "line": "3.14_0_N",
+     "start": 32.944,
+     "seconds": 5.155
+    }
+   ]
+  },
+  {
+   "id": "3.15",
+   "start": 38.799,
+   "seconds": 17.284,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart/3.15_0_N_29a58eaae8.wav",
+     "who": "N",
+     "line": "3.15_0_N",
+     "start": 39.199,
+     "seconds": 16.184
+    }
+   ]
+  },
+  {
+   "id": "3.16",
+   "start": 56.083,
+   "seconds": 12.0,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart/3.16_0_N_14049d797b.wav",
+     "who": "N",
+     "line": "3.16_0_N",
+     "start": 56.483,
+     "seconds": 10.658
+    }
+   ]
+  },
+  {
+   "id": "3.17",
+   "start": 68.083,
+   "seconds": 3.0,
+   "lines": []
+  },
+  {
+   "id": "3.18",
+   "start": 71.083,
+   "seconds": 11.0,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart/3.18_0_N_2dd56d4ff9.wav",
+     "who": "N",
+     "line": "3.18_0_N",
+     "start": 71.483,
+     "seconds": 8.893
+    }
+   ]
+  },
+  {
+   "id": "3.20",
+   "start": 82.083,
+   "seconds": 7.0,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart/3.20_0_N_0b8efe4bf2.wav",
+     "who": "N",
+     "line": "3.20_0_N",
+     "start": 82.483,
+     "seconds": 3.413
+    }
+   ]
+  },
+  {
+   "id": "3.21",
+   "start": 89.083,
+   "seconds": 9.0,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart/3.21_0_N_6db4e0d377.wav",
+     "who": "N",
+     "line": "3.21_0_N",
+     "start": 89.483,
+     "seconds": 4.864
+    }
+   ]
+  }
+ ],
+ "marks": {
+  "release": 68.54166666666667,
+  "flood": 68.125,
+  "grab": 71.08333333333333,
+  "drag": 71.83333333333333,
+  "pull": 75.04166666666667,
+  "kneel": 77.375,
+  "dead": 85.08333333333333,
+  "landed": 72.66666666666667
+ }
+}

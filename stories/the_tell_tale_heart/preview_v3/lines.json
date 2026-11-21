@@ -1,0 +1,72 @@
+[
+ {
+  "text": "He had been saying to himself—",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.5,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v3/3.11_N.wav"
+ },
+ {
+  "text": "It is nothing but the wind in the chimney—it is only a mouse crossing the floor—it is merely a cricket which has made a single chirp.",
+  "ref": "audio/voice_refs/old_man.wav",
+  "exaggeration": 0.7,
+  "cfg": 0.4,
+  "out": "audio/voiceovers/the_tell_tale_heart_v3/3.11_OM.wav"
+ },
+ {
+  "text": "All in vain; because Death, in approaching him, had stalked with his black shadow before him, and enveloped the victim.",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.5,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v3/3.12_N.wav"
+ },
+ {
+  "text": "So I opened it—you cannot imagine how stealthily, stealthily—until, at length, a single dim ray, like the thread of the spider, shot from out the crevice and fell upon the vulture eye.",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.5,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v3/3.13_N.wav"
+ },
+ {
+  "text": "It was open—wide, wide open—and I grew furious as I gazed upon it.",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.5,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v3/3.14_N.wav"
+ },
+ {
+  "text": "And now—have I not told you that what you mistake for madness is but over-acuteness of the senses?—there came to my ears a low, dull, quick sound, such as a watch makes when enveloped in cotton. It was the beating of the old man's heart.",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.5,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v3/3.15_N.wav"
+ },
+ {
+  "text": "It grew quicker and quicker, and louder and louder every instant. And now a new anxiety seized me—the sound would be heard by a neighbor! The old man's hour had come!",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.7,
+  "cfg": 0.4,
+  "out": "audio/voiceovers/the_tell_tale_heart_v3/3.16_N.wav"
+ },
+ {
+  "text": "In an instant I dragged him to the floor, and pulled the heavy bed over him. But, for many minutes, the heart beat on with a muffled sound.",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.7,
+  "cfg": 0.4,
+  "out": "audio/voiceovers/the_tell_tale_heart_v3/3.18_N.wav"
+ },
+ {
+  "text": "At length it ceased. The old man was dead.",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.5,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v3/3.20_N.wav"
+ },
+ {
+  "text": "There was no pulsation. He was stone dead. His eye would trouble me no more.",
+  "ref": "audio/voice_refs/narrator.wav",
+  "exaggeration": 0.5,
+  "cfg": 0.5,
+  "out": "audio/voiceovers/the_tell_tale_heart_v3/3.21_N.wav"
+ }
+]

@@ -241,6 +241,12 @@ above rebuild them.
 Open `blender/scenes/tell_tale_heart.blend` to see every shot: the timeline markers switch
 cameras, so scrubbing the timeline plays the film's edit.
 
+The realistic rebuild is made in previews, in story order, with our own characters:
+- **v2, "the eighth night"** (3.1–3.10): `stories/the_tell_tale_heart/preview_v2.py`, notes in
+  `docs/tell_tale_heart_v2_notes.md`.
+- **v3, "the attack"** (3.11–3.21): `stories/the_tell_tale_heart/preview_v3.py`, notes in
+  `docs/tell_tale_heart_v3_attack_notes.md`. It makes its own 480p draft with sound inside Blender (`-- draft`).
+
 ## Asset library (drag and drop, 432 assets)
 
 | Library | What's in it | Licence |
