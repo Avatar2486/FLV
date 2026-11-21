@@ -1,0 +1,71 @@
+{
+  "sex": "male",
+  "face": {
+    "Face_Asian": 0.05,
+    "Face_Black": 0.0,
+    "Face_Caucasian": 1.45
+  },
+  "ethnicity": "Caucasian",
+  "build": "slim",
+  "body": {
+    "Body_Muscular": 0.0,
+    "Body_Skinny": 1.05,
+    "Body_Overweight": -0.1
+  },
+  "prop": {
+    "leg": 0.98,
+    "arm": 1.0,
+    "torso": 1.0,
+    "neck": 1.04,
+    "head": 1.0,
+    "shoulder": 0.94,
+    "hips": 0.98,
+    "hand": 1.02,
+    "foot": 1.0
+  },
+  "height": 1.68,
+  "facep": {
+    "nose_proj": 0.003,
+    "nose_len": 0.004,
+    "nose_w": 0.0015,
+    "bridge": 0.002,
+    "chin_fwd": 0.0,
+    "chin_down": 0.002,
+    "jaw_w": -0.003,
+    "cheek_w": -0.006,
+    "cheek_fwd": -0.003,
+    "brow": 0.0025,
+    "lips": -0.002,
+    "mouth_w": 0.0005,
+    "forehead": 0.002,
+    "occiput": 0.0,
+    "head_w": -0.004,
+    "crown": 0.0,
+    "ear_out": 0.004
+  },
+  "seed": 4242,
+  "slot": null,
+  "skin_eth": "Caucasian",
+  "skin": {
+    "value": 1.0,
+    "sat": 0.85,
+    "hue": 0.004
+  },
+  "eye_color": 4,
+  "hair_color": "silver",
+  "hair": "short",
+  "beard": "stubble",
+  "clothes": {
+    "outfit": "nightshirt",
+    "pieces": [
+      "nightshirt"
+    ],
+    "shirt": "white",
+    "pants": "khaki",
+    "tie": "red",
+    "tint": "white",
+    "tee": "white",
+    "shoes": "brown"
+  },
+  "age": 1.0
+}

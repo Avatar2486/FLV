@@ -26,7 +26,7 @@ Chatterbox environment (`tools/`) and the Freesound key in `.env`.
 
 | Area | Choice |
 |---|---|
-| Characters | MPFB (MakeHuman for Blender): 52 ARKit face shapes, MakeHuman skins, hair and clothes; Poly Haven fabrics on the clothes |
+| Characters | **Our own generated characters** (`assets/characters/`, since 2026-11-21): rigged, scanned skin textures, 47 ARKit-named face shapes built on their own mesh; Poly Haven fabrics on the clothes. (Before: MPFB / MakeHuman.) |
 | Voices | **C, Chatterbox** (MIT). Each character's reference voice is a synthetic Kokoro voice, so no real person's voice is cloned. |
 | Motion | **B, 100STYLE** motion capture (CC BY 4.0), with CMU clips (free) for creeping and other actions |
 | Sound | **B**, recorded CC0 Freesound effects, with Chopin (Musopen, CC0) under the drones |
@@ -38,8 +38,9 @@ Chatterbox environment (`tools/`) and the Freesound key in `.env`.
 - Show URLs, sizes and licences before downloading anything.
 
 ## How a shot is made
-1. **Characters:** `humans.build()` makes each MPFB character with skin, eyes, hair, clothes and the
-   ARKit face shapes. Skin under the clothes is masked so it can't poke through.
+1. **Characters:** `humans.build()` appends each of our characters from `assets/characters/` with skin,
+   eyes, hair, clothes and the face shapes. Skin under the clothes was removed when it was generated, so it
+   can't poke through.
 2. **Body motion:**
    - Motion capture is retargeted onto the rig (`retarget`).
    - The feet are locked to the floor where they're planted (`plant_feet`).
@@ -162,14 +163,35 @@ repo; the arm, retarget and feet checks are in `humans.py --selfcheck`.
   Both were caught by cross-checking, and fixed before any decision relied on them.
 - An early grain test changed a setting that did nothing: samples alone could never fix it.
 
+## Characters replaced with ours (2026-11-21)
+The MPFB / MakeHuman old man and narrator were replaced by two characters from our own generator, made
+from cast specs (fixed choices instead of random ones). What changed in the code:
+
+| Where | Change |
+|---|---|
+| `scripts/humans.py` `build()` | Appends `assets/characters/<character>/<character>.blend` instead of building with MPFB; no MPFB add-on or MakeHuman packs needed. Bones renamed to the toolkit's names (`Spine` -> `LowerBack` ...); hands re-rolled so `hand_frame()` and `grip()` keep their meaning (palm on -Z, +X curls); `film_eye`, fabrics and tints as before |
+| `grip()` | Our hands have five fingers with three joints each (MPFB had one chain): about 80 degrees per finger at curl 1 |
+| `_key_eyes()` | Eyeballs turn on the `LeftEye` / `RightEye` bones by the exact angle; `eyeLookUp/Down` shapes move the lids with them |
+| `lip_sync()` | Same Wav2ARKit path (now also finds a Windows `.venv`); when the model isn't installed it falls back to `_speech_envelope()`: jaw from loudness, rounded or spread lips from the spectrum. Coarser (no m/b/p closures) |
+| `SPEECH_GAIN`, `REST_SEAL` | Our jaw is a real hinge and our neutral mouth is closed: jaw gain 2.4 -> 1.3, rest seal 0.3 -> 0 |
+| `cast3d.py` | Specs now name a character folder; the old man's brows and stubble are tinted grey so they don't glow in moonlight |
+| `preview_v2.py` | The thumb that slips on the lantern catch is `RightHandThumb1` |
+| Self-check | `humans.py --selfcheck` also loads both characters: bone and vertex-group names, finger curl toward the palm, gaze direction, and a ray test that a closed eyelid covers the eye |
+
+Found on the way: the generator's palm test (the bow of the fingers) pointed at the back of the hand on
+this basemesh, which would have curled fingers backward. The palm side is now taken from the thumb, which
+sits a few cm off the knuckle plane on the palm side (checked with a render of a curled hand).
+
 ## Still open and known limits
-- **The old man's nightshirt** reads as a tight bodysuit. MakeHuman clothes are fitted to the body. A
-  loose gown would need a different garment or a cloth simulation.
+- **The old man's nightshirt** is generated from the body and smoothed, so it is close-fitting rather than
+  a loose gown. Most of it is under the blanket; a loose gown would need a cloth simulation.
+- **Lips without Wav2ARKit** (any machine without `voices/wav2arkit/` and the `.venv`): the fallback follows
+  loudness and brightness of the voice, not phonemes. Rebuild on a machine with the model for real lips.
 - **The blanket** only follows his legs. It doesn't slide down when he sits up, which needs cloth
   simulation.
 - **Shutter-slat moonlight** draws crisp stripes on the bed. It is plausible, but could be softened.
-- **One finger chain:** MPFB's `cmu_mb` rig has a single chain for all four fingers plus the thumb, so
-  grips are approximate. Fingers rest 2–10 mm into what they touch.
+- **Grips** were measured on the MPFB hands (fingers 2–10 mm into what they touch). Our five-finger hands
+  hold the lantern ring and cradle its base in the renders, but the contacts have not been re-measured.
 - **The door push** keeps his wrist bent back about 89°. It is mostly hidden by the door, but stiff.
 - **The corridor moon** (`co_moon`, a 0.8 × 1.3 m area light) is still large, so it may speckle like the
   chamber did. Fix it in the rebuild.
@@ -184,7 +206,7 @@ repo; the arm, retarget and feet checks are in `humans.py --selfcheck`.
 ## How to rebuild the preview
 ```
 tools/chatterbox/.venv/bin/python -I scripts/chatterbox_lines.py stories/the_tell_tale_heart/preview_v2/lines.json
-blender -b --python stories/the_tell_tale_heart/preview_v2.py -- build          # about 1 minute
+blender -b --factory-startup --python stories/the_tell_tale_heart/preview_v2.py -- build   # about 1 minute
 blender -b blender/scenes/tell_tale_heart_v2_preview.blend --python stories/the_tell_tale_heart/preview_v2.py -- render 1 1
 .venv/bin/python -I stories/the_tell_tale_heart/preview_v2.py soundtrack         # optional: check the mix early
 .venv/bin/python -I stories/the_tell_tale_heart/preview_v2.py mix                # soundtrack + final MP4

@@ -1,9 +1,26 @@
 # Third-party assets, tools and data
 
-Everything here is free to use in a published video. It is fetched by `scripts/download_film_kit.sh` and
-`scripts/download_assets.py`. Items marked **credit** must be named in a film's end titles.
+Everything here is free to use in a published video, except the commercial character sources listed
+under Characters. It is fetched by `scripts/download_film_kit.sh` and `scripts/download_assets.py`. Items
+marked **credit** must be named in a film's end titles.
 
 ## Characters
+The films now use our own generated characters (`assets/characters/`, see its README). They are made from
+the items below. **Unlike the rest of this file, the first four are commercial assets: check each one's
+licence before the character files are published or shared, and before a film using them is monetised.**
+
+| What | Used for | Licence | Credit |
+|---|---|---|---|
+| "The Ultimate Character Basemesh & Anatomy FlipBox" (Male/Female Custom Basemesh, texture packs) | body mesh, skin colour/normal/roughness maps, eyes, teeth | commercial asset: check its licence | check |
+| Facial Hair Toolkit (Blender add-on) presets | beard and stubble hair cards | commercial asset: check its licence | check |
+| "Girl's Outfit 60" (Marvelous Designer / CLO project) | the narrator's shirt and trousers, refitted | commercial asset: check its licence | check |
+| Flat-shaded hair, eyebrow and lash meshes from the basemesh bundle | hair | as the basemesh bundle | check |
+| MakeHuman shoes01 | the narrator's shoes | CC0 | — |
+| Poly Haven rough_linen, poly_wool_herringbone, stretch_poplin | fabrics on the clothes | CC0 | — |
+
+The MPFB / MakeHuman items below were used by the earlier characters and the samples in `output/samples/`;
+the current films no longer need them.
+
 | What | Source | Licence | Credit |
 |---|---|---|---|
 | MPFB 2 (MakeHuman for Blender) | https://extensions.blender.org/add-ons/mpfb/ | GPL-3.0 (tool; characters made with it are free to use) | — |

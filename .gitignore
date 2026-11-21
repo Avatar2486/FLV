@@ -45,3 +45,6 @@ assets/mocap/library/
 voices/kokoro/
 voices/wav2arkit/
 tools/
+
+# Draft renders (e.g. 480p checks), not the final preview
+output/renders/*/draft_*.mp4
