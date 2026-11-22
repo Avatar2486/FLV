@@ -217,9 +217,11 @@ def build():
     humans.sway(nar, 1, R0, amount=0.35, seed=11)
     humans.breathe(nar, 1, R0, style="anxious", seed=13)
 
-    # ---- walking, running and kneeling (legs, arms swing when free, a forward lean that grows with speed)
-    hands_busy = set(range(GRAB - 6, D1 + 6)) | set(range(W1 - 4, G1 + 6)) | set(range(K0 + 4, end + 1))
-    _gait(humans, nar, track, R0, K0, hands_busy)
+    # ---- walking, hurrying and kneeling: steps from motion capture laid along his path (arms swing when
+    # free, a lean that grows with speed), the planted feet locked to the floor
+    hands_busy = (set(range(R0 - 6, T("3.17", 0.45) + 3))     # the shutter flung open, the lantern let go
+                  | set(range(GRAB - 6, D1 + 6)) | set(range(W1 - 4, G1 + 6)) | set(range(K0 + 4, end + 1)))
+    _mocap_gait(humans, nar, track, R0, K0, hands_busy)
 
     def kneel_layer(f):
         k = kneel[f]
@@ -717,45 +719,390 @@ def _sample_path(path, first, last):
     return out
 
 
-def _gait(humans, rig, track, first, last, hands_busy, fps=FPS):
-    """Procedural steps for a body moved along `track`: stride and cadence from the speed, legs swing in
-    opposition, knees flex in the swing, arms counter-swing (unless the hands are busy), a forward lean
-    that grows with speed. Walking backward reverses the cycle. Layered on whatever the bones already do."""
-    phase, plan = 0.0, {}
-    for f in range(first, last + 1):
-        (x0, y0), _ = track[max(first, f - 1)]
-        (x1, y1), h = track[f]
-        vx, vy = (x1 - x0) * fps, (y1 - y0) * fps
-        speed = math.hypot(vx, vy)
-        facing = (math.sin(math.radians(h)), -math.cos(math.radians(h)))
-        signed = vx * facing[0] + vy * facing[1]
-        step = min(1.05, 0.42 + 0.22 * speed)
-        phase += math.copysign(math.pi * speed / step / fps, signed if abs(signed) > 1e-6 else 1)
-        plan[f] = (phase, min(1.0, speed / 0.9), speed)
-    # smooth the amount so legs settle as he stops
-    amt = {f: plan[f][1] for f in plan}
-    for f in plan:
-        amt[f] = sum(amt.get(f + d, amt[f]) for d in range(-3, 4)) / 7
+# The narrator's steps are motion capture (100STYLE, CC BY 4.0): one stride of a plain walk and one of a
+# hurried walk, blended by speed. (clip, frames searched for its straightest, fastest stretch)
+GAIT_CLIPS = (("Neutral_FW", 240), ("Rushed_FW", 240))
+LEGS = tuple(f"{s}{b}" for s in ("Left", "Right") for b in ("UpLeg", "Leg", "Foot", "ToeBase"))
+SPINE = ("LowerBack", "Spine", "Spine1")
+ARMS = tuple(f"{s}{b}" for s in ("Left", "Right") for b in ("Shoulder", "Arm", "ForeArm", "Hand"))
 
-    def offsets(f):
-        ph, _, speed = plan[f]
+
+def _gait_cycle(humans, clip, frames, fps=FPS):
+    """One stride of a mocap walk on the narrator's own skeleton, from a left-foot contact to the next:
+    every bone's rotation per sample (the hips turned to walk straight ahead, -Y), the hips' bob and sway
+    about a steady line (armature space), the mean pose (for layering swings on top of other motion), the
+    stride length and the speed. The stride's two ends are made to meet, so it loops."""
+    import bpy
+    from mathutils import Matrix, Quaternion, Vector
+    scene = bpy.context.scene
+    bvh = ROOT / "assets" / "mocap" / "100style" / f"{clip}.bvh"
+    skip = humans.straight_stretch(bvh, frames)
+    kinds = ("objects", "meshes", "armatures", "actions", "shape_keys", "materials", "node_groups", "images")
+    had = {k: set(getattr(bpy.data, k)) for k in kinds}
+    tmp = humans.build({"name": "GaitTmp", "character": "Narrator"})
+    humans.retarget(tmp, bvh, start_frame=1 - skip, max_frames=skip + frames)
+    names = ("Hips",) + LEGS + SPINE + ARMS
+    hips_rest = tmp.data.bones["Hips"].matrix_local.to_3x3().normalized()
+    rec = []
+    for f in range(1, frames + 1):
+        scene.frame_set(f)
+        hm = tmp.pose.bones["Hips"].matrix
+        rec.append(dict(q={n: tmp.pose.bones[n].rotation_quaternion.copy() for n in names},
+                        hip=hm.translation.copy(), hipm=hm.to_3x3().normalized(),
+                        ball={s: tmp.pose.bones[f"{s}ToeBase"].matrix.translation.copy() for s in ("Left", "Right")},
+                        ankle={s: tmp.pose.bones[f"{s}Foot"].matrix.translation.copy() for s in ("Left", "Right")}))
+    leg = (tmp.data.bones["LeftUpLeg"].head_local - tmp.data.bones["LeftFoot"].head_local).length
+    for o in list(tmp.children) + [tmp]:
+        bpy.data.objects.remove(o)
+    for _ in range(3):                    # the copy's meshes, materials, images ... nothing else uses them
+        for k in kinds[1:]:
+            for block in set(getattr(bpy.data, k)) - had[k]:
+                if block.users == 0:
+                    getattr(bpy.data, k).remove(block)
+    # footfalls, by gait_stats.py's rule: the heel or ball low and the ball nearly still
+    low = {s: min(min(r["ball"][s].z, r["ankle"][s].z) for r in rec) for s in ("Left", "Right")}
+    down = {}
+    for s in ("Left", "Right"):
+        fl = [False] + [min(rec[i]["ball"][s].z, rec[i]["ankle"][s].z) - low[s] < 0.07 * leg and
+                        (rec[i]["ball"][s].xy - rec[i - 1]["ball"][s].xy).length * fps < 0.35 * leg
+                        for i in range(1, frames)]
+        for i in range(1, frames - 1):                       # close 1-frame gaps, drop 1-frame blips
+            fl[i] = (fl[i - 1] and fl[i + 1]) or (fl[i] and (fl[i - 1] or fl[i + 1]))
+        down[s] = fl
+    lands = {s: [i for i in range(1, frames) if down[s][i] and not down[s][i - 1]] for s in down}
+
+    def drift(s, e):
+        """How far the hips stray sideways from the straight line between the stride's ends (a stride on a
+        curve, where the actor turns at the end of the capture area, would over-step and sway)."""
+        a, b = rec[s]["hip"].xy, rec[e]["hip"].xy
+        u = (b - a).normalized()
+        return max(abs((rec[i]["hip"].xy - a).cross(u)) for i in range(s, e + 1))
+    # a stride: left footfall to the next, the right one about halfway, straight, really walking
+    strides = []
+    for s, e in zip(lands["Left"], lands["Left"][1:]):
+        mid = [r for r in lands["Right"] if s < r < e]
+        if (len(mid) == 1 and 0.3 < (mid[0] - s) / (e - s) < 0.7 and 0.6 * fps <= e - s <= 1.6 * fps
+                and (rec[e]["hip"] - rec[s]["hip"]).xy.length > 0.3 and drift(s, e) < 0.05):
+            strides.append((s, e))
+    if not strides:
+        raise RuntimeError(f"{clip}: no clean stride found (left footfalls {lands['Left']})")
+    typical = sorted(e - s for s, e in strides)[len(strides) // 2]
+
+    def seam(s, e):
+        return sum(rec[s]["q"][n].rotation_difference(rec[e]["q"][n]).angle for n in LEGS + ("Hips",))
+    s, e = min(strides, key=lambda p: (abs(p[1] - p[0] - typical), seam(*p)))
+    P = e - s
+    travel = (rec[e]["hip"] - rec[s]["hip"]).xy
+    turn = Matrix.Rotation(-math.pi / 2 - math.atan2(travel.y, travel.x), 3, "Z")     # stride -> straight ahead
+    q, bob = [], []
+    for i in range(P + 1):
+        r = rec[s + i]
+        line = rec[s]["hip"] + (rec[e]["hip"] - rec[s]["hip"]) * (i / P)
+        bob.append(turn @ (r["hip"] - line))
+        sample = dict(r["q"])
+        sample["Hips"] = (hips_rest.inverted() @ (turn @ r["hipm"])).to_quaternion()
+        q.append(sample)
+    for n in q[0]:                                     # close the loop: spread the seam over the stride
+        for i in range(1, P + 1):
+            if q[i][n].dot(q[i - 1][n]) < 0:
+                q[i][n].negate()
+        fix = q[0][n] @ q[P][n].inverted()
+        for i in range(P + 1):
+            q[i][n] = Quaternion().slerp(fix, i / P) @ q[i][n]
+    centre = sum(bob[:P], Vector()) / P                # bob and sway about the steady line, nothing more
+    bob = [b - centre for b in bob]                    # (both walks start at a left footfall: in step)
+    mean = {}
+    for n in q[0]:
+        acc = Quaternion((0, 0, 0, 0))
+        for i in range(P):
+            acc += q[i][n] if q[i][n].dot(q[0][n]) >= 0 else -q[i][n]
+        mean[n] = acc.normalized()
+    stride = travel.length
+    stance = {side: [down[side][s + i] for i in range(P + 1)] for side in down}   # the mocap's own footfalls
+    return dict(clip=clip, q=q, bob=bob, mean=mean, frames=P, stride=stride, speed=stride * fps / P,
+                drift=drift(s, e), candidates=len(strides), stance=stance)
+
+
+def _cycle_at(cyc, phase):
+    """A cycle's pose and hips bob at a phase (strides; any real number, so it can run backward)."""
+    x = (phase % 1.0) * cyc["frames"]
+    i = min(int(x), cyc["frames"] - 1)
+    t = x - i
+    return ({n: cyc["q"][i][n].slerp(cyc["q"][i + 1][n], t) for n in cyc["q"][i]},
+            cyc["bob"][i].lerp(cyc["bob"][i + 1], t))
+
+
+def _mocap_gait(humans, rig, track, first, last, hands_busy, fps=FPS):
+    """Steps for a body moved along `track` (its object carries it), from two mocap strides on its own
+    skeleton (a plain and a hurried walk) blended by speed. The stride advances with the distance the body
+    covers, so each step is as long as the ground it gains: walking backward plays it backward, and faster
+    than the hurried walk raises the cadence. Layered on whatever the bones already do: the legs take the
+    mocap, the hips, back and (free) arms its swing about their mean. Then each foot is locked to the floor
+    for as long as the mocap has it down, and while he stands (a turn on the spot becomes two small steps):
+    _plant_feet_world. Prints how much they slide."""
+    import bpy
+    from mathutils import Quaternion, Vector
+    scene = bpy.context.scene
+    slow, fast = (_gait_cycle(humans, c, n) for c, n in GAIT_CLIPS)
+    for c in (slow, fast):
+        print(f"V3 gait: {c['clip']} {c['speed']:.2f} m/s, stride {c['stride']:.2f} m in {c['frames']} frames, "
+              f"hips stray {100 * c['drift']:.1f} cm (of {c['candidates']} strides)")
+    frames = list(range(first, last + 1))
+    step = {}
+    for f in frames:
+        (x0, y0), h0 = track[max(first, f - 1)]
+        (x1, y1), h1 = track[f]
+        hd = math.radians(h1)
+        v = Vector((x1 - x0, y1 - y0))
+        fwd = v.dot(Vector((math.sin(hd), -math.cos(hd))))
+        lat = v.dot(Vector((math.cos(hd), math.sin(hd))))
+        size = math.sqrt(fwd * fwd + lat * lat)
+        step[f] = math.copysign(size, fwd) if abs(fwd) > 1e-5 else size
+    speed = {f: fps * sum(abs(step.get(f + d, step[f])) for d in range(-3, 4)) / 7 for f in frames}
+    phase, plan = 0.0, {}
+    for f in frames:
+        w = min(1.0, max(0.0, (speed[f] - slow["speed"]) / (fast["speed"] - slow["speed"])))
+        phase += step[f] / (slow["stride"] + (fast["stride"] - slow["stride"]) * w)
+        plan[f] = (phase, w)
+    amt0 = {f: ease(0.02, 0.35, speed[f]) for f in frames}                # standing .. walking
+    amt = {f: sum(amt0.get(f + d, amt0[f]) for d in range(-4, 5)) / 9 for f in frames}
+    busy = sorted(hands_busy)
+    free = {f: 0.0 if f in hands_busy else min(1.0, min((abs(f - b) for b in busy), default=99) / 6) for f in frames}
+
+    for f in frames:                                   # nothing of the walk outside its frames
+        amt[f] *= min(1.0, (f - first) / 4, (last - f) / 4)
+    names = ("Hips",) + LEGS + SPINE + ARMS
+    for n in names:
+        rig.pose.bones[n].rotation_mode = "QUATERNION"
+    hips_rest = rig.data.bones["Hips"].matrix_local.to_3x3().normalized()
+    base = {}
+    for f in [first - 1] + frames + [last + 1]:
+        scene.frame_set(f)
+        base[f] = ({n: rig.pose.bones[n].rotation_quaternion.copy() for n in names},
+                   rig.pose.bones["Hips"].location.copy())
+    for f in (first - 1, last + 1):                    # hold the motion around it as it was
+        for n in names:
+            rig.pose.bones[n].rotation_quaternion = base[f][0][n]
+            rig.pose.bones[n].keyframe_insert("rotation_quaternion", frame=f)
+        rig.pose.bones["Hips"].location = base[f][1]
+        rig.pose.bones["Hips"].keyframe_insert("location", frame=f)
+    ident = Quaternion()
+    # the legs hang from the hips as the mocap has them (its pelvis tilt included, or every step would be
+    # tipped: feet high at the front of a step and through the floor at the back); the lower back takes the
+    # pelvis's mean tilt out again, so the trunk stands as it did
+    rest3 = {n: rig.data.bones[n].matrix_local.to_3x3().normalized() for n in ("Hips", "LowerBack")}
+    hips_to_back = rest3["Hips"].inverted() @ rest3["LowerBack"]
+    for f in frames:
+        ph, w = plan[f]
         a = amt[f]
-        if a < 0.01:
-            return {}
-        s, c = math.sin(ph), math.cos(ph)
-        hip = a * min(40, 18 + 9 * speed)
-        knee = a * min(75, 25 + 18 * speed)
-        out = {"LeftUpLeg": (0, -hip * s, 0), "RightUpLeg": (0, hip * s, 0),
-               "LeftLeg": (0, knee * max(0, c) ** 1.5 + 6 * a, 0), "RightLeg": (0, knee * max(0, -c) ** 1.5 + 6 * a, 0),
-               "LeftFoot": (0, -0.35 * knee * max(0, c) ** 1.5, 0), "RightFoot": (0, -0.35 * knee * max(0, -c) ** 1.5, 0),
-               "LowerBack": (0, a * min(14, 2 + 4 * speed), 0), "Spine": (3 * a * s, 0, 0)}
-        if f not in hands_busy:
-            arm = 0.7 * hip
-            out.update({"LeftArm": (0, arm * s, 0), "RightArm": (0, -arm * s, 0),
-                        "LeftForeArm": (0, -(12 + 18 * min(speed, 2.5)) * a, 0),
-                        "RightForeArm": (0, -(12 + 18 * min(speed, 2.5)) * a, 0)})
+        qs, bs = _cycle_at(slow, ph)
+        qf, bf = _cycle_at(fast, ph)
+        q0, loc0 = base[f]
+        tilt = slow["mean"]["Hips"].slerp(fast["mean"]["Hips"], w)
+        untilt = (hips_to_back.inverted() @ tilt.inverted().to_matrix() @ hips_to_back).to_quaternion()
+        for n in names:
+            walk = qs[n].slerp(qf[n], w)
+            if n in LEGS or n == "Hips":
+                q = q0[n] @ ident.slerp(walk, a)
+            else:
+                mean = slow["mean"][n].slerp(fast["mean"][n], w)
+                swing = ident.slerp(mean.inverted() @ walk, a * (0.7 if n in SPINE else free[f] if n in ARMS else 1.0))
+                q = q0[n] @ (ident.slerp(untilt, a) @ swing if n == "LowerBack" else swing)
+            pb = rig.pose.bones[n]
+            pb.rotation_quaternion = q
+            pb.keyframe_insert("rotation_quaternion", frame=f)
+        hb = rig.pose.bones["Hips"]
+        hb.location = loc0 + hips_rest.inverted() @ (bs.lerp(bf, w) * a)
+        hb.keyframe_insert("location", frame=f)
+
+    def lean(f):                     # forward into a hurry; back a little hauling something backward
+        return {"LowerBack": (0, amt[f] * (min(10.0, 1.5 + 3.5 * speed[f]) if step[f] >= 0 else -3.0), 0)}
+    humans._layer(rig, first, last, lean)
+    # which foot is down: the mocap's own footfalls while he walks, both while he stands
+    stance = {s: {} for s in ("Left", "Right")}
+    for f in frames:
+        ph, w = plan[f]
+        c = fast if w > 0.5 else slow
+        i = int(round((ph % 1.0) * c["frames"])) % c["frames"]
+        for s in stance:
+            stance[s][f] = c["stance"][s][i] if amt[f] > 0.3 else None
+    _plant_feet_world(humans, rig, first, last, amt, stance)
+
+
+def _plant_feet_world(humans, rig, start, end, amount, stance, floor=0.0, blend=3):
+    """humans.plant_feet for a body whose object is moved (that one locks feet in armature space, which here
+    moves with him). stance[side][frame]: True/False while he walks (the mocap's own footfalls), None while
+    he stands (both feet down). Each contact is locked to its average spot on the floor and the leg solved
+    with the toolkit's two-bone IK. While standing, a turn of the body becomes small steps: each foot is
+    picked up (a few cm) and set down again as the turn passes it, the left first. Before that the body is
+    lowered or raised, footfall by footfall, so planted balls rest on the floor (only while walking, via the
+    hips). He stands still at both ends of the range, so the locks meet the motion around it. Prints
+    how much planted feet slide before and after."""
+    import bpy
+    from mathutils import Vector
+    scene = bpy.context.scene
+    fps = scene.render.fps
+    sides = {"Left": ("LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase"),
+             "Right": ("RightUpLeg", "RightLeg", "RightFoot", "RightToeBase")}
+    names = ["Hips"] + [n for c in sides.values() for n in c]
+    rest = {b.name: b.matrix_local.copy() for b in rig.data.bones}
+    frames = list(range(start, end + 1))
+    n = len(frames)
+    hips_rest = rest["Hips"].to_3x3().normalized()
+
+    def sample():
+        pose, world = {}, {}
+        for f in frames:
+            scene.frame_set(f)
+            pose[f] = {b: rig.pose.bones[b].matrix.copy() for b in names}
+            world[f] = rig.matrix_world.copy()
+        balls = {s: {f: world[f] @ pose[f][c[3]].translation for f in frames} for s, c in sides.items()}
+        return pose, world, balls
+
+    def runs(flags):
+        out, i = [], 0
+        while i < n:
+            if flags[i]:
+                j = i
+                while j + 1 < n and flags[j + 1]:
+                    j += 1
+                if j - i >= 1:
+                    out.append((i, j))
+                i = j + 1
+            else:
+                i += 1
         return out
-    humans._layer(rig, first, last, offsets)
+
+    walking = {s: [stance[s][f] is not None for f in frames] for s in sides}
+    down = {s: [stance[s][f] is None or bool(stance[s][f]) for f in frames] for s in sides}
+
+    def skate(balls, locked):
+        """cm/s a locked foot still moves, and frames a free foot skims the floor (low and fast)."""
+        held, low = [], 0
+        for s in sides:
+            for i in range(1, n):
+                f, g = frames[i], frames[i - 1]
+                v = (balls[s][f].xy - balls[s][g].xy).length * fps
+                if f in locked[s] and g in locked[s]:
+                    held.append(v)
+                elif v > 0.4 and balls[s][f].z < floor + ball_rest + 0.01:
+                    low += 1
+        return 100 * sum(held) / max(1, len(held)), low
+
+    toe, ankle = rest["LeftToeBase"].translation.z, rest["LeftFoot"].translation.z
+    ball_rest = toe - min(toe, ankle) + 0.022                                   # ball joint height, foot flat
+    pose, world, balls = sample()
+    # the body's height, footfall by footfall: each walking stance should have its ball on the floor; how
+    # far off it is, blended between footfalls and only while walking, moves the hips
+    need = sorted(((i + j) / 2, (floor + ball_rest) - min(balls[s][frames[k]].z for k in range(i, j + 1)))
+                  for s in sides for i, j in runs([d and w for d, w in zip(down[s], walking[s])]))
+    lift = {}
+    for k, f in enumerate(frames):
+        if not need:
+            lift[f] = 0.0
+            continue
+        after = next((x for x in need if x[0] >= k), need[-1])
+        before_ = next((x for x in reversed(need) if x[0] <= k), need[0])
+        t = 0.0 if after[0] == before_[0] else (k - before_[0]) / (after[0] - before_[0])
+        lift[f] = max(-0.06, min(0.06, before_[1] + (after[1] - before_[1]) * t))
+    smooth = {f: sum(lift[frames[min(n - 1, max(0, k + d))]] for d in range(-5, 6)) / 11 for k, f in enumerate(frames)}
+    for f in frames:
+        scene.frame_set(f)
+        hb = rig.pose.bones["Hips"]
+        hb.location = hb.location + hips_rest.inverted() @ Vector((0, 0, smooth[f] * amount.get(f, 0)))
+        hb.keyframe_insert("location", frame=f)
+    pose, world, balls = sample()
+    heading = [world[f].to_euler().z for f in frames]
+    plans, locked = {}, {}
+    for side, (up, low, foot, _) in sides.items():
+        # contacts; a standing contact during which the body turns is cut into steps, staggered by foot
+        spans = []
+        first_cut = math.radians(25 if side == "Left" else 50)
+        for i, j in runs(down[side]):
+            # a contact that goes from walking to standing (or back) is two: the foot is set down again.
+            # Pieces under 3 frames join their neighbour (a speed hovering at the threshold, the first frames)
+            parts, a = [], i
+            for k in range(i + 1, j + 1):
+                if walking[side][k] != walking[side][k - 1]:
+                    parts.append([a, k - 1])
+                    a = k
+            parts.append([a, j])
+            merged = []
+            for p in parts:
+                if merged and (p[1] - p[0] < 2 or merged[-1][1] - merged[-1][0] < 2):
+                    merged[-1][1] = p[1]
+                else:
+                    merged.append(p)
+            for p, (a, b) in enumerate(merged):
+                a, b = a + (2 if p > 0 else 0), b - (1 if p < len(merged) - 1 else 0)
+                if b - a < 1:
+                    continue
+                if any(walking[side][a:b + 1]):
+                    spans.append((a, b, True))
+                    continue
+                cuts, turned, at, next_cut = [], 0.0, a, first_cut
+                for k in range(a + 1, b + 1):
+                    turned += abs((heading[k] - heading[k - 1] + math.pi) % (2 * math.pi) - math.pi)
+                    if turned >= next_cut and k - at >= 3 and b - k >= 3:
+                        cuts.append(k)
+                        at, next_cut = k, next_cut + math.radians(60)
+                edges = [a] + cuts + [b + 1]
+                for c, d in zip(edges, edges[1:]):
+                    spans.append((c + (2 if c != a else 0), d - 1 - (1 if d != b + 1 else 0), False))
+        spans.sort()
+        spots = [sum((balls[side][frames[k]] for k in range(i, j + 1)), Vector()) / (j - i + 1) for i, j, _ in spans]
+        for m, (i, j, _) in enumerate(spans):      # at the ends of the range: where the foot really is
+            if i == 0:
+                spots[m] = balls[side][frames[0]].copy()
+            elif j == n - 1:
+                spots[m] = balls[side][frames[-1]].copy()
+        weight, want = {}, {}                      # per frame: the lock's strength, where the ball goes
+
+        def put(k, w, ball_to):
+            f = frames[k]
+            if w > weight.get(f, 0.0):
+                weight[f] = w
+                want[f] = balls[side][f].lerp(ball_to, w)
+        for (i, j, _), spot in zip(spans, spots):
+            for k in range(max(0, i - blend), min(n, j + blend + 1)):
+                b = balls[side][frames[k]]
+                put(k, 1.0 if i <= k <= j else 1 - min(abs(k - i), abs(k - j)) / (blend + 1), Vector((spot.x, spot.y, b.z)))
+        for (i0, j0, w0), (i1, j1, w1), s0, s1 in zip(spans, spans[1:], spots, spots[1:]):
+            # a step between contacts when he stands, or starts or stops walking: lifted across
+            if 0 < i1 - j0 <= (8 if not (w0 and w1) else 0) and (s1 - s0).xy.length > 0.03:
+                for k in range(j0 + 1, i1):
+                    t = (k - j0) / (i1 - j0)
+                    u = t * t * (3 - 2 * t)
+                    p = s0.lerp(s1, u)
+                    p.z = max(s0.z, s1.z) + 0.045 * math.sin(math.pi * t)
+                    weight.pop(frames[k], None)
+                    put(k, 1.0, p)
+        # a foot moving fast doesn't skim the floor (the end of a swing as he slows, a low mocap swing, a lock
+        # blending in or out): checked on where it finally goes
+        clear = floor + ball_rest + 0.025
+        prev = balls[side][frames[0]]
+        for k in range(1, n):
+            f = frames[k]
+            p = want.get(f, balls[side][f]).copy()
+            v = (p.xy - prev.xy).length * fps
+            if v > 0.4 and p.z < clear:
+                p.z += (clear - p.z) * min(1.0, (v - 0.4) / 0.4)
+                want[f] = p
+            prev = p
+        target = {f: world[f].inverted() @ (world[f] @ pose[f][foot].translation + (p - balls[side][f]))
+                  for f, p in want.items()}
+        plans[side] = target
+        locked[side] = {frames[k] for i, j, _ in spans for k in range(i, j + 1)}
+    before = skate(balls, locked)
+    for side, (up, low, foot, _) in sides.items():
+        for f, t in plans[side].items():
+            humans._two_bone(rig, rest, pose[f], f, up, low, foot, t)
+    pose, world, balls = sample()
+    after = skate(balls, locked)
+    walk_lift = [smooth[f] for f in frames if amount.get(f, 0) > 0.5]
+    print(f"V3 feet: body raised {100 * sum(walk_lift) / max(1, len(walk_lift)):.1f} cm on average while walking; "
+          f"planted feet slide {before[0]:.1f} -> {after[0]:.1f} cm/s; free feet skimming the floor "
+          f"{before[1]} -> {after[1]} frames")
 
 
 def _yaw_to(src, dst):
@@ -782,7 +1129,7 @@ def _drop(lantern, frame, fps):
     m = lantern.matrix_world.copy()
     loc, rot = m.translation.copy(), m.to_euler()
     fall = math.sqrt(2 * max(0.01, loc.z) / 9.81)
-    n = max(2, int(fall * fps))
+    n = max(2, math.ceil(fall * fps))                         # its last falling frame is on the floor
     for i in range(n + 1):
         t = i / fps
         lantern.location = (loc.x, loc.y, max(0.0, loc.z - 0.5 * 9.81 * t * t))

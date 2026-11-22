@@ -48,6 +48,11 @@ blender -b blender/scenes/tell_tale_heart_v3_attack.blend --python stories/the_t
 - **Voices** are the first Piper takes, the only recordings of these lines; the narrator therefore
   sounds different from the v2 preview. `preview_v3/lines.json` makes the Chatterbox versions; the build
   uses them as soon as they exist.
+- **His steps are motion capture**, not keyed: one stride each of 100STYLE's plain and hurried walks
+  (Neutral, Rushed), put on his own skeleton by `humans.retarget()` and blended by speed. A Blender
+  add-on, "Retarget" (KBS-DEV, an Expy Kit fork), was tried first on the same clip: it gives the same
+  pose as `retarget()` (0.04° from the mocap either way) once the clip is sized by hand (its own fitting
+  makes these BVH skeletons 2.4 times too big), so it adds nothing here.
 - **The soundtrack is mixed inside Blender** (numpy; Blender's own decoder for the MP3s), from the
   film's sound cues, recorded Freesound takes, the synthesised score and the heartbeat runs, plus this
   scene's actions (the lantern landing, the body hitting the floor, the feather-bed dragged, the floor
@@ -59,7 +64,12 @@ blender -b blender/scenes/tell_tale_heart_v3_attack.blend --python stories/the_t
 |---|---|---|
 | Hands could not stay on someone moving | `reach()` read the body's position once, at the call | It reads it per frame (characters that don't move behave exactly as before; self-check passes) |
 | Two people holding each other | Each one's hands follow the other's body | The narrator's hands follow the old man's shoulders (which his arms don't move); then the old man's hands follow the narrator's forearms |
-| Walking, running, kneeling for our rigs | Mocap clips can't be blended between segments here | A procedural gait layered on a path (stride and cadence from speed, backward steps reverse the cycle, arms swing only when free) and a kneel layer; sign conventions measured first |
+| Walking, hurrying, kneeling for our rigs | His path (a dash, a haul backward, turns, short walks) is set by the story's beats; no clip fits it | First a procedural gait; now mocap (below). A kneel layer; sign conventions measured first |
+| His feet skated: measured, the planted foot slid 115 cm/s in the dash and 64 cm/s round the bed | The procedural gait swung the legs while the body was slid along the path; nothing tied a step to the ground it covered | A mocap stride advances with the distance the body covers, so each step is as long as the ground gained (backward plays it backward, faster than the hurried walk raises the cadence). Then each foot is locked to the floor for as long as the mocap has it down (`plant_feet()` works in armature space, which here moves with him, so a world-space version is in the scene builder), the body's height set footfall by footfall, a free foot kept off the floor. Locked feet now move 1.4 cm/s; a free foot skims the floor in 5 frames (was 72) |
+| Finding one clean stride in a clip | The first picks lay on a curve (the actor turning at the end of the capture area: steps over-long, the hips swaying 18 cm) or spanned 1¼ strides | A stride runs from one left footfall to the next, with the right one about halfway, on straight walking; the most typical length is used |
+| Feet in the air while planted, through the floor behind | Only the hips' swing about its mean was used, dropping the pelvis's steady tilt, which tipped every step | The hips take the mocap's rotation as the legs do; the lower back takes the mean tilt out again |
+| Standing still and turning on the spot | A turn counted as walking made him stride while only his body turned | Turns no longer advance the stride; standing, both feet are locked and a turn becomes two small lifted steps, left then right; so is the step that ends or starts a walk |
+| The lantern landed turned the other way and 16 cm above the floor; the room went darker in 3.18 | He lets go of it after the dash begins, so his arm swing moved the drop; the fall was a frame short (the old one stopped 4.4 cm up too) | His arms stay out of the swing until just after he lets go; the fall ends on the floor |
 | The blanket swung like a wing while he kicked | It was attached to his thigh | It has its own shape keys: flat once his legs leave, then lifted and draped with the feather-bed it lies on |
 | His raised arms went through the feather-bed | They were still up as it came over | Arms come down as the feather-bed is pulled |
 | The feather-bed has to lie on a body | It is a rigid model | Shape keys: "pulled" (near side lifted toward his hands), "draped" and "pressed" (below) |
@@ -79,7 +89,10 @@ blender -b blender/scenes/tell_tale_heart_v3_attack.blend --python stories/the_t
   wrist-to-top while pressing, the palm on it; ~2 cm higher for a moment as he pants just after the
   heart stops) and on the chest in 3.21 (on it); his knees clear the old man's hand by 20 cm; the old
   man's hands at hip height under it. There is no full collision pass like v2's.
-- **The gait is procedural**: the feet slide a little, most visible from above in 3.18.
+- **The dash in 3.17 is a hurried walk played about 1.4 times fast** (2.8 m/s): there is no running clip
+  here. The full CMU library (`scripts/download_film_kit.sh`, about 2 GB) has runs.
+- **Kneeling, the toes of his shoes dip about 3.5 cm into the floor** (the kneel layer; before the new
+  steps it was 5.4 cm on the right).
 - **The feather-bed** shows a brief crease while it changes from "pulled" to "draped", and it is a shape,
   not cloth: it does not move when he twitches under it, so his twitches are kept small (his bare feet,
   out from under it, show them). Two pillows sink 1–2.5 cm into its near edge where it still lies on the
