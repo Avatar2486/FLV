@@ -252,6 +252,29 @@ wiping his tense expression.
 | Rise, 1.1 s (startled, so fast) | The head lifts first (neck flexion peaks at 26%). He turns about 9° toward the door and props on his right elbow; the right hand, then the left, goes to the mattress beside his hips and pushes. The trunk curls to 37° at 54%, then straightens to about 15° as the hips lift him to sitting. The head comes upright. The knees draw up late (hip about 20°, knee about 40° under the blanket, which rises with them). |
 | End | A small settle. His hands stay planted behind him as he sits listening, and his eyes and head turn to the door. |
 
+## Talking hands: `gestures()`, `listen()`
+
+What went wrong first, and what the research says instead.
+
+| Finding | Source | How it is used |
+|---|---|---|
+| A gesture is preparation, stroke, holds, retraction; only the stroke is required | Kendon; McNeill | One gesture per phrase; it holds through the phrase and retracts at a pause over 0.5 s |
+| The stroke comes on or just before the stressed syllable (80-90% overlap); peak hand speed slightly leads the pitch peak | Frontiers in Psychology 2018; MPI (Pouw et al.) | The stroke lands 1-3 frames before each stress found in the voice (`stress_times()`) |
+| Beats are short, uniformly fast flicks; bigger gestures last longer | Myslyvyi et al. (DGfS 2026) | Later stresses in a phrase are quick flicks on the held gesture |
+| Palm up (Kendon's "open hand supine") offers, shows, presents a topic; palm down ("open hand prone") halts, denies, interrupts | Kendon 2004; Mueller 2004 (PUOH) | Friendly talk is palm up; a raised hand is never palm down (self-check) |
+| The default beat is an open palm flicking up and down | Shattuck-Hufnagel et al.; McNeill | Beats: open palm turned up and in |
+| Seated conversation is compact | Glasgow study of seated vs standing interaction | Gestures stay in front of the chest, elbows in, below the shoulders (self-check) |
+| Gestures lean into the space shared with the listener | Haviland | Each gesture is angled toward the person spoken to |
+| A relaxed hand is never flat: the flexion cascade, least bent at the index; the wrist rests 15-20 degrees extended | Varghese et al. 2020 (MCP/PIP/DIP, degrees: index 27/39/14, middle 33/41/14, ring 29/45/14, little 26/43/16) | `RELAXED_HAND`; open hands are that cascade loosened to 35%, not straightened |
+| Animators: no flat "spatula hands", no twinning, hands in arcs, wrists lead, fingers drop at different times; motion passes shoulder, elbow, wrist, fingers ("successive breaking of joints") | AnimSchool; Art Babbitt / Richard Williams | Arcs on every move, the palm turns as the hand leaves the lap, fingers settle after the wrist and one after another, the second hand 2 frames behind |
+| Angry gestures are larger, faster and higher | Wallbott 1998 | energy >= 0.6: chop, fist, both arms spread, higher, quicker |
+
+**Mistakes on the way (each seen in renders, then measured):**
+1. Replaying a standing actor's mocap joint rotations on a seated arm swung the arms out sideways, straight, with flat fingers (the CMU data has no fingers). Replaced with hand paths in the speaker's own body space, reached by arm IK.
+2. The first body-space poses were too low: seated hands already rest about 30 cm in front of and 25 cm below the chest, so a gesture moved a hand only 6 cm. Poses now rise to chest height.
+3. Beats were palm down. A raised palm-down hand says "stop" or "no". Beats are now open palm up and in, and the self-check fails on any raised palm-down hand in calm talk.
+4. Fingers were one uniform curl. They now follow the measured cascade.
+
 ## Light and grain (Eevee, Blender 5.3)
 - **The speckle came from the moon light's size.** Fine grain on every moonlit surface came from the
   shadows of the large (1.2 × 1.4 m) area light.
@@ -298,3 +321,17 @@ wiping his tense expression.
 - [Skeleton-Aware Networks: contact locking](https://arxiv.org/pdf/2005.05732)
 - [UnderPressure: foot contact](https://arxiv.org/pdf/2208.04598)
 - [Sneak walk animation (Animation Mentor)](https://www.animationmentor.com/blog/tutorial-animating-sneak-walk-cycle-with-personality/)
+
+- [Kendon, open hand prone and supine families (Stand-up Gestures, Core)](https://files.core.ac.uk/download/14478518.pdf)
+- [Forms and uses of the palm up open hand (ResearchGate)](https://www.researchgate.net/publication/284239036_Forms_and_uses_of_the_palm_up_open_hand_A_case_of_a_gesture_family)
+- [Two gesture families of the open hand (Cambridge)](https://www.cambridge.org/core/books/abs/gesture/two-gesture-families-of-the-open-hand/C9BDAFEA757966C69DD41ACEA26FDBBA)
+- [Deconstructing beat gestures (Shattuck-Hufnagel et al.)](https://www.researchgate.net/publication/325744410_Deconstructing_beat_gestures_a_labelling_proposal)
+- [Gesture-speech timing (Frontiers in Psychology 2018)](https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2018.01514/full)
+- [Gesture-speech physics (Pouw et al.)](https://par.nsf.gov/servlets/purl/10281439)
+- [Quantifying gesture-speech synchrony (MPI)](https://forms.mpi.nl/node/52691)
+- [Beat-like vs prominent gestures (Myslyvyi et al.)](https://www.uni-trier.de/fileadmin/fb2/DGF/AGs/AG01/DGfS2026_AG1_04_Myslyvyietal.pdf)
+- [Seated vs standing interaction (Glasgow)](https://eprints.gla.ac.uk/396600/1/396600.pdf)
+- [Gesture and interactional space (Haviland)](https://pages.ucsd.edu/~jhaviland/Publications/HavilandGesture.pdf)
+- [Finger flexion cascade norms (Varghese et al., JCDR 2020)](https://jcdr.net/ReadXMLFile.aspx?id=13677)
+- [Hand animation tips (AnimSchool)](https://blog.animschool.edu/tag/hand-animation/)
+- [Successive breaking of joints (Animation Apprentice)](https://animationapprentice.blogspot.com/2019/04/what-is-successive-breaking-of-joints.html)
