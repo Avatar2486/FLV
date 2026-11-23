@@ -1368,9 +1368,12 @@ def stress_times(wav):
 
 def gesture_bank(rig, clips=None):
     """Gesture units from CMU clips, for rigs built like `rig` (the units are bone-local rotations, so any rig
-    of the same character shares them). Each clip is baked on a scratch copy of the skeleton; its rest is the
-    stillest second of the clip; it is cut at the hands' slowest moments into units 0.6-2.5 s long whose
-    fastest hand moves over 0.4 m/s. A unit: id, clip, energy, stroke (sample of the fastest hand), n, rot."""
+    of the same character shares them). Each clip is baked on a scratch copy of the skeleton and cut at the hands'
+    slowest moments into units 0.6-2.5 s long whose fastest hand moves over 0.4 m/s. A unit's rotations are
+    relative to its own first sample, so it starts from wherever the arms are (seated with the hands on the
+    thighs, standing, holding something) and moves out and back from there; measured from the clip's stillest
+    second instead, an actor's arms simply hanging became a big 'gesture' that dragged a seated hand down beside
+    the hip. A unit: id, clip, energy, stroke (sample of the fastest hand), n, rot."""
     import numpy as np
     scene = bpy.context.scene
     fps = scene.render.fps
@@ -1399,20 +1402,13 @@ def gesture_bank(rig, clips=None):
         for i in range(1, n):
             speed[i] = max((hands[i][k] - hands[i - 1][k]).length for k in (0, 1)) * fps
         speed = np.convolve(speed, np.ones(5) / 5, mode="same")
-        quiet = int(np.argmin(np.convolve(speed, np.ones(fps), mode="valid"))) if n > fps else 0
-        rest = {}
-        for b in GESTURE_BONES:                      # mean rotation over the stillest second
-            acc = Vector((0, 0, 0, 0))
-            for q in rot[b][quiet: quiet + fps]:
-                acc += Vector(q) if Vector(q).dot(acc) >= 0 else -Vector(q)
-            rest[b] = Quaternion(acc).normalized()
         cuts = [0] + [i for i in range(2, n - 2) if speed[i] == speed[i - 2: i + 3].min()] + [n - 1]
         for a, b in zip(cuts, cuts[1:]):
             if not (0.6 * fps <= b - a <= 2.5 * fps) or speed[a:b].max() < 0.4:
                 continue
             units.append({"id": f"{clip}:{a}", "clip": clip, "energy": energy, "n": b - a,
                           "stroke": int(np.argmax(speed[a:b])),
-                          "rot": {bone: [rest[bone].inverted() @ q for q in rot[bone][a:b]] for bone in GESTURE_BONES}})
+                          "rot": {bone: [rot[bone][a].inverted() @ q for q in rot[bone][a:b]] for bone in GESTURE_BONES}})
     return units
 
 
@@ -1703,6 +1699,9 @@ def _selfcheck_gestures():
         before[f] = {n: rig.pose.bones[n].rotation_quaternion.copy() for n in left}
     bank = gesture_bank(rig, {"18_08": "calm", "19_08": "calm"})
     assert len(bank) >= 3, f"only {len(bank)} gesture units"
+    for u in bank:            # a unit starts from wherever the arms are (seated, holding, standing): no offset at 0
+        assert all(q[0].angle < 1e-4 or abs(q[0].angle - 2 * math.pi) < 1e-4 for q in u["rot"].values()), \
+            f"unit {u['id']} does not start from the arms' own pose"
     strokes = gestures(rig, wav, 1, hands=("Right",), bank=bank)
     assert strokes, "no strokes"
     for f in strokes:

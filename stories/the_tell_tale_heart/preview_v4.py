@@ -210,7 +210,7 @@ def star_badge(coll, rig, size=0.04):
 # Blocking, per shot: (x, y, heading). Heading 0 faces -y, 90 faces +x. The sets sit side by side
 # (sets.SET_X): the entry hall at x 40 (street door south, stair up the west wall), the kitchen at x 60,
 # the old man's chamber at x 0 (door south, bed north, loose planks at x -1.2..0, y -0.27..0.27).
-SEATS = {"Narrator": (-0.6, 0.0), "Hale": (0.55, -0.35), "Brandt": (-0.05, 0.95), "Mercer": (0.0, -1.05)}
+SEATS = {"Narrator": (-0.6, 0.0), "Hale": (0.65, -0.3), "Brandt": (-0.05, 0.95), "Mercer": (-0.05, -1.15)}
 SEAT_FOCUS = {"Narrator": (0.25, -0.2), "Hale": (-0.3, -0.1), "Brandt": (-0.1, -0.3), "Mercer": (-0.2, 0.0)}
 OUTSIDE = {"Hale": (40.0, -2.8, 180), "Brandt": (39.45, -3.1, 180), "Mercer": (40.6, -3.2, 180)}
 PLACES = {
@@ -584,8 +584,8 @@ def _feet_down(ctx, rig, frame, drop):
 
 
 def _hands_on_thighs(ctx, rig, frame, skip=()):
-    """Seated hands at rest: each wrist just above the thigh, two thirds of the way to the knee, the palm down and
-    the fingers along the thigh (arm IK, keyed at `frame`). The mocap's own seated arms were mid-gesture."""
+    """Seated hands at rest: each wrist just above the thigh, three quarters of the way to the knee, the palm down and
+    the fingers along the thigh, past the seat edge (arm IK, keyed at `frame`). The mocap's own seated arms were mid-gesture."""
     bpy, humans = ctx["bpy"], ctx["humans"]
     from mathutils import Vector
     bpy.context.scene.frame_set(frame)
@@ -596,7 +596,7 @@ def _hands_on_thighs(ctx, rig, frame, skip=()):
             continue
         hip, knee = pb[f"{side}UpLeg"].head, pb[f"{side}Leg"].head
         along = (knee - hip).normalized()
-        target = hip.lerp(knee, 0.62) + Vector((0.025 * out, 0, 0.085))
+        target = hip.lerp(knee, 0.75) + Vector((-0.01 * out, 0, 0.10))        # on the thigh near the knee, past the seat edge
         chain = (f"{side}Arm", f"{side}ForeArm", f"{side}Hand")
         pose = {n: pb[n].matrix.copy() for n in chain + (pb[chain[0]].parent.name,)}
         hand = humans.hand_frame(along + Vector((0, 0, -0.35)), Vector((0, 0, -1)))
@@ -693,7 +693,7 @@ def _converse(ctx, lines, a, b, energy, idle, seated=True):
         others = [p[1] for e in events if e[2] != n for p in phrases[e]]
         humans.listen(rig, a, b, rig, phrase_ends=others, seed=_seed(n, 89), gaze=False,
                       shift="LowerBack" if seated else "Hips")
-        humans.sway(rig, a, b, amount=0.45 if seated else 0.8, seed=_seed(n, 83))
+        humans.sway(rig, a, b, amount=0.7 if seated else 0.8, seed=_seed(n, 83))
     if not events:
         return events, phrases
     cache = ctx["cache"]
