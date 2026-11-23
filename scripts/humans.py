@@ -1373,7 +1373,8 @@ def gesture_bank(rig, clips=None):
     relative to its own first sample, so it starts from wherever the arms are (seated with the hands on the
     thighs, standing, holding something) and moves out and back from there; measured from the clip's stillest
     second instead, an actor's arms simply hanging became a big 'gesture' that dragged a seated hand down beside
-    the hip. A unit: id, clip, energy, stroke (sample of the fastest hand), n, rot."""
+    the hip. A unit: id, clip, energy, stroke (sample of the fastest hand), n, rot, drop (how far each hand,
+    left and right, goes below where it started: a seated person can't gesture down into the lap)."""
     import numpy as np
     scene = bpy.context.scene
     fps = scene.render.fps
@@ -1408,7 +1409,8 @@ def gesture_bank(rig, clips=None):
                 continue
             units.append({"id": f"{clip}:{a}", "clip": clip, "energy": energy, "n": b - a,
                           "stroke": int(np.argmax(speed[a:b])),
-                          "rot": {bone: [rot[bone][a].inverted() @ q for q in rot[bone][a:b]] for bone in GESTURE_BONES}})
+                          "rot": {bone: [rot[bone][a].inverted() @ q for q in rot[bone][a:b]] for bone in GESTURE_BONES},
+                          "drop": tuple(max(hands[a][k].z - hands[i][k].z for i in range(a, b)) for k in (0, 1))})
     return units
 
 
@@ -1420,19 +1422,25 @@ def _sample(unit, s):
     return {bone: qs[a].slerp(qs[b], s - a) for bone, qs in unit["rot"].items()}
 
 
-def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), bank=None, seed=1):
+def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), bank=None, seed=1, max_drop=None):
     """Co-speech gestures for a voice line starting at start_frame: a gesture unit's stroke lands 1-3 frames
     before each stressed syllable (stress_times), a unit never twice in a row; between strokes inside a
     phrase the hands hold, and only across pauses over 0.5 s do they go back to rest. energy 0..1: size
     (0.5 + energy times the captured motion) and speed (0.8 + 0.4 energy); energy >= 0.6 uses the agitated
     (quarrel) units. Only the bones of `hands` (plus spine, neck, head) move: a hand holding something stays.
-    The head nods 2-4 degrees on each stroke. Returns the stroke frames; the units used are in rig["gesture_log"]."""
+    The head nods 2-4 degrees on each stroke. max_drop (m): only units that lower the used hands no more than this
+    (seated, hands on the lap: a gesture going down would go into the thighs or the chair). Returns the stroke
+    frames; the units used are in rig["gesture_log"]."""
     import numpy as np
     rng = random.Random(seed)
     fps = bpy.context.scene.render.fps
     bank = bank or gesture_bank(rig)
     kind = "agitated" if energy >= 0.6 else "calm"
     pool = [u for u in bank if u["energy"] == kind] or bank
+    if max_drop is not None:
+        sides = [k for k, s in enumerate(("Left", "Right")) if s in hands]
+        low = [u for u in pool if all(u["drop"][k] <= max_drop for k in sides)]
+        pool = low if len(low) >= 2 else sorted(pool, key=lambda u: max(u["drop"][k] for k in sides))[:2]
     times, _, _, voiced = _voicing(wav)
     pauses, run = [], None                            # unvoiced runs over 0.5 s, in scene frames
     for t, v in zip(times, voiced):
@@ -1708,6 +1716,10 @@ def _selfcheck_gestures():
         assert any(b * fps + 1 - 0.15 * fps - 1 <= f <= b * fps + 1 + 1 for b in bursts), f"stroke at {f} off the stress"
     log = list(rig["gesture_log"])
     assert all(a != b for a, b in zip(log, log[1:])), f"unit repeated: {log}"
+    seated = build({"name": "SeatedGestureCheck", "character": "Narrator"}, location=(-3, 0, 0))
+    gestures(seated, wav, 1, hands=("Right",), bank=bank, max_drop=0.02)      # seated: never down into the lap
+    drops = {u["id"]: u["drop"] for u in bank}
+    assert all(drops[i][1] <= 0.02 for i in seated["gesture_log"]), "a seated gesture lowers the hand"
     for f in range(1, 73):
         scene.frame_set(f)
         for n in left:

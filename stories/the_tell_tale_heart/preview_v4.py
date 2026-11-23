@@ -699,12 +699,16 @@ def _converse(ctx, lines, a, b, energy, idle, seated=True):
     cache = ctx["cache"]
     if "bank" not in cache:
         cache["bank"] = humans.gesture_bank(ctx.get("all_rigs", rigs)["Narrator"])
+        both = [u for u in cache["bank"] if max(u["drop"]) <= 0.02]
+        print(f"V4 gestures: {len(cache['bank'])} units, {len(both)} that keep both hands up "
+              f"({sum(u['energy'] == 'calm' for u in both)} calm, {sum(u['energy'] == 'agitated' for u in both)} agitated)")
     bank = cache["bank"]
     for e in events:
         f0, f1, spk, wav = e
         free = ctx.get("busy_hands", {}).get(spk, ())
         humans.gestures(rigs[spk], wav, f0, energy=energy.get(spk, 0.4),
-                        hands=tuple(s for s in ("Left", "Right") if s not in free), bank=bank, seed=f0)
+                        hands=tuple(s for s in ("Left", "Right") if s not in free), bank=bank, seed=f0,
+                        max_drop=0.02 if seated else None)       # seated: out and up from the lap, never into it
     return events, phrases
 
 
