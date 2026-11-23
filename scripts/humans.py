@@ -526,12 +526,18 @@ def _layer(rig, start, end, offsets, local=False):
 def eyes(rig, start, end, mode="talking", look=(0.0, 0.0), pauses=(), seed=1, fps=24, head=True):
     """Gaze, saccades, eyelids and blinks for frames start..end. `look` = where mutual gaze points, as
     (degrees to the character's left, degrees up) from straight ahead; `pauses` = frames where speech
-    pauses (blinks gather there). Head turns join big gaze shifts unless head=False."""
+    pauses (blinks gather there). Head turns join big gaze shifts unless head=False. `look` and `mode` may
+    also be functions of the frame (whom to look at and how, as a scene goes on): one call then covers a whole
+    scene and the head turns smoothly from one person to the next instead of snapping back between calls."""
     rng = random.Random(seed)
-    (mm, ms), (am, asd), blink_rate, biggest = GAZE_MODES[mode]
+    look_at = look if callable(look) else (lambda f, v=tuple(look): v)
+    mode_at = mode if callable(mode) else (lambda f, m=mode: m)
+    blink_rate = GAZE_MODES[mode_at(start)][2]
     meshes = face_meshes(rig)
     targets, f, away = [], float(start), False          # alternate mutual-gaze and gaze-away spells
     while f < end:
+        (mm, ms), (am, asd), _, biggest = GAZE_MODES[mode_at(f)]
+        look = look_at(f)
         if away:
             size = min(rng.expovariate(1 / 6.9), biggest)                      # P(A) ~ e^(-A/6.9)
             angle = math.radians(rng.choices([d for d, _ in SACCADE_DIRS], [w for _, w in SACCADE_DIRS])[0])
@@ -539,7 +545,13 @@ def eyes(rig, start, end, mode="talking", look=(0.0, 0.0), pauses=(), seed=1, fp
         else:
             targets.append((f, tuple(look)))
         mean, sd = (am, asd) if away else (mm, ms)
-        f += max(0.12, rng.gauss(mean, sd)) * fps
+        nxt = f + max(0.12, rng.gauss(mean, sd)) * fps
+        moved = next((g for g in range(int(f) + 1, int(min(nxt, end))) if
+                      math.hypot(look_at(g)[0] - look[0], look_at(g)[1] - look[1]) > 2.0), None)
+        if moved is not None:                         # the person to look at changed: look at them now
+            f, away = float(moved), False
+            continue
+        f = nxt
         away = not away
     plans, head_now, previous = [], (0.0, 0.0), (0.0, 0.0)
     for f, gaze in targets:
@@ -1495,10 +1507,11 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), bank=No
     return [int(round(p["stroke"])) for p in placed]
 
 
-def listen(rig, start, end, speaker_rig, phrase_ends=(), seed=1):
+def listen(rig, start, end, speaker_rig, phrase_ends=(), seed=1, gaze=True):
     """A listener: gaze on the speaker's head with the listening statistics of eyes() (long mutual gaze, short
     glances away), a nod (3-6 degrees, ~0.5 s) at the speaker's phrase ends (the first always, then 70%),
-    and a slow weight shift (hips roll 1-2 degrees) every 4-8 s."""
+    and a slow weight shift (hips roll 1-2 degrees) every 4-8 s. gaze=False: only the nods and weight shifts
+    (the gaze then comes from one eyes() call over the whole scene)."""
     fps = bpy.context.scene.render.fps
     bpy.context.view_layer.update()
     me = rig.matrix_world @ rig.pose.bones["Head"].head
@@ -1506,7 +1519,8 @@ def listen(rig, start, end, speaker_rig, phrase_ends=(), seed=1):
     d = rig.matrix_world.inverted().to_3x3() @ (them - me)      # armature space: faces -Y, +X is its left
     yaw = math.degrees(math.atan2(d.x, -d.y))
     pitch = math.degrees(math.atan2(d.z, math.hypot(d.x, d.y)))
-    eyes(rig, start, end, mode="listening", look=(yaw, pitch), seed=seed)
+    if gaze:
+        eyes(rig, start, end, mode="listening", look=(yaw, pitch), seed=seed)
     rng = random.Random(seed + 1)
     nods = [(f, rng.uniform(3, 6)) for k, f in enumerate(phrase_ends)
             if start <= f <= end and (k == 0 or rng.random() < 0.7)]
@@ -1717,6 +1731,19 @@ def _selfcheck_gestures():
     assert nod >= 3.0, f"listener nod only {nod:.1f} deg"
     print(f"humans gestures OK: {len(found)} stresses, strokes on time, held hand still, listener nods "
           f"({len(bank)} units; strokes {strokes}; nod {nod:.1f} deg)")
+
+    # eyes() with a look target and gaze mode that change over time (one call per character per scene, so the
+    # head never snaps back to centre between spans): far left until frame 60, then far right
+    looker = build({"name": "LookCheck", "character": "Narrator"}, location=(6, 0, 0))
+    eyes(looker, 1, 140, mode=lambda f: "listening", look=lambda f: (40.0, 0.0) if f < 60 else (-40.0, 0.0), seed=3)
+
+    def gaze(f):
+        scene.frame_set(f)
+        return looker.pose.bones["LeftEye"].matrix.to_3x3() @ Vector((0, 1, 0))
+    early, late = gaze(50), gaze(130)
+    turned = math.degrees(early.angle(late))
+    assert turned > 30, f"gaze did not follow the moving target ({turned:.1f} deg)"
+    print(f"humans eyes OK: gaze follows a moving target ({turned:.0f} deg between targets)")
 
 
 if __name__ == "__main__" and "--selfcheck" in sys.argv:
