@@ -1315,17 +1315,29 @@ CMU_LIBRARY = ROOT / "assets" / "mocap" / "library" / "cmu"
 # Heights: most gestures happen at the centre of the gesture space, about chest height (McNeill 1992); a seated
 # person's hands rest on the thighs, already ~30 cm in front of and ~25 cm below the chest, so a gesture has to
 # come clearly up off the lap (the first poses here, 10 cm lower, moved a hand only 6 cm: nothing to see).
+# Palms carry meaning: palm up (Kendon's "open hand supine") offers, shows, presents a topic - friendly talk;
+# palm down ("open hand prone") halts, denies, interrupts - never for a raised hand in friendly talk. The default
+# beat is an open palm flicking up and down (Shattuck-Hufnagel et al.; McNeill): here palm up, turned in ("upin").
 GESTURES = {
     "offer": dict(at=(0.32, -0.06, 0.16), palm="up", fingers="open", dip=0.03),       # palm-up open hand
     "present": dict(at=(0.30, -0.05, 0.22), palm="up", fingers="open", dip=0.025, both=True),
-    "beat": dict(at=(0.28, -0.10, 0.14), palm="down", fingers="relaxed", dip=0.04),   # small flicks, palm down
+    "beat": dict(at=(0.28, -0.09, 0.14), palm="upin", fingers="open", dip=0.04),      # open palm, up and in, flicking
     "chop": dict(at=(0.34, 0.04, 0.14), palm="in", fingers="open", dip=0.09),         # agitated: the edge chops
-    "fist": dict(at=(0.30, 0.06, 0.12), palm="down", fingers="fist", dip=0.08),
+    "fist": dict(at=(0.30, 0.06, 0.12), palm="in", fingers="fist", dip=0.08),         # knuckles forward
     "spread": dict(at=(0.26, 0.10, 0.32), palm="up", fingers="open", dip=0.05, both=True),
 }
 NEW_GESTURE_AFTER = 1.6     # s: a long phrase gets a fresh gesture on a stress this long after the last one
-CALM, AGITATED = (("offer", 0.5), ("beat", 0.3), ("present", 0.2)), (("chop", 0.4), ("fist", 0.3), ("spread", 0.3))
-FINGER_CURL = {"open": 0.06, "relaxed": 0.35, "fist": 1.1}
+CALM, AGITATED = (("offer", 0.45), ("beat", 0.3), ("present", 0.25)), (("chop", 0.4), ("fist", 0.3), ("spread", 0.3))
+# Finger shapes, degrees at (knuckle MCP, middle PIP, tip DIP). A relaxed hand is never flat: it rests in the
+# flexion cascade, least bent at the index (measured means, non-power-grip adults, dominant hand: Varghese et al.,
+# J Clin Diagn Res 2020, 14(5) YC01; the wrist rests 15-20 degrees extended). An open gesturing hand is that
+# cascade loosened, not straightened ("loosely extended", Kendon; animators: no flat "spatula hands").
+RELAXED_HAND = {"Thumb": (15, 12, 10), "Index": (27, 39, 14), "Middle": (33, 41, 14), "Ring": (29, 45, 14),
+                "Pinky": (26, 43, 16)}
+HAND_SHAPES = {"relaxed": RELAXED_HAND,
+               "open": {k: tuple(round(a * 0.35) for a in v) for k, v in RELAXED_HAND.items()},
+               "fist": {"Thumb": (30, 35, 25), "Index": (85, 100, 70), "Middle": (88, 100, 70), "Ring": (88, 100, 70),
+                        "Pinky": (85, 95, 65)}}
 
 
 def _voicing(wav):
@@ -1384,14 +1396,15 @@ def stress_times(wav):
     return sorted(round(float(times[i]), 3) for i in kept)
 
 
-def _finger_shape(rig, side, frame, curl):
-    """Key every finger joint of one hand at `frame` to a curl (0 straight .. 1 a loose hook, GRIP), from rest."""
-    for finger, degs in GRIP.items():
+def _finger_shape(rig, side, frame, shape):
+    """Key one hand's fingers to a HAND_SHAPES shape at `frame`, the fingers settling one after another (index
+    first, little finger 3 frames later: fingers don't move as one block)."""
+    for k, (finger, degs) in enumerate(HAND_SHAPES[shape].items()):
         for j, deg in enumerate(degs, 1):
             pb = rig.pose.bones.get(f"{side}Hand{finger}{j}")
             if pb is not None:
-                pb.rotation_quaternion = Quaternion((1, 0, 0), math.radians(deg * curl * (0.5 if finger == "Thumb" else 1)))
-                pb.keyframe_insert("rotation_quaternion", frame=frame)
+                pb.rotation_quaternion = Quaternion((1, 0, 0), math.radians(deg))
+                pb.keyframe_insert("rotation_quaternion", frame=frame + max(0, k - 1))
 
 
 def _gesture_units(wav, start_frame, energy, hands, seed, fps):
@@ -1443,8 +1456,9 @@ def _gesture_units(wav, start_frame, energy, hands, seed, fps):
 def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=None, seed=1):
     """Co-speech gestures for a voice line starting at start_frame (see the research above): per phrase, a hand
     (or both) rises from where it rests into the space in front of the chest, angled toward `toward` (the
-    listener's head, a world point), the palm and fingers shaped for the gesture (palm-up open hand, palm-down
-    beats; agitated: chop, fist, spread), arriving with a small flick 1-3 frames before the stressed syllable;
+    listener's head, a world point), the palm and fingers shaped for the gesture (palm-up open hand, open-palm
+    beats turned up and in; agitated: chop, fist, spread), in an arc, the palm turning as the hand leaves the lap
+    and the fingers settling after the wrist, arriving with a small flick 1-3 frames before the stressed syllable;
     later stresses in the phrase are quick beats; it holds (drifting a little) through the phrase and goes back
     to rest at a pause over 0.5 s. energy 0..1: calm (small, low) to agitated (>= 0.6: larger, higher, faster).
     Only the hands in `hands` move (one holding something stays put). The head nods 2-4 degrees on each stroke.
@@ -1456,7 +1470,7 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
     rig["gesture_log"] = []
     if not units:
         return []
-    size = (0.75 + 0.5 * energy) * rig.matrix_world.to_scale().x
+    base_size = (0.75 + 0.5 * energy) * rig.matrix_world.to_scale().x
     prep = (0.22 if energy >= 0.6 else 0.35) * fps
     back = (0.35 if energy >= 0.6 else 0.5) * fps
     strokes = []
@@ -1464,6 +1478,10 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
         mine = [u for u in units if side in u["hands"]]
         if not mine:
             continue
+        twin = side == "Left"                        # two-handed: the left hand 2 frames behind and a little smaller
+        size = base_size * (0.92 if twin else 1.0)
+        mine = [dict(u, stroke=u["stroke"] + 2, beats=[b + 2 for b in u["beats"]], hold=u["hold"] + 2)
+                if twin and len(u["hands"]) == 2 else u for u in mine]
         keys, pose = [], None                        # (frame, kind or None for rest)
         for i, u in enumerate(mine):
             begin = max(u["stroke"] - prep, keys[-1][0] + 2 if keys else start_frame - prep)
@@ -1501,9 +1519,7 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
             p = chest + fwd * a * size + Vector((0, 0, b * size)) + out * c * size
             p += Vector((0, 0, 0.012 * math.sin(2 * math.pi * 0.4 * f / fps + (1 if side == "Left" else 0))))
             fingers = fwd + out * 0.25 + Vector((0, 0, -0.15))
-            palm = {"up": Vector((0, 0, 1)), "down": Vector((0, 0, -1)), "in": -out}[g["palm"]]
-            if g["palm"] == "down":
-                fingers = fwd + out * 0.15 + Vector((0, 0, -0.35))
+            palm = {"up": Vector((0, 0, 1)), "upin": Vector((0, 0, 0.75)) - out * 0.65, "in": -out}[g["palm"]]
             return p, hand_frame(fingers, palm)
 
         def at(f):
@@ -1512,10 +1528,16 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
                     pa = place(ka, f) if ka else rest[f]
                     if ka == kb:
                         return pa, 1.0 if ka else 0.0
-                    w = min(1.0, max(0.0, (f - fa) / max(fb - fa, 1)))
-                    w = w * w * (3 - 2 * w)
+                    raw = min(1.0, max(0.0, (f - fa) / max(fb - fa, 1)))
+                    w = raw * raw * (3 - 2 * raw)
+                    # the forearm turns the palm as the hand leaves the lap, and back only as it lands
+                    rw = min(1.0, raw * 1.6) if ka is None else max(0.0, raw * 1.6 - 0.6) if kb is None else raw
+                    rw = rw * rw * (3 - 2 * rw)
                     pb_ = place(kb, f) if kb else rest[f]
-                    return (pa[0].lerp(pb_[0], w), pa[1].to_quaternion().slerp(pb_[1].to_quaternion(), w).to_matrix()), \
+                    chest, fwd, out = body[f]
+                    arc = (Vector((0, 0, 0.035)) + fwd * 0.02) * size * math.sin(math.pi * raw)   # hands move in arcs
+                    return (pa[0].lerp(pb_[0], w) + arc,
+                            pa[1].to_quaternion().slerp(pb_[1].to_quaternion(), rw).to_matrix()), \
                         (w if kb else 1 - w) if (ka is None) != (kb is None) else 1.0
             return rest[f], 0.0
         flicks = [(u["stroke"], GESTURES[u["kind"]]) for u in mine] + \
@@ -1527,15 +1549,15 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
                 d = (f - t) / (0.07 * fps)
                 if abs(d) < 3:
                     chest, fwd, out = body[f]
-                    dirn = Vector((0, 0, -1)) + (fwd * 0.6 if g["palm"] == "up" else Vector())
+                    dirn = Vector((0, 0, -1)) + (fwd * 0.6 if g["palm"] in ("up", "upin") else Vector())
                     p = p + dirn.normalized() * g["dip"] * size * on * math.exp(-d * d)
             targets[f], turns[f] = p, rot
         reach(rig, side, first, last, target=lambda f: targets[f], hand=lambda f: turns[f], blend=1)
-        shape = lambda k: FINGER_CURL[GESTURES[k]["fingers"]] if k else FINGER_CURL["relaxed"]
+        shape = lambda k: GESTURES[k]["fingers"] if k else "relaxed"
         for (fa, ka), (fb, kb) in zip(keys, keys[1:]):
-            if kb != ka:                             # the fingers change over the same frames the hand moves
-                _finger_shape(rig, side, int(fa), shape(ka))
-                _finger_shape(rig, side, int(fb), shape(kb))
+            if kb != ka:                             # the fingers follow the wrist, a couple of frames behind
+                _finger_shape(rig, side, int(fa) + 2, shape(ka))
+                _finger_shape(rig, side, int(fb) + 2, shape(kb))
         strokes += [(int(round(u["stroke"])), u["kind"]) for u in mine] + \
                    [(int(round(b_)), "beat") for u in mine for b_ in u["beats"]]
     strokes = sorted(set(strokes))
@@ -1765,12 +1787,27 @@ def _selfcheck_gestures():
             palm = (m.to_3x3() @ pb["RightHand"].matrix.to_3x3() @ Vector((0, 0, -1))).normalized()
             assert palm.z > 0.5, f"offer at {f}: the palm faces {tuple(round(c, 2) for c in palm)}, not up"
     low = 9.0
+    path = {}
     for f in range(1, 73):
         scene.frame_set(f)
         m = rig.matrix_world
         assert (m @ pb["RightForeArm"].head).z < (m @ pb["RightArm"].head).z, f"the elbow rises above the shoulder at {f}"
-        low = min(low, (m @ pb["RightHand"].head).z - rest[f].z)
+        wrist = m @ pb["RightHand"].head
+        path[f] = wrist
+        low = min(low, wrist.z - rest[f].z)
+        palm = (m.to_3x3() @ pb["RightHand"].matrix.to_3x3() @ Vector((0, 0, -1))).normalized()
+        if wrist.z - rest[f].z > 0.05:   # a raised hand in friendly talk is never palm down (Kendon: halting, negating)
+            assert palm.z > -0.2, f"raised hand palm down at {f} (palm {palm.z:+.2f})"
     assert low >= -0.02, f"the hand goes {-low * 100:.1f} cm below where it rests (into the lap)"
+    s0 = strokes[0]                     # hands move in arcs (animators; successive breaking of joints), not lines
+    a_, b_ = path[max(1, s0 - 8)], path[s0]
+    bow = max(((path[f] - a_) - (path[f] - a_).project(b_ - a_)).length for f in range(max(1, s0 - 8), s0 + 1))
+    assert bow >= 0.015, f"the hand rises in a straight line (bow {bow * 100:.1f} cm)"
+    _finger_shape(rig, "Left", 300, "relaxed")      # the resting hand's flexion cascade (Varghese et al. 2020)
+    scene.frame_set(300)
+    bent = {fg: sum(math.degrees(pb[f"LeftHand{fg}{j}"].rotation_quaternion.angle) for j in (1, 2, 3))
+            for fg in ("Index", "Middle", "Ring", "Pinky")}
+    assert min(bent.values()) >= 60 and bent["Index"] == min(bent.values()), f"relaxed fingers not a cascade: {bent}"
     angry = build({"name": "AngryGestureCheck", "character": "Narrator"}, location=(-3, 0, 0))
     relax_arms(angry)
     gestures(angry, wav, 1, hands=("Right",), energy=0.9, seed=4)

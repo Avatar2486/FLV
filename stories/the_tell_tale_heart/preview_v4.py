@@ -601,6 +601,7 @@ def _hands_on_thighs(ctx, rig, frame, skip=()):
         pose = {n: pb[n].matrix.copy() for n in chain + (pb[chain[0]].parent.name,)}
         hand = humans.hand_frame(along + Vector((0, 0, -0.35)), Vector((0, 0, -1)))
         humans._two_bone(rig, rest, pose, frame, *chain, target, pole=(0.3 * out, 0.6, -0.4), end_rot=hand)
+        humans._finger_shape(rig, side, frame, "relaxed")          # draped in the resting cascade, not flat
         bpy.context.view_layer.update()
 
 
