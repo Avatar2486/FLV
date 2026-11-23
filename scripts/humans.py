@@ -13,7 +13,8 @@ by the Generated_Characters pipeline: rigged, skinned, textured, dressed, with 4
 A SPEC is a dict: name (object names in the scene), character (folder in assets/characters), film_eye
 ("left"/"right": a pale filmed eye), fabrics={garment: (Poly Haven texture id in assets/textures/polyhaven,
 tint, scale)} to re-dress a garment (garments are named after the character's meshes: shirt, trousers,
-nightshirt ...), hair_tint / brow_tint / beard_tint (multiplied onto the hair / eyebrow / beard colour).
+nightshirt ...), hair_tint / brow_tint / beard_tint (multiplied onto the hair / eyebrow / beard colour),
+height (metres: the character scaled to it, for stand-ins).
 
 Our rigs use Mixamo bone names; build() renames them to the names this toolkit's motion code uses
 (BONE_NAMES: Spine -> LowerBack, Spine1 -> Spine, Spine2 -> Spine1, Neck -> Neck1, fingers LeftHandIndex1 ...),
@@ -78,6 +79,15 @@ def build(spec, location=(0, 0, 0)):
         o.name = o.data.name = f"{name}.{part.lower()}"
     _rename_bones(rig)
     _hands_like_toolkit(rig)
+    for obj in rig.children:                  # textures saved with the generator's own (Windows) paths: use ours
+        for mat in obj.data.materials:
+            for node in mat.node_tree.nodes if mat and mat.node_tree else ():
+                img = node.image if node.type == "TEX_IMAGE" else None
+                if img and not Path(bpy.path.abspath(img.filepath)).exists():
+                    mine = folder / "textures" / img.filepath.replace("\\", "/").rsplit("/", 1)[-1]
+                    if mine.exists():
+                        img.filepath = str(mine)
+                        img.reload()
     rig.location = location
     for pb in rig.pose.bones:                # one rotation channel for poses, mocap and the living-body layers
         pb.rotation_mode = "QUATERNION"
@@ -93,6 +103,10 @@ def build(spec, location=(0, 0, 0)):
         if "mouthShrugLower" in obj.data.shape_keys.key_blocks:
             obj.data.shape_keys.key_blocks["mouthShrugLower"].value = REST_SEAL
     bpy.context.view_layer.update()
+    if spec.get("height"):                # the same character made taller or shorter (stand-ins)
+        top = max((parts["body"].matrix_world @ v.co).z for v in parts["body"].data.vertices) - rig.location.z
+        rig.scale = (spec["height"] / top,) * 3
+        bpy.context.view_layer.update()
     return rig
 
 
@@ -1586,6 +1600,12 @@ def _selfcheck_character(character="OldMan"):
     scene = bpy.context.scene
     who = f"Check{character}"
     rig = build({"name": who, "character": character})
+    for obj in rig.children:                 # every texture loads on this machine (not just the one it was made on)
+        for mat in obj.data.materials:
+            for node in mat.node_tree.nodes if mat and mat.node_tree else ():
+                if node.type == "TEX_IMAGE" and node.image:
+                    assert Path(bpy.path.abspath(node.image.filepath)).exists(), \
+                        f"{character}: missing texture {node.image.filepath}"
     for bone in ("Hips", "LowerBack", "Spine", "Spine1", "Neck1", "Head", "LeftArm", "LeftHand", "LeftHandIndex1",
                  "RightHandThumb1", "LeftUpLeg", "LeftToeBase", "LeftEye", "RightEye"):
         assert bone in rig.pose.bones, f"{character}: no bone {bone}"

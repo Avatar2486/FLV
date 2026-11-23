@@ -8,7 +8,7 @@ Our own generated characters, loaded into scenes by `scripts/humans.py` (`humans
 | `OldMan/` | the old man | slim, 1.68 m, gaunt face, pale blotchy aged skin, silver hair, white stubble, grey-blue eyes (the film makes his left eye milky), long-sleeved nightshirt, barefoot |
 | `Narrator/` | the narrator | average build, 1.76 m, brown hair, brown eyes, white shirt, high-waisted trousers, leather shoes |
 
-Each folder: `<Name>.blend` (rig + meshes, textures referenced from `textures/`), `params.json` (every choice
+Each folder: `<Name>.blend` (rig + meshes; its textures live in `textures/`, and `humans.build()` points the materials there even when the .blend was saved with another machine's paths), `params.json` (every choice
 used to make it) and `previews/` (`face.png`, `q34.png`, `expressions.png`: neutral, blink, speaking, smile,
 fear, gaze).
 
