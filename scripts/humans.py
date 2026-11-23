@@ -471,11 +471,12 @@ GAZE_MODES = {   # (mutual mean, sd), (away mean, sd) in seconds; blinks per min
 }
 
 
-def _layer(rig, start, end, offsets):
+def _layer(rig, start, end, offsets, local=False):
     """Add small rotations on top of the motion already there, every frame from start to end.
     offsets(frame) -> {bone: (yaw, pitch, roll)} in degrees, in the character's frame: yaw turns to the
-    character's left, pitch nods forward/down, roll tilts to the left. The underlying motion is read for
-    every frame first, so layers stack instead of feeding on their own keys."""
+    character's left, pitch nods forward/down, roll tilts to the left. local=True: offsets(frame) ->
+    {bone: Quaternion}, applied in the bone's own space after its current rotation (mocap gesture deltas).
+    The underlying motion is read for every frame first, so layers stack instead of feeding on their own keys."""
     from mathutils import Quaternion
     scene = bpy.context.scene
     plan = {f: offsets(f) for f in range(start, end + 1)}
@@ -491,8 +492,14 @@ def _layer(rig, start, end, offsets):
         base[f] = {n: (rig.pose.bones[n].rotation_quaternion.copy(), rig.pose.bones[n].matrix.to_3x3().normalized())
                    for n in bones}
     for f, offs in plan.items():
-        for name, (yaw, pitch, roll) in offs.items():
+        for name, off in offs.items():
             q, orient = base[f][name]
+            if local:
+                pb = rig.pose.bones[name]
+                pb.rotation_quaternion = q @ off
+                pb.keyframe_insert("rotation_quaternion", frame=f)
+                continue
+            yaw, pitch, roll = off
             to_local = orient.inverted()             # rotate about the bone as it is posed now, not at rest
             for axis, deg in (((0, 0, 1), yaw), ((1, 0, 0), pitch), ((0, 1, 0), roll)):
                 if deg:
@@ -1263,6 +1270,249 @@ def tremble(rig, start, end, strength=1.0, seed=1):
                       "mouthFrownLeft": strength * 0.3, "mouthFrownRight": strength * 0.3}, meshes)
 
 
+# --- co-speech gestures and listening -------------------------------------------------------------------
+# A gesture is preparation, stroke, holds and retraction; only the stroke is required (Kendon; McNeill). The
+# stroke comes before or on the stressed (pitch-accented) syllable, never after it: it overlaps the accent in
+# 80-90% of cases (Frontiers in Psychology 2018, 10.3389/fpsyg.2018.01514). Holds stretch a gesture over
+# the phrase; the hands go back to rest only at real pauses. The head nods slightly on the strokes ("visual
+# prosody", Munhall et al. 2004). Calm gestures are small and soft, angry ones large, fast and high (Wallbott
+# 1998). Gesture units are cut from CMU motion capture (free for any use) of people explaining and quarrelling.
+GESTURE_CLIPS = {"18_08": "calm", "19_08": "calm", "111_25": "calm", "113_16": "calm", "141_21": "calm",
+                 "13_14": "calm", "18_10": "agitated", "19_10": "agitated", "80_48": "agitated"}
+GESTURE_BONES = ("Spine1", "Neck1", "Head") + tuple(f"{s}{b}" for s in ("Left", "Right")
+                                                     for b in ("Shoulder", "Arm", "ForeArm", "Hand"))
+CMU_LIBRARY = ROOT / "assets" / "mocap" / "library" / "cmu"
+
+
+def _voicing(wav):
+    """Per 10 ms: time (s), loudness (dB), pitch (Hz, 0 when unvoiced), voiced (bool), from a PCM WAV."""
+    import wave
+    import numpy as np
+    with wave.open(str(wav)) as w:
+        rate, chans, width = w.getframerate(), w.getnchannels(), w.getsampwidth()
+        raw = w.readframes(w.getnframes())
+    pcm = np.frombuffer(raw, {1: np.int8, 2: np.int16, 4: np.int32}[width]).astype(np.float32)
+    pcm = pcm.reshape(-1, chans).mean(1) / float(2 ** (8 * width - 1))
+    hop, win = rate // 100, rate // 25
+    lo, hi = rate // 300, rate // 70                               # pitch 70-300 Hz
+    n = max(0, (len(pcm) - win) // hop)
+    times, db, pitch = np.zeros(n), np.zeros(n), np.zeros(n)
+    for i in range(n):
+        seg = pcm[i * hop: i * hop + win]
+        times[i] = (i * hop + win / 2) / rate
+        db[i] = 20 * np.log10(np.sqrt(np.mean(seg ** 2)) + 1e-9)
+        seg = seg - seg.mean()
+        ac = np.correlate(seg, seg, "full")[win - 1:]
+        if ac[0] <= 0:
+            continue
+        lag = lo + int(np.argmax(ac[lo:hi]))
+        if ac[lag] / ac[0] > 0.3:
+            pitch[i] = rate / lag
+    voiced = (pitch > 0) & (db > (db.max() if n else 0) - 35)
+    pitch[~voiced] = 0
+    return times, db, pitch, voiced
+
+
+def stress_times(wav):
+    """Seconds of the stressed syllables in a voice line, from loudness and pitch peaks (no transcript):
+    score = z(loudness) + 0.5 z(pitch rise over 50 ms), smoothed over a syllable (~110 ms); peaks above 1.0
+    and at least 0.25 s apart, inside voiced speech."""
+    import numpy as np
+    times, db, pitch, voiced = _voicing(wav)
+    if voiced.sum() < 3:
+        return []
+
+    def z(x):
+        v = x[voiced]
+        return (x - v.mean()) / (v.std() + 1e-9)
+    rise = np.zeros_like(pitch)
+    rise[5:] = np.where(voiced[5:] & voiced[:-5], pitch[5:] - pitch[:-5], 0.0)
+    score = z(db) + 0.5 * z(rise)
+    score[~voiced] = score[voiced].min()
+    kernel = np.hanning(11)
+    score = np.convolve(score, kernel / kernel.sum(), mode="same")
+    peaks = [i for i in range(1, len(score) - 1)
+             if voiced[i] and score[i] > 1.0 and score[i] >= score[i - 1] and score[i] >= score[i + 1]]
+    kept = []
+    for i in sorted(peaks, key=lambda i: -score[i]):
+        if all(abs(times[i] - times[k]) >= 0.25 for k in kept):
+            kept.append(i)
+    return sorted(round(float(times[i]), 3) for i in kept)
+
+
+def gesture_bank(rig, clips=None):
+    """Gesture units from CMU clips, for rigs built like `rig` (the units are bone-local rotations, so any rig
+    of the same character shares them). Each clip is baked on a scratch copy of the skeleton; its rest is the
+    stillest second of the clip; it is cut at the hands' slowest moments into units 0.6-2.5 s long whose
+    fastest hand moves over 0.4 m/s. A unit: id, clip, energy, stroke (sample of the fastest hand), n, rot."""
+    import numpy as np
+    scene = bpy.context.scene
+    fps = scene.render.fps
+    units = []
+    for clip, energy in (clips or GESTURE_CLIPS).items():
+        tmp = rig.copy()
+        tmp.data = rig.data.copy()
+        tmp.animation_data_clear()
+        bpy.context.collection.objects.link(tmp)
+        last = retarget(tmp, CMU_LIBRARY / f"{clip}.bvh", start_frame=1, root_motion=False)
+        rot = {b: [] for b in GESTURE_BONES}
+        hands = []
+        for f in range(1, last + 1):
+            scene.frame_set(f)
+            for b in GESTURE_BONES:
+                rot[b].append(tmp.pose.bones[b].rotation_quaternion.copy())
+            hands.append([tmp.pose.bones[f"{s}Hand"].head.copy() for s in ("Left", "Right")])
+        action = tmp.animation_data.action if tmp.animation_data else None
+        data = tmp.data
+        bpy.data.objects.remove(tmp)
+        bpy.data.armatures.remove(data)
+        if action:
+            bpy.data.actions.remove(action)
+        n = len(hands)
+        speed = np.zeros(n)
+        for i in range(1, n):
+            speed[i] = max((hands[i][k] - hands[i - 1][k]).length for k in (0, 1)) * fps
+        speed = np.convolve(speed, np.ones(5) / 5, mode="same")
+        quiet = int(np.argmin(np.convolve(speed, np.ones(fps), mode="valid"))) if n > fps else 0
+        rest = {}
+        for b in GESTURE_BONES:                      # mean rotation over the stillest second
+            acc = Vector((0, 0, 0, 0))
+            for q in rot[b][quiet: quiet + fps]:
+                acc += Vector(q) if Vector(q).dot(acc) >= 0 else -Vector(q)
+            rest[b] = Quaternion(acc).normalized()
+        cuts = [0] + [i for i in range(2, n - 2) if speed[i] == speed[i - 2: i + 3].min()] + [n - 1]
+        for a, b in zip(cuts, cuts[1:]):
+            if not (0.6 * fps <= b - a <= 2.5 * fps) or speed[a:b].max() < 0.4:
+                continue
+            units.append({"id": f"{clip}:{a}", "clip": clip, "energy": energy, "n": b - a,
+                          "stroke": int(np.argmax(speed[a:b])),
+                          "rot": {bone: [rest[bone].inverted() @ q for q in rot[bone][a:b]] for bone in GESTURE_BONES}})
+    return units
+
+
+def _sample(unit, s):
+    """A unit's pose (bone -> delta Quaternion) at fractional sample s."""
+    s = min(max(s, 0.0), unit["n"] - 1.0)
+    a = int(s)
+    b = min(a + 1, unit["n"] - 1)
+    return {bone: qs[a].slerp(qs[b], s - a) for bone, qs in unit["rot"].items()}
+
+
+def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), bank=None, seed=1):
+    """Co-speech gestures for a voice line starting at start_frame: a gesture unit's stroke lands 1-3 frames
+    before each stressed syllable (stress_times), a unit never twice in a row; between strokes inside a
+    phrase the hands hold, and only across pauses over 0.5 s do they go back to rest. energy 0..1: size
+    (0.5 + energy times the captured motion) and speed (0.8 + 0.4 energy); energy >= 0.6 uses the agitated
+    (quarrel) units. Only the bones of `hands` (plus spine, neck, head) move: a hand holding something stays.
+    The head nods 2-4 degrees on each stroke. Returns the stroke frames; the units used are in rig["gesture_log"]."""
+    import numpy as np
+    rng = random.Random(seed)
+    fps = bpy.context.scene.render.fps
+    bank = bank or gesture_bank(rig)
+    kind = "agitated" if energy >= 0.6 else "calm"
+    pool = [u for u in bank if u["energy"] == kind] or bank
+    times, _, _, voiced = _voicing(wav)
+    pauses, run = [], None                            # unvoiced runs over 0.5 s, in scene frames
+    for t, v in zip(times, voiced):
+        if not v and run is None:
+            run = t
+        if v and run is not None:
+            if t - run > 0.5:
+                pauses.append((start_frame + run * fps, start_frame + t * fps))
+            run = None
+    speed, size = 0.8 + 0.4 * energy, 0.5 + energy
+    placed, last_id = [], None
+    for t in stress_times(wav):
+        stroke = start_frame + t * fps - rng.randint(1, 3)
+        if placed and stroke < placed[-1]["stroke"] + 0.3 * fps:
+            continue                                  # still in the last gesture
+        choices = [u for u in pool if u["id"] != last_id] or pool
+        unit = rng.choice(choices)
+        prep = unit["stroke"] / speed
+        begin = max(stroke - prep, placed[-1]["stroke"] + 0.2 * fps if placed else start_frame - prep)
+        placed.append({"unit": unit, "stroke": stroke, "begin": begin})
+        last_id = unit["id"]
+    if not placed:
+        rig["gesture_log"] = []
+        return []
+    for k, p in enumerate(placed):                    # retract after p, or hold it into the next one?
+        nxt = placed[k + 1] if k + 1 < len(placed) else None
+        tail = (p["unit"]["n"] - 1 - p["unit"]["stroke"]) / speed
+        paused = nxt is None or any(p["stroke"] < a < nxt["stroke"] for a, _ in pauses)
+        p["end"] = p["stroke"] + tail if paused else nxt["begin"]
+        p["retract"] = paused
+    bones = [b for b in GESTURE_BONES if not b.startswith(("Left", "Right")) or b.startswith(tuple(hands))]
+    ident = Quaternion()
+
+    def pose_of(p, f):
+        u = p["unit"]
+        if f <= p["stroke"]:
+            return _sample(u, u["stroke"] - (p["stroke"] - f) * speed)
+        if p["retract"]:
+            return _sample(u, u["stroke"] + (f - p["stroke"]) * speed)
+        return _sample(u, u["stroke"])                # hold the stroke into the next gesture
+
+    def smooth(k):
+        k = min(max(k, 0.0), 1.0)
+        return k * k * (3 - 2 * k)
+    first, last = int(placed[0]["begin"]), int(math.ceil(placed[-1]["end"])) + 1
+
+    def offsets(f):
+        prev = {b: ident for b in bones}
+        for k, p in enumerate(placed):
+            if f < p["begin"]:
+                return {b: ident.slerp(prev[b], size) for b in bones}
+            cur = pose_of(p, f)
+            if f <= p["stroke"]:                      # preparation: blend from where the hands were
+                w = smooth((f - p["begin"]) / max(p["stroke"] - p["begin"], 1))
+                cur = {b: prev[b].slerp(cur[b], w) for b in bones}
+            elif p["retract"]:                        # retraction: blend back to rest
+                w = smooth((f - p["stroke"]) / max(p["end"] - p["stroke"], 1))
+                cur = {b: cur[b].slerp(ident, w) for b in bones}
+            if f <= p["end"]:
+                return {b: ident.slerp(cur[b], size) for b in bones}
+            prev = cur if not p["retract"] else {b: ident for b in bones}
+        return {b: ident for b in bones}
+    _layer(rig, first, last, offsets, local=True)
+    nods = [(p["stroke"], rng.uniform(2, 4)) for p in placed]
+    _layer(rig, first, last, lambda f: {"Head": (0, sum(a * math.exp(-((f - s) / (0.12 * fps)) ** 2)
+                                                         for s, a in nods), 0)})
+    rig["gesture_log"] = [p["unit"]["id"] for p in placed]
+    return [int(round(p["stroke"])) for p in placed]
+
+
+def listen(rig, start, end, speaker_rig, phrase_ends=(), seed=1):
+    """A listener: gaze on the speaker's head with the listening statistics of eyes() (long mutual gaze, short
+    glances away), a nod (3-6 degrees, ~0.5 s) at the speaker's phrase ends (the first always, then 70%),
+    and a slow weight shift (hips roll 1-2 degrees) every 4-8 s."""
+    fps = bpy.context.scene.render.fps
+    bpy.context.view_layer.update()
+    me = rig.matrix_world @ rig.pose.bones["Head"].head
+    them = speaker_rig.matrix_world @ speaker_rig.pose.bones["Head"].head
+    d = rig.matrix_world.inverted().to_3x3() @ (them - me)      # armature space: faces -Y, +X is its left
+    yaw = math.degrees(math.atan2(d.x, -d.y))
+    pitch = math.degrees(math.atan2(d.z, math.hypot(d.x, d.y)))
+    eyes(rig, start, end, mode="listening", look=(yaw, pitch), seed=seed)
+    rng = random.Random(seed + 1)
+    nods = [(f, rng.uniform(3, 6)) for k, f in enumerate(phrase_ends)
+            if start <= f <= end and (k == 0 or rng.random() < 0.7)]
+    shifts, t, side = [], start + rng.uniform(1, 3) * fps, 1
+    while t < end:
+        shifts.append((t, side * rng.uniform(1, 2)))
+        side, t = -side, t + rng.uniform(4, 8) * fps
+
+    def offsets(f):
+        nod = sum(a * math.sin(math.pi * (f - s) / (0.5 * fps)) for s, a in nods if s <= f <= s + 0.5 * fps)
+        roll, prev = 0.0, 0.0
+        for s, r in shifts:
+            if f < s:
+                break
+            k = min(1.0, (f - s) / fps)
+            roll, prev = prev + (r - prev) * k * k * (3 - 2 * k), r
+        return {"Head": (0, nod, 0), "Neck1": (0, nod / 3, 0), "Hips": (0, 0, roll)}
+    _layer(rig, int(start), int(end), offsets)
+
+
 def _selfcheck():
     """Retarget a CMU clip onto a second copy of its own skeleton: world rotations must match."""
     bvh = ROOT / "assets" / "mocap" / "cmu" / "77_14.bvh"
@@ -1385,8 +1635,73 @@ def _selfcheck_character(character="OldMan"):
           f"{toward_palm * 100:.1f} cm toward the palm; gaze {yaw:.1f} left {pitch:.1f} up; blink covers the eye")
 
 
+def _selfcheck_gestures():
+    """Stressed syllables found in a synthetic voice; gesture strokes land on them (0-0.15 s early, never late);
+    no gesture unit twice in a row; a hand left out of `hands` (holding something) stays still; a listener
+    nods at a phrase end."""
+    import wave
+    import numpy as np
+    rate, bursts = 16000, (0.6, 1.5, 2.4)
+    t = np.arange(int(3.0 * rate)) / rate
+    x = 0.02 * np.sin(2 * np.pi * 160 * t)                       # a quiet voiced hum
+    for b in bursts:                                              # stressed syllables: +18 dB, +60 Hz
+        on = np.abs(t - b) < 0.06
+        x[on] = 0.02 * 10 ** (18 / 20) * np.sin(2 * np.pi * 220 * t[on])
+    wav = Path(bpy.app.tempdir) / "stress_check.wav"
+    with wave.open(str(wav), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes((x * 32767).astype(np.int16).tobytes())
+    found = stress_times(wav)
+    assert len(found) == 3 and all(abs(f - b) <= 0.05 for f, b in zip(found, bursts)), f"stresses {found}"
+
+    fps = 24
+    rig = build({"name": "GestureCheck", "character": "Narrator"})
+    relax_arms(rig)
+    left = [b.name for b in rig.pose.bones if b.name.startswith("Left") and
+            any(b.name.endswith(p) for p in ("Shoulder", "Arm", "ForeArm", "Hand"))]
+    scene = bpy.context.scene
+    before = {}
+    for f in range(1, 73):
+        scene.frame_set(f)
+        before[f] = {n: rig.pose.bones[n].rotation_quaternion.copy() for n in left}
+    bank = gesture_bank(rig, {"18_08": "calm", "19_08": "calm"})
+    assert len(bank) >= 3, f"only {len(bank)} gesture units"
+    strokes = gestures(rig, wav, 1, hands=("Right",), bank=bank)
+    assert strokes, "no strokes"
+    for f in strokes:
+        assert any(b * fps + 1 - 0.15 * fps - 1 <= f <= b * fps + 1 + 1 for b in bursts), f"stroke at {f} off the stress"
+    log = list(rig["gesture_log"])
+    assert all(a != b for a, b in zip(log, log[1:])), f"unit repeated: {log}"
+    for f in range(1, 73):
+        scene.frame_set(f)
+        for n in left:
+            q = rig.pose.bones[n].rotation_quaternion
+            assert min((q - before[f][n]).magnitude, (q + before[f][n]).magnitude) < 1e-4, f"{n} moved at {f}"
+
+    speaker = build({"name": "SpeakerCheck", "character": "Narrator"}, location=(0, -2.0, 0))
+    speaker.rotation_euler.z = math.pi                            # facing the listeners
+    nodder = build({"name": "NodCheck", "character": "Narrator"}, location=(3, 0, 0))
+    still = build({"name": "NoNodCheck", "character": "Narrator"}, location=(3, 0, 0))
+    bpy.context.view_layer.update()
+    listen(nodder, 1, 72, speaker, phrase_ends=[36])
+    listen(still, 1, 72, speaker, phrase_ends=[])
+
+    def head_dir(r):
+        return (r.matrix_world @ r.pose.bones["Head"].matrix).to_3x3() @ Vector((0, 1, 0))
+    nod = 0.0
+    for f in range(36, 49):
+        scene.frame_set(f)
+        nod = max(nod, math.degrees(head_dir(nodder).angle(head_dir(still))))
+    assert nod >= 3.0, f"listener nod only {nod:.1f} deg"
+    print(f"humans gestures OK: {len(found)} stresses, strokes on time, held hand still, listener nods "
+          f"({len(bank)} units; strokes {strokes}; nod {nod:.1f} deg)")
+
+
 if __name__ == "__main__" and "--selfcheck" in sys.argv:
     bpy.context.scene.render.fps = 24
     _selfcheck()
     for name in ("OldMan", "Narrator"):
         _selfcheck_character(name)
+    _selfcheck_gestures()
