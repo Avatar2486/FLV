@@ -472,7 +472,8 @@ def _hold(bpy, rig, frame):
 
 
 def _sit_pose(ctx):
-    """The seated pose: CMU 113_15 (a man sitting down on a chair, 3.5 s in, feet on the floor) on a scratch copy
+    """The seated pose: CMU 113_15 (a man sitting down on a chair; at 3.0 s he is down, trunk 5 degrees back - by
+    3.5 s he has slumped to 14, which read as drunk or asleep) on a scratch copy
     of the narrator's skeleton: (bone -> local rotation, hips location). Cached in ctx."""
     if "sit" in ctx:
         return ctx["sit"]
@@ -485,8 +486,22 @@ def _sit_pose(ctx):
     tmp.location, tmp.rotation_euler, tmp.scale = (0, 0, 0), (0, 0, 0), (1, 1, 1)
     scene.collection.objects.link(tmp)
     humans.retarget(tmp, humans.CMU_LIBRARY / "113_15.bvh", start_frame=1)
-    scene.frame_set(_frame(3.5))
+    scene.frame_set(_frame(3.0))
     pose = ({pb.name: pb.rotation_quaternion.copy() for pb in tmp.pose.bones}, tmp.pose.bones["Hips"].location.copy())
+    # face the body along the skeleton's own forward (-Y): every layer (gaze, nods, breathing) works in that frame,
+    # so a body turned on its skeleton would nod sideways and look past the person it should look at
+    from mathutils import Matrix, Vector
+    pb = tmp.pose.bones
+    lat = pb["LeftUpLeg"].head - pb["RightUpLeg"].head
+    fwd = lat.cross(Vector((0, 0, 1)))
+    turn = Matrix.Rotation(-math.atan2(fwd.x, -fwd.y), 3, "Z")
+    rest = tmp.data.bones["Hips"].matrix_local.to_3x3().normalized()
+    rots, hips = pose
+    rots["Hips"] = (rest.inverted() @ turn @ rest).to_quaternion() @ rots["Hips"]
+    for name in ("Neck1", "Head"):                 # the actor's head was cocked 24 degrees as he sat: the gaze
+        rots[name] = rots[name].copy()             # layers turn the head from here, so start it straight
+        rots[name].identity()
+    pose = (rots, rest.inverted() @ (turn @ (rest @ hips)))
     action, data = tmp.animation_data.action, tmp.data
     bpy.data.objects.remove(tmp)
     bpy.data.armatures.remove(data)
@@ -605,7 +620,8 @@ def _sit(ctx, rig, chair, frame, shots, skip_hands=()):
     ctx["bpy"].context.scene.frame_set(frame)
     k = rig.scale.x
     now = min((rig.matrix_world @ rig.pose.bones[f"{s}ToeBase"].head).z for s in ("Left", "Right"))
-    print(f"V4 seat: {rig.name} on {chair.name}: toes {toes * 100:+.1f} cm off the floor -> {now * 100:+.1f} cm")
+    print(f"V4 seat: {rig.name} on {chair.name}: toes {toes * 100:+.1f} cm off the floor -> {now * 100:+.1f} cm; "
+          f"body turned {math.degrees(rz) - math.degrees(chair.matrix_world.to_euler().z):+.1f} deg on its skeleton")
 
 
 def _seed(name, k):
