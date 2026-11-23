@@ -500,12 +500,9 @@ def row_house(coll, name, x, y, facing, width=6.0, height=9.5, brick="MAT_Ex_Bri
     return dx
 
 
-def street(coll, lights):
-    """The 1843 street outside the house at 4 a.m.: wet cobbles, brick sidewalks with stone curbs,
-    red-brick row houses with white marble steps, gas lamps, a bare tree, mist, moon and clouds."""
+def street_materials():
+    """The street's materials (also used by row_house()); returns (cobble, pavement, curb)."""
     from material_library import textured
-    x0 = SET_X["exterior"]
-    out = {}
     cobble = textured("MAT_Ex_Cobble", "cobblestone_floor_04", 0.5, (0.8, 0.8, 0.82), wet=0.8)
     pave = textured("MAT_Ex_Pavement", "brick_pavement", 0.55, (0.85, 0.75, 0.7), wet=0.4)
     curb = textured("MAT_Ex_Curb", "stone_floor", 0.6, (0.75, 0.75, 0.78), wet=0.3)
@@ -524,7 +521,16 @@ def street(coll, lights):
         w = mat.node_tree.nodes["Principled BSDF"].inputs
         w["Base Color"].default_value, w["Roughness"].default_value = (*colour, 1), 0.05
         w["Emission Color"].default_value, w["Emission Strength"].default_value = (*colour, 1), emit
+    return cobble, pave, curb
 
+
+def street(coll, lights):
+    """The 1843 street outside the house at 4 a.m.: wet cobbles, brick sidewalks with stone curbs,
+    red-brick row houses with white marble steps, gas lamps, a bare tree, mist, moon and clouds."""
+    from material_library import textured
+    x0 = SET_X["exterior"]
+    out = {}
+    cobble, pave, curb = street_materials()
     su.box("EX_Street", coll, cobble, (60, 8, 0.1), (x0, -7, -0.05), bevel=0)
     for y in (-1.5, -12.5):
         su.box(f"EX_Sidewalk_{y}", coll, pave, (60, 3, 0.15), (x0, y, 0.075), bevel=0)
