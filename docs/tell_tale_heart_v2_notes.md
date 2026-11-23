@@ -10,6 +10,7 @@ lines are in [`../assets/THIRD_PARTY.md`](../assets/THIRD_PARTY.md).
 | What | Where |
 |---|---|
 | Latest preview film, shots 3.1–3.10 ("the eighth night"), 52.5 s, 1080p | `output/renders/the_tell_tale_heart_v2_preview/the_tell_tale_heart_v2_preview.mp4` |
+| The next part, shots 3.11–3.21 ("the attack") | `stories/the_tell_tale_heart/preview_v3.py`; notes in [`tell_tale_heart_v3_attack_notes.md`](tell_tale_heart_v3_attack_notes.md) |
 | Samples to choose from (voices, characters, motion, sound, street) | `output/samples/` (the README there explains each) |
 | Character and motion toolkit | `scripts/humans.py` (self-check: `blender -b --factory-startup --python scripts/humans.py -- --selfcheck`) |
 | Preview scene builder, render and mix | `stories/the_tell_tale_heart/preview_v2.py` |

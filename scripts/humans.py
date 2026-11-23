@@ -936,7 +936,6 @@ def reach(rig, side, start, end, target, blend=8, hand=None, wrist=None):
     if not on:
         return
     first, last = on[0], on[-1]
-    to_arm = rig.matrix_world.inverted()
     weight = {}
     for f in frames:
         w = 1.0 if first <= f <= last else 0.0
@@ -946,13 +945,15 @@ def reach(rig, side, start, end, target, blend=8, hand=None, wrist=None):
             w = 1 - (f - last) / (blend + 1)
         if w > 0:
             weight[f] = w
-    poses = {}
+    poses, to_arms = {}, {}
     for f in weight:                          # the arm as it was, before any IK key (else the blends drift)
         scene.frame_set(f)
         poses[f] = {n: rig.pose.bones[n].matrix.copy() for n in chain + (parent,)}
+        to_arms[f] = rig.matrix_world.inverted()          # per frame: the whole body may be moving
     for f, w in weight.items():
         goal = goals[f] if goals[f] is not None else goals[first if f < first else last]
         pose = poses[f]
+        to_arm = to_arms[f]
         at_wrist = pose[chain[2]].translation
         ease = 0.5 - 0.5 * math.cos(math.pi * w)
         aim_at = at_wrist.lerp(to_arm @ Vector(goal), ease)
