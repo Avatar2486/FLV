@@ -239,14 +239,14 @@ def places(sid):
 # cosy in 5.7, draining from 5.8, cold from 5.12.
 LIGHT_KEYS = {
     "5.1": dict(en_fill=4), "5.2": dict(V4_Gas_Lamp_light=300, en_fill=4), "5.3": dict(V4_Gas_Lamp_light=300, en_fill=4),
-    "5.4": dict(ki_fill=4), "5.5": dict(warm=30, fill=6, moon=60), "5.6": dict(warm=45, fill=6, moon=60),
-    "5.7": dict(warm=60, fill=6, moon=60), "5.8": dict(warm=40, fill=10, moon=70),
-    "5.9": dict(warm=35, fill=10, moon=70), "5.10": dict(warm=25, fill=14, moon=80),
+    "5.4": dict(ki_fill=4), "5.5": dict(warm=70, fill=8, moon=60), "5.6": dict(warm=100, fill=8, moon=60),
+    "5.7": dict(warm=130, fill=8, moon=60), "5.8": dict(warm=95, fill=14, moon=70),
+    "5.9": dict(warm=85, fill=14, moon=70), "5.10": dict(warm=60, fill=20, moon=80),
     "5.11": dict(warm=18, fill=18, moon=90), "5.12": dict(warm=8, fill=26, moon=110),
     "5.13": dict(warm=6, fill=28, moon=110), "5.14": dict(warm=5, fill=30, moon=120),
     "5.15": dict(warm=5, fill=30, moon=120)}
-LANTERN_GLOW = {"5.5": 6, "5.6": 6, "5.7": 7, "5.8": 5, "5.9": 5, "5.10": 4, "5.11": 3, "5.12": 2, "5.13": 2,
-                "5.14": 2, "5.15": 2}
+LANTERN_GLOW = {"5.5": 14, "5.6": 14, "5.7": 16, "5.8": 12, "5.9": 12, "5.10": 10, "5.11": 8, "5.12": 5, "5.13": 5,
+                "5.14": 5, "5.15": 5}
 
 
 def _cameras(T, su, C, Vector):
@@ -360,7 +360,7 @@ def build(acts=True):
         props[f"lantern_{n}"] = body
     for n, xy in SEATS.items():
         h = heading_to(xy, SEAT_FOCUS[n])
-        props[f"chair_{n}"] = sets.ph("dining_chair_02", C["PROPS"], f"V4_Chair_{n}", (*xy, 0), rotation=h - 180)
+        props[f"chair_{n}"] = sets.ph("dining_chair_02", C["PROPS"], f"V4_Chair_{n}", (*xy, 0), rotation=h)
     props["cup"] = sets.lib.mug(C["PROPS"], (0.15, -1.0, 0.48), prefix="V4_Cup")
     for i, (n, at) in enumerate((("Hale", (0.95, -0.85, 0)), ("Brandt", (0.45, 1.2, 0)), ("Mercer", (-0.55, -1.45, 0)))):
         lantern = props[f"lantern_{n}"]
@@ -383,7 +383,7 @@ def build(acts=True):
     cams, cam_rigs = _cameras(T, su, C, Vector)
     ctx = dict(bpy=bpy, humans=humans, su=su, sets=sets, cast3d=cast3d, tl=tl, T=T, start=start, end=end,
                rigs=rigs, props=props, cams=cams, cam_rigs=cam_rigs, lights=lights, room=room, entry=entry, C=C,
-               marks={}, held=[])
+               marks={}, held=[], cache={})
     if acts:
         for act in ACTS:
             act(ctx)
@@ -422,7 +422,517 @@ def _street_outside(bpy, su, sets, coll, lights):
     sets.haze("V4_Street_Mist", coll, (x, -9.5, 1.2), (24, 14, 2.4), 0.03)
 
 
-ACTS = []          # the animation, part by part (filled in below)
+# ----------------------------------------------------------------------------------------------- acting
+WHO = {"NS": "Narrator", "O1": "Hale", "O2": "Brandt", "O3": "Mercer"}
+OFFICERS = ("Hale", "Brandt", "Mercer")
+HEARTBEATS = [("5.8", 2.0, 60, 150, "5.15", 6.0)]      # the heart under the floor, rising to the confession
+WORRY = {"browInnerUp": 0.35, "mouthPressLeft": 0.25, "mouthPressRight": 0.25, "mouthSmileLeft": 0.1,
+         "mouthSmileRight": 0.1}
+WINCE = {"browDownLeft": 0.45, "browDownRight": 0.45, "browInnerUp": 0.3, "eyeSquintLeft": 0.5, "eyeSquintRight": 0.5,
+         "mouthPressLeft": 0.3, "mouthPressRight": 0.3}
+RAIL = (0.0, 0.30, 0.95)        # the chair's top rail, chair-local (its back is on +y; a sitter faces -y; the
+                                # backrest leans back: its top, 0.974 high, runs from y 0.164 to 0.33)
+
+
+def _frame(t):
+    return 1 + int(round(t * FPS))
+
+
+def _dir(h):
+    """The (x, y) direction a heading faces (0 faces -y, 90 faces +x)."""
+    return math.sin(math.radians(h)), -math.cos(math.radians(h))
+
+
+def beat_times(tl):
+    """Seconds of every heartbeat he hears (HEARTBEATS: from a shot + offset, bpm rising, to a shot + offset)."""
+    start = {s["id"]: s["start"] for s in tl["shots"]}
+    out = []
+    for sid, off, b0, b1, eid, eoff in HEARTBEATS:
+        t0, t1 = start[sid] + off, start[eid] + eoff
+        t = t0
+        while t < t1:
+            out.append(t)
+            t += 60.0 / (b0 + (b1 - b0) * (t - t0) / max(t1 - t0, 1e-6))
+    return out
+
+
+def _constant(obj, paths=("location", "rotation_euler", "hide_render", "hide_viewport")):
+    for fc in v3._fcurves(obj):
+        if fc.data_path in paths:
+            for k in fc.keyframe_points:
+                k.interpolation = "CONSTANT"
+
+
+def _hold(bpy, rig, frame):
+    """Key every bone as it is at `frame`, so the next pose keyed doesn't blend back over earlier shots."""
+    bpy.context.scene.frame_set(frame)
+    for pb in rig.pose.bones:
+        pb.keyframe_insert("rotation_quaternion", frame=frame)
+    rig.pose.bones["Hips"].keyframe_insert("location", frame=frame)
+
+
+def _sit_pose(ctx):
+    """The seated pose: CMU 113_15 (a man sitting down on a chair, 3.5 s in, feet on the floor) on a scratch copy
+    of the narrator's skeleton: (bone -> local rotation, hips location). Cached in ctx."""
+    if "sit" in ctx:
+        return ctx["sit"]
+    bpy, humans = ctx["bpy"], ctx["humans"]
+    scene = bpy.context.scene
+    rig = ctx["rigs"]["Narrator"]
+    tmp = rig.copy()
+    tmp.data = rig.data.copy()
+    tmp.animation_data_clear()
+    tmp.location, tmp.rotation_euler, tmp.scale = (0, 0, 0), (0, 0, 0), (1, 1, 1)
+    scene.collection.objects.link(tmp)
+    humans.retarget(tmp, humans.CMU_LIBRARY / "113_15.bvh", start_frame=1)
+    scene.frame_set(_frame(3.5))
+    pose = ({pb.name: pb.rotation_quaternion.copy() for pb in tmp.pose.bones}, tmp.pose.bones["Hips"].location.copy())
+    action, data = tmp.animation_data.action, tmp.data
+    bpy.data.objects.remove(tmp)
+    bpy.data.armatures.remove(data)
+    bpy.data.actions.remove(action)
+    ctx["sit"] = pose
+    return pose
+
+
+def _key_pose(rig, frame, pose):
+    rots, hips = pose
+    for name, q in rots.items():
+        pb = rig.pose.bones[name]
+        pb.rotation_quaternion = q
+        pb.keyframe_insert("rotation_quaternion", frame=frame)
+    rig.pose.bones["Hips"].location = hips
+    rig.pose.bones["Hips"].keyframe_insert("location", frame=frame)
+
+
+def _seat_top(chair):
+    """Height of the chair's seat: the highest point over the middle of the seat (chair-local)."""
+    inv = chair.matrix_world.inverted()
+    top = 0.0
+    for o in [chair] + list(chair.children_recursive):
+        if o.type != "MESH":
+            continue
+        for v in o.data.vertices:
+            w = o.matrix_world @ v.co
+            p = inv @ w
+            if abs(p.x) < 0.15 and -0.2 < p.y < 0.08 and p.z < 0.6:
+                top = max(top, w.z)
+    return top
+
+
+def _seat_on(ctx, rig, chair, frame):
+    """Where the rig goes so that, in the pose keyed at `frame`, it sits on `chair`: facing the way the chair
+    faces, the hips over the back half of the seat, the underside of the thighs on the seat. -> (location, rot z)."""
+    bpy = ctx["bpy"]
+    from mathutils import Matrix, Vector
+    scene = bpy.context.scene
+    scene.frame_set(frame)
+    pb = rig.pose.bones
+    lat = pb["LeftUpLeg"].head - pb["RightUpLeg"].head
+    fwd = lat.cross(Vector((0, 0, 1)))
+    facing = math.degrees(math.atan2(fwd.x, -fwd.y))
+    rot = chair.matrix_world.to_euler().z - math.radians(facing)
+    k = rig.scale.x
+    hips = pb["Hips"].head
+    deps = bpy.context.evaluated_depsgraph_get()
+    low = 9.0
+    for part in ("body", "trousers"):                  # the underside within 25 cm of the hips (armature space)
+        o = bpy.data.objects[f"{rig.name}.{part}"]
+        ev = o.evaluated_get(deps)
+        me = ev.to_mesh()
+        to_arm = rig.matrix_world.inverted() @ ev.matrix_world
+        for v in me.vertices:
+            p = to_arm @ v.co
+            if (p.xy - hips.xy).length < 0.25 and p.z < hips.z:
+                low = min(low, p.z)
+        ev.to_mesh_clear()
+    target = chair.matrix_world @ Vector((0, -0.03, 0))
+    R = Matrix.Rotation(rot, 3, "Z")
+    loc = Vector((target.x, target.y, _seat_top(chair))) - R @ Vector((hips.x * k, hips.y * k, low * k))
+    toes = min((pb[f"{s}ToeBase"].head * k).z for s in ("Left", "Right")) + loc.z
+    return loc, rot, toes
+
+
+def _feet_down(ctx, rig, frame, drop):
+    """Seated, the mocap's feet hang `drop` m above the floor: bring each ankle straight down with two-bone leg
+    IK (knees bend a little more; the feet keep their angle), keyed at `frame`."""
+    bpy, humans = ctx["bpy"], ctx["humans"]
+    from mathutils import Vector
+    bpy.context.scene.frame_set(frame)
+    rest = {b.name: b.matrix_local.copy() for b in rig.data.bones}
+    for side in ("Left", "Right"):
+        chain = (f"{side}UpLeg", f"{side}Leg", f"{side}Foot")
+        pose = {n: rig.pose.bones[n].matrix.copy() for n in chain + ("Hips",)}
+        target = pose[chain[2]].translation - Vector((0, 0, drop / rig.scale.x))
+        humans._two_bone(rig, rest, pose, frame, *chain, target, pole=(0, -1, 0.3))
+        bpy.context.view_layer.update()
+
+
+def _hands_on_thighs(ctx, rig, frame, skip=()):
+    """Seated hands at rest: each wrist just above the thigh, two thirds of the way to the knee, the palm down and
+    the fingers along the thigh (arm IK, keyed at `frame`). The mocap's own seated arms were mid-gesture."""
+    bpy, humans = ctx["bpy"], ctx["humans"]
+    from mathutils import Vector
+    bpy.context.scene.frame_set(frame)
+    rest = {b.name: b.matrix_local.copy() for b in rig.data.bones}
+    pb = rig.pose.bones
+    for side, out in (("Left", 1), ("Right", -1)):
+        if side in skip:
+            continue
+        hip, knee = pb[f"{side}UpLeg"].head, pb[f"{side}Leg"].head
+        along = (knee - hip).normalized()
+        target = hip.lerp(knee, 0.62) + Vector((0.025 * out, 0, 0.085))
+        chain = (f"{side}Arm", f"{side}ForeArm", f"{side}Hand")
+        pose = {n: pb[n].matrix.copy() for n in chain + (pb[chain[0]].parent.name,)}
+        hand = humans.hand_frame(along + Vector((0, 0, -0.35)), Vector((0, 0, -1)))
+        humans._two_bone(rig, rest, pose, frame, *chain, target, pole=(0.3 * out, 0.6, -0.4), end_rot=hand)
+        bpy.context.view_layer.update()
+
+
+def _sit(ctx, rig, chair, frame, shots, skip_hands=()):
+    """Seat `rig` on `chair` from `frame` (the pose keyed there), feet on the floor; key its place at each shot."""
+    from mathutils import Euler
+    T = ctx["T"]
+    _key_pose(rig, frame, _sit_pose(ctx))
+    loc, rz, toes = _seat_on(ctx, rig, chair, frame)
+    for sid in shots:
+        rig.location, rig.rotation_euler = loc, Euler((0, 0, rz))
+        rig.keyframe_insert("location", frame=T(sid))
+        rig.keyframe_insert("rotation_euler", frame=T(sid))
+    _constant(rig)
+    _feet_down(ctx, rig, frame, toes - 0.025)
+    _hands_on_thighs(ctx, rig, frame, skip_hands)
+    ctx["bpy"].context.scene.frame_set(frame)
+    k = rig.scale.x
+    now = min((rig.matrix_world @ rig.pose.bones[f"{s}ToeBase"].head).z for s in ("Left", "Right"))
+    print(f"V4 seat: {rig.name} on {chair.name}: toes {toes * 100:+.1f} cm off the floor -> {now * 100:+.1f} cm")
+
+
+def _seed(name, k):
+    """A seed from a name, the same on every run (a string's built-in hash changes from run to run)."""
+    return sum(map(ord, name)) % k + 1
+
+
+def _phrases(humans, wav, f0):
+    """Voiced phrases of a line (gaps under 0.25 s merged), in scene frames from f0."""
+    times, _, _, voiced = humans._voicing(wav)
+    spans, on = [], None
+    for t, v in zip(times, voiced):
+        if v and on is None:
+            on = t
+        if not v and on is not None:
+            if spans and on - spans[-1][1] < 0.25:
+                spans[-1][1] = t
+            else:
+                spans.append([on, t])
+            on = None
+    if on is not None:
+        spans.append([on, times[-1]])
+    return [(f0 + a * FPS, f0 + b * FPS) for a, b in spans]
+
+
+def _look_fn(ctx, n, frame_ref):
+    """(yaw, pitch) from character n's head to another character's head, in n's own frame (seated: fixed)."""
+    bpy = ctx["bpy"]
+    rigs = ctx.get("all_rigs", ctx["rigs"])
+    bpy.context.scene.frame_set(frame_ref)
+    heads = {m: r.matrix_world @ r.pose.bones["Head"].head for m, r in rigs.items()}
+    inv = rigs[n].matrix_world.inverted().to_3x3()
+    moving = ctx.get("moving_heads", {})
+
+    def toward(m, f=None):
+        if not isinstance(m, str):
+            return m
+        there = moving[m].get(f, heads[m]) if m in moving and f is not None else heads[m]
+        d = inv @ (there - heads[n])
+        return math.degrees(math.atan2(d.x, -d.y)), math.degrees(math.atan2(d.z, math.hypot(d.x, d.y)))
+    return toward
+
+
+def _converse(ctx, lines, a, b, energy, idle, seated=True):
+    """Everyone in a scene, frames a..b: speakers' lips (Wav2ARKit) and gestures; everyone's gaze (one eyes()
+    call each: the speaker looks at whom he answers, listeners at the speaker, idle eyes per `idle`); listeners
+    nod at phrase ends; breathing and sway. lines: timeline entries; energy: {name: 0..1}; idle(n, f) -> (target,
+    mode), target a name or (yaw, pitch). Expressions must be keyed before (lips add on top of them)."""
+    humans, rigs = ctx["humans"], ctx["rigs"]
+    events = sorted((_frame(l["start"]), _frame(l["start"] + l["seconds"]), WHO[l["who"]], ROOT / l["file"])
+                    for l in lines)
+    phrases = {e: _phrases(humans, e[3], e[0]) for e in events}
+    spans = {n: [] for n in rigs}
+    prev = None
+    for e in events:
+        f0, f1, spk, _ = e
+        to = prev if prev and prev != spk else ("Narrator" if spk != "Narrator" else "Hale")
+        for n in rigs:
+            spans[n].append((f0, f1 + 12, to if n == spk else spk, "talking" if n == spk else "listening"))
+        prev = spk
+    for n, rig in rigs.items():
+        toward = _look_fn(ctx, n, a + 2)
+
+        def current(f, n=n):
+            hit = [s for s in spans[n] if s[0] <= f <= s[1]]
+            return (hit[-1][2], hit[-1][3]) if hit else idle(n, f)
+        humans.eyes(rig, a, b, mode=lambda f: current(f)[1], look=lambda f, t=toward: t(current(f)[0], f),
+                    pauses=[p[1] for e in events if e[2] == n for p in phrases[e][:-1]], seed=_seed(n, 97))
+        others = [p[1] for e in events if e[2] != n for p in phrases[e]]
+        humans.listen(rig, a, b, rig, phrase_ends=others, seed=_seed(n, 89), gaze=False,
+                      shift="LowerBack" if seated else "Hips")
+        humans.sway(rig, a, b, amount=0.45 if seated else 0.8, seed=_seed(n, 83))
+    if not events:
+        return events, phrases
+    cache = ctx["cache"]
+    if "bank" not in cache:
+        cache["bank"] = humans.gesture_bank(ctx.get("all_rigs", rigs)["Narrator"])
+    bank = cache["bank"]
+    for e in events:
+        f0, f1, spk, wav = e
+        free = ctx.get("busy_hands", {}).get(spk, ())
+        humans.gestures(rigs[spk], wav, f0, energy=energy.get(spk, 0.4),
+                        hands=tuple(s for s in ("Left", "Right") if s not in free), bank=bank, seed=f0)
+    return events, phrases
+
+
+def _act_chamber(ctx):
+    """5.6-5.10. Chairs are brought in; the officers rest; the narrator carries his own chair in by its back and
+    sets its legs down on the loose planks ("placed my own seat upon the very spot"), and stands behind it, hands
+    on the rail, smiling. Seated, all four chat (the officers' small talk, his cheery answers); then he hears the
+    ringing, pales, a hand goes to his temple; the officers chat on; he forces a smile, sweating, breathing fast."""
+    bpy, humans, cast3d = ctx["bpy"], ctx["humans"], ctx["cast3d"]
+    from mathutils import Euler, Matrix, Vector
+    rigs, props, T, tl = ctx["rigs"], ctx["props"], ctx["T"], ctx["tl"]
+    scene = bpy.context.scene
+    nar = rigs["Narrator"]
+    A, N7, B = T("5.6"), T("5.7"), T("5.11") - 1
+    hn = heading_to(SEATS["Narrator"], SEAT_FOCUS["Narrator"])
+    face = lambda rig, f, e: humans.face(rig, f, {**cast3d.NEUTRAL, **e})
+
+    # ---- between the shots: the chairs and Mercer's cup come in with 5.6; hats came off on entering (5.4)
+    for n in OFFICERS:
+        chair = props[f"chair_{n}"]
+        keep = chair.location.copy()
+        chair.location = (keep.x, keep.y, -5)
+        chair.keyframe_insert("location", frame=1)
+        chair.location = keep
+        chair.keyframe_insert("location", frame=A)
+        _constant(chair)
+        hat = props[f"hat_{n}"]
+        for f, hidden in ((1, False), (T("5.4"), True)):
+            hat.hide_render = hat.hide_viewport = hidden
+            hat.keyframe_insert("hide_render", frame=f)
+            hat.keyframe_insert("hide_viewport", frame=f)
+        _constant(hat)
+
+    # ---- the officers sit (from 5.6)
+    for n in OFFICERS:
+        _hold(bpy, rigs[n], A - 1)
+        _sit(ctx, rigs[n], props[f"chair_{n}"], A, CHAMBER_SHOTS)
+
+    # ---- 5.6: the narrator carries his chair in, by its back, and sets it down on the planks
+    C = Vector((*SEATS["Narrator"], 0))
+    d = Vector((*_dir(hn), 0))
+    Q = C - 0.6 * d                            # he stands here to set it down: the top rail 30 cm in front of him
+    W0, W1 = T("5.6", 7.5), T("5.6", 11.3)
+    D0, D1 = T("5.6", 11.5), T("5.6", 12.7)    # "placed my own seat upon the very spot"
+    door = (-1.4, -1.85)
+    path = [(A, door, 180), (W0, door, 180), (W0 + 38, (-1.45, -0.75), 170), (W1, (Q.x, Q.y), hn), (N7 - 1, (Q.x, Q.y), hn)]
+    track = v3._sample_path(path, A, N7 - 1)
+    for f in range(A, N7):
+        (x, y), h = track[f]
+        nar.location, nar.rotation_euler = (x, y, 0), Euler((0, 0, math.radians(h)))
+        nar.keyframe_insert("location", frame=f)
+        nar.keyframe_insert("rotation_euler", frame=f)
+    v3._mocap_gait(humans, nar, track, A, N7 - 1, set(range(A, N7)))
+    humans._layer(nar, D0 - 8, N7 - 1, lambda f: {"LowerBack": (0, 6 * v3.ease(D0 - 4, D1, f) *
+                                                                (1 - 0.6 * v3.ease(D1 + 6, D1 + 30, f)), 0)})
+
+    def chair_m(f):
+        (x, y), h = track[min(max(f, A), N7 - 1)]
+        lift = 0.12 * (1 - v3.ease(D0, D1, f))
+        R = Matrix.Rotation(math.radians(h), 3, "Z")
+        rail = Vector((x, y, 0)) + Vector((*_dir(h), 0)) * 0.30 + Vector((0, 0, RAIL[2] + lift))
+        return Matrix.Translation(rail - R @ Vector(RAIL)) @ R.to_4x4()
+    chair = props["chair_Narrator"]
+    chair.location = (-1.4, -2.9, -5)
+    chair.keyframe_insert("location", frame=1)
+    chair.keyframe_insert("rotation_euler", frame=1)
+    for f in range(A, D1 + 1):
+        chair.matrix_world = chair_m(f)
+        chair.keyframe_insert("location", frame=f)
+        chair.keyframe_insert("rotation_euler", frame=f)
+    _constant(chair)
+    humans.breathe(nar, A, N7 - 1, style="calm", seed=5)
+    humans.sway(nar, A, N7 - 1, amount=0.5, seed=6)
+    humans.eyes(nar, A, N7 - 1, mode=lambda f: "thinking" if f < D1 + 10 else "talking",
+                look=lambda f: (0.0, -22.0) if f < D1 + 10 else (-20.0, -5.0), seed=7)
+    for side, x in (("Left", 0.14), ("Right", -0.14)):          # palms on the top rail, fingers over it
+        humans.reach(nar, side, A, N7 - 1,
+                     target=lambda f, x=x: chair_m(f) @ Vector((x, 0.37, 1.06)),
+                     hand=lambda f: humans.hand_frame(chair_m(f).to_3x3() @ Vector((0, -1, -0.05)),
+                                                      Vector((0, 0, -1))), blend=1)
+        humans.grip(nar, side, A, curl=0.55)                   # the fingers curl down over the front edge
+        ctx["held"].append(dict(prop=chair.name, rig=nar.name, bone=f"{side}Hand", f0=A, f1=D1, point=[x, RAIL[1], RAIL[2]]))
+    face(nar, A, {})
+    face(nar, D1, cast3d.SLY)                                  # "the wild audacity of my perfect triumph"
+
+    # ---- the narrator seated (5.7 on)
+    _hold(bpy, nar, N7 - 1)
+    _sit(ctx, nar, chair, N7, CHAMBER_SHOTS[1:])
+
+    # ---- faces: the officers easy and pleasant; the narrator charming, then the ringing
+    for n in OFFICERS:
+        face(rigs[n], A, cast3d.PLEASANT)
+    face(nar, N7, cast3d.CHARM)
+    face(nar, T("5.8", 1.0), cast3d.CHARM)
+    face(nar, T("5.8", 3.5), WORRY)                           # "I felt myself getting pale"
+    face(nar, T("5.8", 5.2), WINCE)                           # "my head ached"
+    face(nar, T("5.9", 0.5), WORRY)
+    face(nar, T("5.10", 0.5), {**cast3d.FORCED_SMILE, "eyeWideLeft": 0.35, "eyeWideRight": 0.35})
+
+    # ---- the talk: the officers' small talk and his cheery answers (5.7), on under the narration (5.8-5.10)
+    lines = [l for s in tl["shots"] if s["id"] in ("5.7", "5.8", "5.9", "5.10") for l in s["lines"]
+             if l["who"] in ON_SCREEN]
+    lines += [c for c in tl["chatter"] if N7 <= _frame(c["start"]) <= B]
+    ctx.setdefault("busy_hands", {})["Mercer"] = ("Right",)   # his cup
+
+    def idle(n, f):
+        if n == "Narrator":
+            return ((-20.0, -5.0), "listening") if f < T("5.8", 1.5) else \
+                   (((0.0, -12.0), "thinking") if f < T("5.10") else ((0.0, -8.0), "fear"))
+        return "Narrator", "listening"
+    seated = {n: r for n, r in rigs.items()}
+    scene.frame_set(A)
+    walk_heads = {}
+    for f in range(A, N7):
+        scene.frame_set(f)
+        walk_heads[f] = nar.matrix_world @ nar.pose.bones["Head"].head
+    officers_only = dict(ctx, rigs={n: rigs[n] for n in OFFICERS}, all_rigs=rigs, moving_heads={"Narrator": walk_heads})
+    _converse(officers_only, [l for l in lines if _frame(l["start"]) < N7], A, N7 - 1, {}, idle)
+    events, phrases = _converse(dict(ctx, rigs=seated), [l for l in lines if _frame(l["start"]) >= N7], N7, B,
+                                {"Narrator": 0.5, "Hale": 0.35, "Brandt": 0.4, "Mercer": 0.3}, idle)
+    for n, rig in rigs.items():
+        mine = [p for e in events if e[2] == n for p in phrases[e]]
+        if n == "Narrator":
+            humans.breathe(rig, N7, T("5.8") - 1, style="calm", phrases=mine, seed=11)
+            humans.breathe(rig, T("5.8"), T("5.10") - 1, style="anxious", phrases=mine, seed=12)
+            humans.breathe(rig, T("5.10"), B, style="panic", phrases=mine, seed=13)
+        else:
+            humans.breathe(rig, A, B, style="calm", phrases=mine, seed=_seed(n, 71))
+    laugh = next(e for e in events if e[2] == "Brandt" and "c3" in str(e[3]))     # the stove went out at two
+    humans.chuckle(rigs["Hale"], laugh[1] + 4, rest=cast3d.PLEASANT, seed=3)
+
+    # ---- 5.8: "my head ached" - his left hand to his temple, and back
+    H0, H1 = T("5.8", 5.0), T("5.8", 7.6)
+    scene.frame_set(H0)
+    temple = nar.matrix_world @ (nar.pose.bones["Head"].matrix @ Vector((0.075, 0.06, -0.02))) + Vector((0, 0, -0.13))
+    humans.reach(nar, "Left", H0 - 10, H1 + 10, target=lambda f: temple if H0 <= f <= H1 else None,
+                 hand=lambda f: humans.hand_frame(Vector((0, 0, 1)), nar.matrix_world.to_3x3() @ Vector((-1, 0, 0))),
+                 blend=10)
+
+    # ---- Mercer's cup, in his right hand on his thigh
+    mer = rigs["Mercer"]
+    knee = lambda f: mer.matrix_world @ mer.pose.bones["RightLeg"].head
+    hip = lambda f: mer.matrix_world @ mer.pose.bones["RightUpLeg"].head
+    humans.reach(mer, "Right", A, B, target=lambda f: hip(f).lerp(knee(f), 0.7) + Vector((0, 0, 0.11)),
+                 hand=lambda f: humans.hand_frame(mer.matrix_world.to_3x3() @ Vector((0, -1, -0.2)),
+                                                  mer.matrix_world.to_3x3() @ Vector((1, 0, 0))), blend=1)
+    humans.grip(mer, "Right", A, curl=0.75)
+    cup = props["cup"]
+    scene.frame_set(A)
+    pb = mer.pose.bones
+    grip_at = mer.matrix_world @ pb["RightHandMiddle1"].head.lerp(pb["RightHandMiddle3"].tail, 0.3)
+    cup.matrix_world = Matrix.Translation(grip_at + mer.matrix_world.to_3x3() @ Vector((0.045, 0, -0.05)))
+    cup.keyframe_insert("location", frame=A)
+    cup.keyframe_insert("rotation_euler", frame=A)
+    _carry(ctx, cup, mer, "RightHand", A, B)
+
+    # ---- 5.9: dust on the plank seam under his chair jumps on each heartbeat
+    _dust(ctx, T("5.9"), T("5.10") - 1)
+
+    # ---- cameras on the actual heads
+    _frame_chamber_cams(ctx)
+
+
+def _carry(ctx, prop, rig, bone, f0, f1):
+    """Bake a prop onto a hand from f0 to f1: it keeps the pose it had relative to the hand at f0, so it moves
+    only with the hand. Run after every layer that moves that arm; registered for check()."""
+    bpy = ctx["bpy"]
+    scene = bpy.context.scene
+    scene.frame_set(f0)
+    offset = (rig.matrix_world @ rig.pose.bones[bone].matrix).inverted() @ prop.matrix_world
+    mats = {}
+    for f in range(f0, f1 + 1):
+        scene.frame_set(f)
+        mats[f] = rig.matrix_world @ rig.pose.bones[bone].matrix @ offset
+    for f, m in mats.items():
+        prop.matrix_world = m
+        prop.keyframe_insert("location", frame=f)
+        prop.keyframe_insert("rotation_euler", frame=f)
+    ctx["held"].append(dict(prop=prop.name, rig=rig.name, bone=bone, f0=f0, f1=f1, point=[0, 0, 0]))
+
+
+def _dust(ctx, f0, f1):
+    """Specks of dust along the seam between the loose planks, by his chair: each heartbeat makes them jump."""
+    bpy, su = ctx["bpy"], ctx["su"]
+    import bmesh
+    from material_library import material as M
+    beats = [_frame(t) for t in beat_times(ctx["tl"])]
+    specks = []
+    for i in range(14):
+        bm = bmesh.new()
+        bmesh.ops.create_icosphere(bm, subdivisions=1, radius=0.0007 + 0.0005 * (i % 3))
+        x, y = -0.98 + 0.05 * i + 0.012 * ((i * 7) % 5), -0.09 + 0.004 * ((i * 3) % 5 - 2)
+        speck = su.make_object(f"V4_Dust_{i}", ctx["C"]["PROPS"], M("MAT_Plaster_Old"), bm, (x, y, 0.001))
+        specks.append(speck)
+    for i, s in enumerate(specks):
+        base = s.location.z
+        for f in range(f0, f1 + 1):
+            hop = sum(0.004 * (0.6 + 0.4 * ((i * 5) % 3) / 2) * math.exp(-((f - b - (i % 3)) / 2.2) ** 2)
+                      for b in beats if abs(f - b) < 12)
+            s.location.z = base + hop
+            s.keyframe_insert("location", index=2, frame=f)
+
+
+def _frame_chamber_cams(ctx):
+    """Aim the chamber's cameras at where the people really are, once they are seated."""
+    bpy, su = ctx["bpy"], ctx["su"]
+    from mathutils import Vector
+    rigs, cams, T = ctx["rigs"], ctx["cams"], ctx["T"]
+    scene = bpy.context.scene
+    scene.frame_set(T("5.8", 1.0))
+    head = {n: r.matrix_world @ r.pose.bones["Head"].head for n, r in rigs.items()}
+    nar = rigs["Narrator"]
+    fwd = (nar.matrix_world.to_3x3() @ Vector((0, -1, 0)))
+    fwd.z = 0
+    fwd.normalize()
+    side = Vector((0, 0, 1)).cross(fwd)
+    face_at = head["Narrator"] + Vector((0, 0, 0.06)) + fwd * 0.04
+    group = sum((head[n] for n in rigs), Vector()) / 4
+    behind = head["Narrator"] - fwd * 1.15 + side * 0.55 + Vector((0, 0, 0.45))
+
+    def aim(name, f0, f1, at0, at1, look, lens=None):
+        cam = cams[name]
+        su.animate_camera(cam, [(f0, tuple(at0), tuple(look)), (f1, tuple(at1), tuple(look))])
+        cam.data.dof.focus_distance = (Vector(look) - Vector(at0)).length
+        if lens:
+            cam.data.lens = lens
+    toward_b = (head["Brandt"] - group) * 0.3
+    aim("four", T("5.7"), T("5.8") - 1, behind, behind - side * 0.5 + fwd * 0.15,
+        group - Vector((0, 0, 0.15)) + toward_b, 22)
+    aim("nar_cu", T("5.8"), T("5.9") - 1, face_at + fwd * 1.35, face_at + fwd * 0.95, face_at, 85)
+    hh = face_at + (fwd * 0.97 + side * 0.24).normalized() * 0.85
+    aim("nar_hh", T("5.10"), T("5.11") - 1, hh, hh - (hh - face_at).normalized() * 0.2, face_at, 50)
+    for fc in v3._fcurves(cams["nar_hh"]):                 # handheld: a slow, small drift
+        if fc.data_path == "rotation_euler":
+            mod = fc.modifiers.new("NOISE")
+            mod.scale, mod.strength = 14.0, 0.012
+    seam = Vector((-0.72, -0.09, 0.0))
+    aim("macro", T("5.9"), T("5.10") - 1, seam + Vector((0.24, -0.26, 0.045)), seam + Vector((0.2, -0.22, 0.04)),
+        seam, 100)
+    cams["macro"].data.dof.aperture_fstop = 4.0
+    aim("floor", T("5.6"), T("5.7") - 1, (-0.55, -1.05, 0.14), (-0.55, -1.0, 0.14), (-0.62, 0.05, 0.12), 24)
+
+
+ACTS = [_act_chamber]          # the animation, part by part, in story order
 
 
 # ----------------------------------------------------------------------------------------------- checks
@@ -496,7 +1006,8 @@ def _spans():
 def check(shots=None, step=4):
     """Measured checks on the built scene, printed with numbers; fails on any of:
     a hand more than 5 mm inside another person (body, shirt, trousers) or a chair (every `step` frames);
-    a held prop drifting over 1 cm from its hand; planted feet sliding over 2 cm/s on average (not on the stair);
+    a held prop drifting over 1 cm from its hand; planted feet (ball of the foot under 4 cm, moving under 25 cm/s,
+    so a foot swinging low through a step doesn't count) sliding over 2 cm/s on average (not on the stair);
     an on-camera character moving less than 0.5 deg (summed over the spine, neck, head and arms) in any 1 s."""
     import bpy
     from bpy_extras.object_utils import world_to_camera_view
@@ -565,8 +1076,9 @@ def check(shots=None, step=4):
                     scene.frame_set(f)
                     for side in ("Left", "Right"):
                         p = rig.matrix_world @ rig.pose.bones[f"{side}ToeBase"].head
-                        if side in prev and p.z < 0.05 and prev[side].z < 0.05:
-                            slide += (p.xy - prev[side].xy).length * FPS
+                        speed = (p.xy - prev[side].xy).length * FPS if side in prev else 9.0
+                        if side in prev and p.z < 0.04 and prev[side].z < 0.04 and speed < 0.25:   # down, still
+                            slide += speed
                             count += 1
                         prev[side] = p
                 mean = slide / max(count, 1)
@@ -591,9 +1103,59 @@ def check(shots=None, step=4):
     for line in notes:
         print("V4 check:", line)
     if fails:
+        kinds = {}
+        for line in fails:
+            key = next((k for k in ("inside", "drifts", "slide", "frozen") if k in line), "other")
+            who = line.split(": ", 1)[1].split("'")[0] if ": " in line else ""
+            kinds[(key, who)] = kinds.get((key, who), 0) + 1
+        print("V4 check failures by kind: " + ", ".join(f"{k} {w}: {n}" for (k, w), n in sorted(kinds.items())))
         print("V4 check FAILED:\n  " + "\n  ".join(fails[:40]) + (f"\n  ... {len(fails)} in all" if len(fails) > 40 else ""))
         raise SystemExit(1)
     print(f"V4 check OK ({'animated' if animated else 'no animation yet: stillness skipped'})")
+
+
+def _voices(out_wav, t0, t1):
+    """The voices alone, seconds t0..t1 (planned lines at -18 dB RMS, the chatter 12 dB under): for a test clip
+    before the full soundtrack exists."""
+    import wave
+    import numpy as np
+    tl = json.loads((OUT / "timeline.json").read_text())
+    rate = 24000
+    buf = np.zeros(int((t1 - t0) * rate) + 1, np.float32)
+    lines = [(l, 1.0) for s in tl["shots"] for l in s["lines"]] + [(c, 0.25) for c in tl["chatter"]]
+    for l, gain in lines:
+        if l["start"] > t1 or l["start"] + l["seconds"] < t0:
+            continue
+        with wave.open(str(ROOT / l["file"])) as w:
+            x = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768
+        x *= gain * 10 ** (-18 / 20) / (np.sqrt(np.mean(x ** 2)) + 1e-9)
+        a = int((l["start"] - t0) * rate)
+        if a < 0:
+            x, a = x[-a:], 0
+        x = x[: len(buf) - a]
+        buf[a:a + len(x)] += x
+    buf /= max(1e-6, np.abs(buf).max()) / 0.9
+    with wave.open(str(out_wav), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes((buf * 32767).astype(np.int16).tobytes())
+    return out_wav
+
+
+def test57(t0=0.3, t1=10.8):
+    """10 s of 5.7 (the four of them chatting: the most gestures) at 480p with the voices -> OUT/test_5.7_480p.mp4."""
+    import bpy
+    import shutil
+    scene = bpy.context.scene
+    f0 = _spans()["5.7"][0]
+    a, b = f0 + int(t0 * FPS), f0 + int(t1 * FPS)
+    scene.frame_start, scene.frame_end = a, b
+    scene.eevee.taa_render_samples = 24
+    out = OUT / "test57"
+    v3.draft(out=out, mix=lambda wav: _voices(wav, (a - 1) / FPS, b / FPS), blend_name="V4 test 5.7")
+    shutil.copy(out / "draft_480p.mp4", OUT / "test_5.7_480p.mp4")
+    print("V4 test:", OUT / "test_5.7_480p.mp4")
 
 
 def _ancestors(o):
@@ -610,11 +1172,12 @@ def stills(shots=None):
     r.resolution_x, r.resolution_y, r.resolution_percentage = 854, 480, 100
     scene.eevee.taa_render_samples = 16
     (OUT / "stills").mkdir(parents=True, exist_ok=True)
-    for sid, (f0, f1) in _spans().items():
-        if shots and sid not in shots:
-            continue
-        scene.frame_set((f0 + f1) // 2)
-        r.filepath = str(OUT / "stills" / f"{sid}.png")
+    spans = _spans()
+    for want in shots or list(spans):
+        sid, _, sec = want.partition("@")
+        f0, f1 = spans[sid]
+        scene.frame_set(f0 + int(float(sec) * FPS) if sec else (f0 + f1) // 2)
+        r.filepath = str(OUT / "stills" / f"{want}.png")
         bpy.ops.render.render(write_still=True)
     print("V4 stills ->", OUT / "stills")
 
@@ -623,6 +1186,6 @@ if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
     shots = args[1].split(",") if len(args) > 1 and args[1] else None
     {"standins": check_standins, "build": build, "build_static": lambda: build(acts=False),
-     "check": lambda: check(shots), "stills": lambda: stills(shots),
+     "check": lambda: check(shots), "stills": lambda: stills(shots), "test57": test57,
      "timeline": lambda: (OUT.mkdir(parents=True, exist_ok=True),
                           (OUT / "timeline.json").write_text(json.dumps(check_timeline(), indent=1)))}[args[0]]()

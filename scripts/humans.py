@@ -1507,11 +1507,12 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), bank=No
     return [int(round(p["stroke"])) for p in placed]
 
 
-def listen(rig, start, end, speaker_rig, phrase_ends=(), seed=1, gaze=True):
+def listen(rig, start, end, speaker_rig, phrase_ends=(), seed=1, gaze=True, shift="Hips"):
     """A listener: gaze on the speaker's head with the listening statistics of eyes() (long mutual gaze, short
     glances away), a nod (3-6 degrees, ~0.5 s) at the speaker's phrase ends (the first always, then 70%),
     and a slow weight shift (hips roll 1-2 degrees) every 4-8 s. gaze=False: only the nods and weight shifts
-    (the gaze then comes from one eyes() call over the whole scene)."""
+    (the gaze then comes from one eyes() call over the whole scene). shift: the bone the weight shift rolls
+    (a seated person shifts in the lower back: rolling the hips would slide the feet on the floor)."""
     fps = bpy.context.scene.render.fps
     bpy.context.view_layer.update()
     me = rig.matrix_world @ rig.pose.bones["Head"].head
@@ -1537,7 +1538,7 @@ def listen(rig, start, end, speaker_rig, phrase_ends=(), seed=1, gaze=True):
                 break
             k = min(1.0, (f - s) / fps)
             roll, prev = prev + (r - prev) * k * k * (3 - 2 * k), r
-        return {"Head": (0, nod, 0), "Neck1": (0, nod / 3, 0), "Hips": (0, 0, roll)}
+        return {"Head": (0, nod, 0), "Neck1": (0, nod / 3, 0), shift: (0, 0, roll)}
     _layer(rig, int(start), int(end), offsets)
 
 
@@ -1729,6 +1730,13 @@ def _selfcheck_gestures():
         scene.frame_set(f)
         nod = max(nod, math.degrees(head_dir(nodder).angle(head_dir(still))))
     assert nod >= 3.0, f"listener nod only {nod:.1f} deg"
+    sitter = build({"name": "SitCheck", "character": "Narrator"}, location=(4.5, 0, 0))
+    scene.frame_set(1)
+    hips0 = sitter.pose.bones["Hips"].matrix.copy()
+    listen(sitter, 1, 300, speaker, phrase_ends=[36], gaze=False, shift="LowerBack")   # seated: hips stay put
+    for f in (100, 200, 290):
+        scene.frame_set(f)
+        assert max(abs(x) for row in (sitter.pose.bones["Hips"].matrix - hips0) for x in row) < 1e-5, "seated hips moved"
     print(f"humans gestures OK: {len(found)} stresses, strokes on time, held hand still, listener nods "
           f"({len(bank)} units; strokes {strokes}; nod {nod:.1f} deg)")
 
