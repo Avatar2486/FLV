@@ -1,0 +1,352 @@
+{
+ "fps": 24,
+ "seconds": 179.57,
+ "frames": 4310,
+ "shots": [
+  {
+   "id": "5.1",
+   "start": 0.0,
+   "seconds": 10.58,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.1_0_N.wav",
+     "who": "N",
+     "line": "5.1_0_N",
+     "start": 0.4,
+     "seconds": 9.48
+    }
+   ]
+  },
+  {
+   "id": "5.2",
+   "start": 10.58,
+   "seconds": 13.69,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.2_0_N.wav",
+     "who": "N",
+     "line": "5.2_0_N",
+     "start": 10.98,
+     "seconds": 6.8
+    },
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.2_1_O1.wav",
+     "who": "O1",
+     "line": "5.2_1_O1",
+     "start": 18.13,
+     "seconds": 5.44
+    }
+   ]
+  },
+  {
+   "id": "5.3",
+   "start": 24.27,
+   "seconds": 8.8,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.3_0_NS.wav",
+     "who": "NS",
+     "line": "5.3_0_NS",
+     "start": 24.67,
+     "seconds": 6.6
+    }
+   ]
+  },
+  {
+   "id": "5.4",
+   "start": 33.07,
+   "seconds": 8.21,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.4_0_N.wav",
+     "who": "N",
+     "line": "5.4_0_N",
+     "start": 33.47,
+     "seconds": 5.0
+    },
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.4_1_NS.wav",
+     "who": "NS",
+     "line": "5.4_1_NS",
+     "start": 38.82,
+     "seconds": 1.76
+    }
+   ]
+  },
+  {
+   "id": "5.5",
+   "start": 41.28,
+   "seconds": 8.2,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.5_0_N.wav",
+     "who": "N",
+     "line": "5.5_0_N",
+     "start": 41.68,
+     "seconds": 7.08
+    }
+   ]
+  },
+  {
+   "id": "5.6",
+   "start": 49.48,
+   "seconds": 16.9,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.6_0_N.wav",
+     "who": "N",
+     "line": "5.6_0_N",
+     "start": 49.88,
+     "seconds": 15.8
+    }
+   ]
+  },
+  {
+   "id": "5.7",
+   "start": 66.38,
+   "seconds": 17.17,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.7_0_N.wav",
+     "who": "N",
+     "line": "5.7_0_N",
+     "start": 66.78,
+     "seconds": 6.8
+    },
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.7_1_O2.wav",
+     "who": "O2",
+     "line": "5.7_1_O2",
+     "start": 73.93,
+     "seconds": 1.26
+    },
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.7_2_O3.wav",
+     "who": "O3",
+     "line": "5.7_2_O3",
+     "start": 75.54,
+     "seconds": 1.52
+    },
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.7_3_N.wav",
+     "who": "N",
+     "line": "5.7_3_N",
+     "start": 77.41,
+     "seconds": 5.44
+    }
+   ]
+  },
+  {
+   "id": "5.8",
+   "start": 83.55,
+   "seconds": 10.0,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.8_0_N.wav",
+     "who": "N",
+     "line": "5.8_0_N",
+     "start": 83.95,
+     "seconds": 8.44
+    }
+   ]
+  },
+  {
+   "id": "5.9",
+   "start": 93.55,
+   "seconds": 7.98,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.9_0_N.wav",
+     "who": "N",
+     "line": "5.9_0_N",
+     "start": 93.95,
+     "seconds": 6.88
+    }
+   ]
+  },
+  {
+   "id": "5.10",
+   "start": 101.53,
+   "seconds": 13.0,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.10_0_N.wav",
+     "who": "N",
+     "line": "5.10_0_N",
+     "start": 101.93,
+     "seconds": 10.88
+    }
+   ]
+  },
+  {
+   "id": "5.11",
+   "start": 114.53,
+   "seconds": 15.58,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.11_0_N.wav",
+     "who": "N",
+     "line": "5.11_0_N",
+     "start": 114.93,
+     "seconds": 14.48
+    }
+   ]
+  },
+  {
+   "id": "5.12",
+   "start": 130.11,
+   "seconds": 13.5,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.12_0_N.wav",
+     "who": "N",
+     "line": "5.12_0_N",
+     "start": 130.51,
+     "seconds": 12.12
+    }
+   ]
+  },
+  {
+   "id": "5.13",
+   "start": 143.61,
+   "seconds": 17.0,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.13_0_N.wav",
+     "who": "N",
+     "line": "5.13_0_N",
+     "start": 144.01,
+     "seconds": 15.2
+    }
+   ]
+  },
+  {
+   "id": "5.14",
+   "start": 160.61,
+   "seconds": 8.82,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.14_0_N.wav",
+     "who": "N",
+     "line": "5.14_0_N",
+     "start": 161.01,
+     "seconds": 7.72
+    }
+   ]
+  },
+  {
+   "id": "5.15",
+   "start": 169.43,
+   "seconds": 10.14,
+   "lines": [
+    {
+     "file": "audio/voiceovers/the_tell_tale_heart_v4/5.15_0_NS.wav",
+     "who": "NS",
+     "line": "5.15_0_NS",
+     "start": 169.83,
+     "seconds": 9.04
+    }
+   ]
+  }
+ ],
+ "chatter": [
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.7_c1_O1.wav",
+   "who": "O1",
+   "line": "5.7_c1_O1",
+   "start": 66.88,
+   "seconds": 2.36
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.7_c2_NS.wav",
+   "who": "NS",
+   "line": "5.7_c2_NS",
+   "start": 69.48,
+   "seconds": 3.96
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.7_c3_O2.wav",
+   "who": "O2",
+   "line": "5.7_c3_O2",
+   "start": 77.38,
+   "seconds": 2.06
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.7_c4_NS.wav",
+   "who": "NS",
+   "line": "5.7_c4_NS",
+   "start": 79.78,
+   "seconds": 2.68
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.8_c5_O3.wav",
+   "who": "O3",
+   "line": "5.8_c5_O3",
+   "start": 84.15,
+   "seconds": 2.68
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.8_c6_O2.wav",
+   "who": "O2",
+   "line": "5.8_c6_O2",
+   "start": 87.25,
+   "seconds": 2.46
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.9_c7_O1.wav",
+   "who": "O1",
+   "line": "5.9_c7_O1",
+   "start": 94.55,
+   "seconds": 2.48
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.10_c8_O2.wav",
+   "who": "O2",
+   "line": "5.10_c8_O2",
+   "start": 102.33,
+   "seconds": 2.5
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.10_c9_O3.wav",
+   "who": "O3",
+   "line": "5.10_c9_O3",
+   "start": 105.23,
+   "seconds": 1.72
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.11_c10_NS.wav",
+   "who": "NS",
+   "line": "5.11_c10_NS",
+   "start": 115.53,
+   "seconds": 3.44
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.11_c11_NS.wav",
+   "who": "NS",
+   "line": "5.11_c11_NS",
+   "start": 119.53,
+   "seconds": 3.96
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.12_c12_O1.wav",
+   "who": "O1",
+   "line": "5.12_c12_O1",
+   "start": 136.11,
+   "seconds": 2.08
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.13_c13_O2.wav",
+   "who": "O2",
+   "line": "5.13_c13_O2",
+   "start": 145.11,
+   "seconds": 2.14
+  },
+  {
+   "file": "audio/voiceovers/the_tell_tale_heart_v4/5.13_c14_O3.wav",
+   "who": "O3",
+   "line": "5.13_c14_O3",
+   "start": 147.81,
+   "seconds": 3.4
+  }
+ ]
+}

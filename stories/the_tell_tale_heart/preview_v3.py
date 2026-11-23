@@ -64,7 +64,7 @@ def seconds(path):
 
 def timeline(shots=None, voice_fn=None):
     t, out = 0.0, []
-    for sid, lines, minimum in shots or SHOTS:
+    for sid, lines, minimum in SHOTS if shots is None else shots:
         at, placed = LEAD, []
         for prefix, who in lines:
             path = (voice_fn or voice)(prefix)

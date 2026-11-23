@@ -8,6 +8,7 @@ come from the character generator (docs/officers_cast_specs.md).
 
     blender -b --factory-startup --python stories/the_tell_tale_heart/preview_v4.py -- standins   (check)
 """
+import json
 import math
 import sys
 from pathlib import Path
@@ -15,6 +16,81 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path[:0] = [str(ROOT / "scripts"), str(HERE)]
+import preview_v3 as v3  # noqa: E402  (the shared helpers: timeline, gait, feet, render, draft)
+
+OUT = ROOT / "output" / "renders" / "the_tell_tale_heart_v4_visitors"
+BLEND = ROOT / "blender" / "scenes" / "tell_tale_heart_v4_visitors.blend"
+VO = ROOT / "audio" / "voiceovers" / "the_tell_tale_heart_v4"
+FPS = v3.FPS
+ON_SCREEN = ("NS", "O1", "O2", "O3")              # lines spoken on camera (N is the voice-over)
+
+# (shot, [(line key, who)], minimum seconds); the line keys are files in VO (preview_v4/lines.json)
+SHOTS = [
+    ("5.1", [("5.1_0_N", "N")], 8.6),
+    ("5.2", [("5.2_0_N", "N"), ("5.2_1_O1", "O1")], 13.2),
+    ("5.3", [("5.3_0_NS", "NS")], 8.8),
+    ("5.4", [("5.4_0_N", "N"), ("5.4_1_NS", "NS")], 8.0),
+    ("5.5", [("5.5_0_N", "N")], 8.2),
+    ("5.6", [("5.6_0_N", "N")], 16.2),
+    ("5.7", [("5.7_0_N", "N"), ("5.7_1_O2", "O2"), ("5.7_2_O3", "O3"), ("5.7_3_N", "N")], 16.3),
+    ("5.8", [("5.8_0_N", "N")], 10.0),
+    ("5.9", [("5.9_0_N", "N")], 7.0),
+    ("5.10", [("5.10_0_N", "N")], 13.0),
+    ("5.11", [("5.11_0_N", "N")], 14.8),
+    ("5.12", [("5.12_0_N", "N")], 13.5),
+    ("5.13", [("5.13_0_N", "N")], 17.0),
+    ("5.14", [("5.14_0_N", "N")], 8.1),
+    ("5.15", [("5.15_0_NS", "NS")], 9.2),
+]
+# (shot, seconds into the shot, line key, who): the officers' small talk, and the narrator's, under the narration
+# ("they chatted of familiar things"; in 5.11 he "argued about trifles, in a high key")
+CHATTER = [
+    ("5.7", 0.5, "5.7_c1_O1", "O1"), ("5.7", 3.1, "5.7_c2_NS", "NS"),
+    ("5.7", 11.0, "5.7_c3_O2", "O2"), ("5.7", 13.4, "5.7_c4_NS", "NS"),
+    ("5.8", 0.6, "5.8_c5_O3", "O3"), ("5.8", 3.7, "5.8_c6_O2", "O2"),
+    ("5.9", 1.0, "5.9_c7_O1", "O1"),
+    ("5.10", 0.8, "5.10_c8_O2", "O2"), ("5.10", 3.7, "5.10_c9_O3", "O3"),
+    ("5.11", 1.0, "5.11_c10_NS", "NS"), ("5.11", 5.0, "5.11_c11_NS", "NS"),
+    ("5.12", 6.0, "5.12_c12_O1", "O1"),
+    ("5.13", 1.5, "5.13_c13_O2", "O2"), ("5.13", 4.2, "5.13_c14_O3", "O3"),
+]
+
+
+def voice(key):
+    return VO / f"{key}.wav"
+
+
+def timeline():
+    """v3's timeline (shots laid end to end, each as long as its lines), plus the chatter at fixed offsets."""
+    tl = v3.timeline(SHOTS, voice)
+    start = {s["id"]: s["start"] for s in tl["shots"]}
+    tl["chatter"] = [{"file": str(voice(key).relative_to(ROOT)), "who": who, "line": key,
+                      "start": round(start[sid] + off, 3), "seconds": round(v3.seconds(voice(key)), 3)}
+                     for sid, off, key, who in CHATTER]
+    return tl
+
+
+def check_timeline(tl=None):
+    """Chatter never talks over an on-screen line or over other chatter, stays inside 5.7-5.13; >= 170 s."""
+    tl = tl or timeline()
+    spoken = [l for s in tl["shots"] for l in s["lines"] if l["who"] in ON_SCREEN]
+    span = {s["id"]: (s["start"], s["start"] + s["seconds"]) for s in tl["shots"]}
+    ids = [s["id"] for s in tl["shots"]]
+    inside = ids[ids.index("5.7"): ids.index("5.13") + 1]
+    lo, hi = span[inside[0]][0], span[inside[-1]][1]
+    tol = 0.05
+
+    def overlap(a, b):
+        return a["start"] < b["start"] + b["seconds"] - tol and b["start"] < a["start"] + a["seconds"] - tol
+    for i, c in enumerate(tl["chatter"]):
+        assert lo <= c["start"] and c["start"] + c["seconds"] <= hi, f"chatter {c['line']} outside 5.7-5.13"
+        for l in spoken:
+            assert not overlap(c, l), f"chatter {c['line']} talks over {l['line']}"
+        for d in tl["chatter"][i + 1:]:
+            assert not overlap(c, d), f"chatter {c['line']} and {d['line']} at once"
+    assert tl["seconds"] >= 170, f"only {tl['seconds']} s"
+    print(f"V4 timeline OK: {tl['seconds']:.1f} s, {len(tl['chatter'])} chatter lines")
+    return tl
 
 
 # ----------------------------------------------------------------------------------------------- props
@@ -189,4 +265,6 @@ def check_standins():
 
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
-    {"standins": check_standins}[args[0]]()
+    {"standins": check_standins,
+     "timeline": lambda: (OUT.mkdir(parents=True, exist_ok=True),
+                          (OUT / "timeline.json").write_text(json.dumps(check_timeline(), indent=1)))}[args[0]]()
