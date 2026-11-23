@@ -824,7 +824,7 @@ def _act_chamber(ctx):
     officers_only = dict(ctx, rigs={n: rigs[n] for n in OFFICERS}, all_rigs=rigs, moving_heads={"Narrator": walk_heads})
     _converse(officers_only, [l for l in lines if _frame(l["start"]) < N7], A, N7 - 1, {}, idle)
     events, phrases = _converse(dict(ctx, rigs=seated), [l for l in lines if _frame(l["start"]) >= N7], N7, B,
-                                {"Narrator": 0.5, "Hale": 0.35, "Brandt": 0.4, "Mercer": 0.3}, idle)
+                                {"Narrator": 0.5, "Hale": 0.45, "Brandt": 0.5, "Mercer": 0.35}, idle)
     for n, rig in rigs.items():
         mine = [p for e in events if e[2] == n for p in phrases[e]]
         if n == "Narrator":

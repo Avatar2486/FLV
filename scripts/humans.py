@@ -1312,14 +1312,18 @@ def tremble(rig, start, end, strength=1.0, seed=1):
 CMU_LIBRARY = ROOT / "assets" / "mocap" / "library" / "cmu"
 # (forward of the chest, up from the chest, out to the gesturing side) in m for a 1.76 m man; palm "up"/"down"/"in";
 # fingers; the flick at each stroke and beat (m); both hands?
+# Heights: most gestures happen at the centre of the gesture space, about chest height (McNeill 1992); a seated
+# person's hands rest on the thighs, already ~30 cm in front of and ~25 cm below the chest, so a gesture has to
+# come clearly up off the lap (the first poses here, 10 cm lower, moved a hand only 6 cm: nothing to see).
 GESTURES = {
-    "offer": dict(at=(0.34, -0.16, 0.15), palm="up", fingers="open", dip=0.03),       # palm-up open hand
-    "present": dict(at=(0.32, -0.13, 0.22), palm="up", fingers="open", dip=0.025, both=True),
-    "beat": dict(at=(0.30, -0.20, 0.14), palm="down", fingers="relaxed", dip=0.04),   # small flicks, palm down
-    "chop": dict(at=(0.36, -0.04, 0.14), palm="in", fingers="open", dip=0.09),        # agitated: the edge chops
-    "fist": dict(at=(0.30, -0.02, 0.12), palm="down", fingers="fist", dip=0.08),
-    "spread": dict(at=(0.28, 0.04, 0.34), palm="up", fingers="open", dip=0.05, both=True),
+    "offer": dict(at=(0.32, -0.06, 0.16), palm="up", fingers="open", dip=0.03),       # palm-up open hand
+    "present": dict(at=(0.30, -0.05, 0.22), palm="up", fingers="open", dip=0.025, both=True),
+    "beat": dict(at=(0.28, -0.10, 0.14), palm="down", fingers="relaxed", dip=0.04),   # small flicks, palm down
+    "chop": dict(at=(0.34, 0.04, 0.14), palm="in", fingers="open", dip=0.09),         # agitated: the edge chops
+    "fist": dict(at=(0.30, 0.06, 0.12), palm="down", fingers="fist", dip=0.08),
+    "spread": dict(at=(0.26, 0.10, 0.32), palm="up", fingers="open", dip=0.05, both=True),
 }
+NEW_GESTURE_AFTER = 1.6     # s: a long phrase gets a fresh gesture on a stress this long after the last one
 CALM, AGITATED = (("offer", 0.5), ("beat", 0.3), ("present", 0.2)), (("chop", 0.4), ("fist", 0.3), ("spread", 0.3))
 FINGER_CURL = {"open": 0.06, "relaxed": 0.35, "fist": 1.1}
 
@@ -1392,7 +1396,8 @@ def _finger_shape(rig, side, frame, curl):
 
 def _gesture_units(wav, start_frame, energy, hands, seed, fps):
     """Plan the gestures of one line: one per phrase (voiced speech between pauses over 0.5 s) that has a
-    stressed syllable; its stroke lands 1-3 frames before the first stress, the later stresses are beats on it."""
+    stressed syllable, and a fresh one on a stress NEW_GESTURE_AFTER s after the last; its stroke lands 1-3 frames
+    before the stress, the stresses in between are beats on it."""
     rng = random.Random(seed)
     times, _, _, voiced = _voicing(wav)
     phrases, on, last_on = [], None, None
@@ -1408,10 +1413,18 @@ def _gesture_units(wav, start_frame, energy, hands, seed, fps):
     stresses = stress_times(wav)
     pool = AGITATED if energy >= 0.6 else CALM
     units, shown = [], None
+    groups = []
     for a, b in phrases:
         ss = [t for t in stresses if a - 0.05 <= t <= b + 0.05]
-        if not ss:
-            continue
+        group = []
+        for t in ss:
+            if group and t - group[0] >= NEW_GESTURE_AFTER:
+                groups.append((group, t - 0.25))
+                group = []
+            group.append(t)
+        if group:
+            groups.append((group, b))
+    for ss, b in groups:
         choices = [(k, w) for k, w in pool if (len(hands) == 2 or not GESTURES[k].get("both")) and k != shown]
         kind = rng.choices([k for k, _ in choices], [w for _, w in choices])[0]
         if kind != "beat":
@@ -1422,7 +1435,7 @@ def _gesture_units(wav, start_frame, energy, hands, seed, fps):
             used = (hands[0],) if len(hands) == 1 else (("Right",) if rng.random() < 0.6 else ("Left",))
         stroke = start_frame + ss[0] * fps - rng.randint(1, 3)
         beats = [start_frame + t * fps - rng.randint(1, 2) for t in ss[1:]]
-        hold = min(start_frame + b * fps + 0.25 * fps, (beats[-1] if beats else stroke) + 2.5 * fps)
+        hold = min(start_frame + b * fps + 0.25 * fps, (beats[-1] if beats else stroke) + 2.0 * fps)
         units.append(dict(kind=kind, hands=used, stroke=stroke, beats=beats, hold=max(hold, stroke + 4)))
     return units
 
@@ -1486,7 +1499,7 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
             chest, fwd, out = body[f]
             a, b, c = g["at"]
             p = chest + fwd * a * size + Vector((0, 0, b * size)) + out * c * size
-            p += Vector((0, 0, 0.008 * math.sin(2 * math.pi * 0.4 * f / fps + (1 if side == "Left" else 0))))
+            p += Vector((0, 0, 0.012 * math.sin(2 * math.pi * 0.4 * f / fps + (1 if side == "Left" else 0))))
             fingers = fwd + out * 0.25 + Vector((0, 0, -0.15))
             palm = {"up": Vector((0, 0, 1)), "down": Vector((0, 0, -1)), "in": -out}[g["palm"]]
             if g["palm"] == "down":
