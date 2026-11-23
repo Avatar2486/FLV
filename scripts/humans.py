@@ -1299,15 +1299,29 @@ def tremble(rig, start, end, strength=1.0, seed=1):
 # --- co-speech gestures and listening -------------------------------------------------------------------
 # A gesture is preparation, stroke, holds and retraction; only the stroke is required (Kendon; McNeill). The
 # stroke comes before or on the stressed (pitch-accented) syllable, never after it: it overlaps the accent in
-# 80-90% of cases (Frontiers in Psychology 2018, 10.3389/fpsyg.2018.01514). Holds stretch a gesture over
-# the phrase; the hands go back to rest only at real pauses. The head nods slightly on the strokes ("visual
-# prosody", Munhall et al. 2004). Calm gestures are small and soft, angry ones large, fast and high (Wallbott
-# 1998). Gesture units are cut from CMU motion capture (free for any use) of people explaining and quarrelling.
-GESTURE_CLIPS = {"18_08": "calm", "19_08": "calm", "111_25": "calm", "113_16": "calm", "141_21": "calm",
-                 "13_14": "calm", "18_10": "agitated", "19_10": "agitated", "80_48": "agitated"}
-GESTURE_BONES = ("Spine1", "Neck1", "Head") + tuple(f"{s}{b}" for s in ("Left", "Right")
-                                                     for b in ("Shoulder", "Arm", "ForeArm", "Hand"))
+# 80-90% of cases (Frontiers in Psychology 2018, 10.3389/fpsyg.2018.01514); the moment of peak effort (~50 ms)
+# lines up with it (Pouw et al. 2019). Holds stretch a gesture over the phrase; the hands go back to rest only at
+# real pauses. Beats are short, uniformly fast flicks; bigger gestures last longer (Myslyvyi et al.). The commonest
+# conversational gesture is the palm-up open hand: forearm supine, palm up, fingers loosely extended and together
+# (Kendon 2004 "open hand supine"; Mueller 2004 PUOH), offering an idea. Seated people gesture compactly, elbows in
+# (seated-at-table interaction makes movements compact: Glasgow), into the space shared with the listener
+# (Haviland). The head nods slightly on the strokes ("visual prosody", Munhall et al. 2004). Angry gestures are
+# larger, faster and higher (Wallbott 1998). So a gesture here is a hand path in the speaker's own body space -
+# from the chest, angled toward the listener - reached by arm IK, with the palm and the fingers set per gesture.
+# (Replaying a standing actor's mocap joint rotations on a seated arm swung the hands out sideways, flat.)
 CMU_LIBRARY = ROOT / "assets" / "mocap" / "library" / "cmu"
+# (forward of the chest, up from the chest, out to the gesturing side) in m for a 1.76 m man; palm "up"/"down"/"in";
+# fingers; the flick at each stroke and beat (m); both hands?
+GESTURES = {
+    "offer": dict(at=(0.34, -0.16, 0.15), palm="up", fingers="open", dip=0.03),       # palm-up open hand
+    "present": dict(at=(0.32, -0.13, 0.22), palm="up", fingers="open", dip=0.025, both=True),
+    "beat": dict(at=(0.30, -0.20, 0.14), palm="down", fingers="relaxed", dip=0.04),   # small flicks, palm down
+    "chop": dict(at=(0.36, -0.04, 0.14), palm="in", fingers="open", dip=0.09),        # agitated: the edge chops
+    "fist": dict(at=(0.30, -0.02, 0.12), palm="down", fingers="fist", dip=0.08),
+    "spread": dict(at=(0.28, 0.04, 0.34), palm="up", fingers="open", dip=0.05, both=True),
+}
+CALM, AGITATED = (("offer", 0.5), ("beat", 0.3), ("present", 0.2)), (("chop", 0.4), ("fist", 0.3), ("spread", 0.3))
+FINGER_CURL = {"open": 0.06, "relaxed": 0.35, "fist": 1.1}
 
 
 def _voicing(wav):
@@ -1366,149 +1380,158 @@ def stress_times(wav):
     return sorted(round(float(times[i]), 3) for i in kept)
 
 
-def gesture_bank(rig, clips=None):
-    """Gesture units from CMU clips, for rigs built like `rig` (the units are bone-local rotations, so any rig
-    of the same character shares them). Each clip is baked on a scratch copy of the skeleton and cut at the hands'
-    slowest moments into units 0.6-2.5 s long whose fastest hand moves over 0.4 m/s. A unit's rotations are
-    relative to its own first sample, so it starts from wherever the arms are (seated with the hands on the
-    thighs, standing, holding something) and moves out and back from there; measured from the clip's stillest
-    second instead, an actor's arms simply hanging became a big 'gesture' that dragged a seated hand down beside
-    the hip. A unit: id, clip, energy, stroke (sample of the fastest hand), n, rot, drop (how far each hand,
-    left and right, goes below where it started: a seated person can't gesture down into the lap)."""
-    import numpy as np
-    scene = bpy.context.scene
-    fps = scene.render.fps
-    units = []
-    for clip, energy in (clips or GESTURE_CLIPS).items():
-        tmp = rig.copy()
-        tmp.data = rig.data.copy()
-        tmp.animation_data_clear()
-        bpy.context.collection.objects.link(tmp)
-        last = retarget(tmp, CMU_LIBRARY / f"{clip}.bvh", start_frame=1, root_motion=False)
-        rot = {b: [] for b in GESTURE_BONES}
-        hands = []
-        for f in range(1, last + 1):
-            scene.frame_set(f)
-            for b in GESTURE_BONES:
-                rot[b].append(tmp.pose.bones[b].rotation_quaternion.copy())
-            hands.append([tmp.pose.bones[f"{s}Hand"].head.copy() for s in ("Left", "Right")])
-        action = tmp.animation_data.action if tmp.animation_data else None
-        data = tmp.data
-        bpy.data.objects.remove(tmp)
-        bpy.data.armatures.remove(data)
-        if action:
-            bpy.data.actions.remove(action)
-        n = len(hands)
-        speed = np.zeros(n)
-        for i in range(1, n):
-            speed[i] = max((hands[i][k] - hands[i - 1][k]).length for k in (0, 1)) * fps
-        speed = np.convolve(speed, np.ones(5) / 5, mode="same")
-        cuts = [0] + [i for i in range(2, n - 2) if speed[i] == speed[i - 2: i + 3].min()] + [n - 1]
-        for a, b in zip(cuts, cuts[1:]):
-            if not (0.6 * fps <= b - a <= 2.5 * fps) or speed[a:b].max() < 0.4:
-                continue
-            units.append({"id": f"{clip}:{a}", "clip": clip, "energy": energy, "n": b - a,
-                          "stroke": int(np.argmax(speed[a:b])),
-                          "rot": {bone: [rot[bone][a].inverted() @ q for q in rot[bone][a:b]] for bone in GESTURE_BONES},
-                          "drop": tuple(max(hands[a][k].z - hands[i][k].z for i in range(a, b)) for k in (0, 1))})
+def _finger_shape(rig, side, frame, curl):
+    """Key every finger joint of one hand at `frame` to a curl (0 straight .. 1 a loose hook, GRIP), from rest."""
+    for finger, degs in GRIP.items():
+        for j, deg in enumerate(degs, 1):
+            pb = rig.pose.bones.get(f"{side}Hand{finger}{j}")
+            if pb is not None:
+                pb.rotation_quaternion = Quaternion((1, 0, 0), math.radians(deg * curl * (0.5 if finger == "Thumb" else 1)))
+                pb.keyframe_insert("rotation_quaternion", frame=frame)
+
+
+def _gesture_units(wav, start_frame, energy, hands, seed, fps):
+    """Plan the gestures of one line: one per phrase (voiced speech between pauses over 0.5 s) that has a
+    stressed syllable; its stroke lands 1-3 frames before the first stress, the later stresses are beats on it."""
+    rng = random.Random(seed)
+    times, _, _, voiced = _voicing(wav)
+    phrases, on, last_on = [], None, None
+    for t, v in zip(times, voiced):
+        if v:
+            if on is None or (last_on is not None and t - last_on > 0.5):
+                if on is not None:
+                    phrases.append((on, last_on))
+                on = t
+            last_on = t
+    if on is not None:
+        phrases.append((on, last_on))
+    stresses = stress_times(wav)
+    pool = AGITATED if energy >= 0.6 else CALM
+    units, shown = [], None
+    for a, b in phrases:
+        ss = [t for t in stresses if a - 0.05 <= t <= b + 0.05]
+        if not ss:
+            continue
+        choices = [(k, w) for k, w in pool if (len(hands) == 2 or not GESTURES[k].get("both")) and k != shown]
+        kind = rng.choices([k for k, _ in choices], [w for _, w in choices])[0]
+        if kind != "beat":
+            shown = kind
+        if GESTURES[kind].get("both"):
+            used = tuple(hands)
+        else:
+            used = (hands[0],) if len(hands) == 1 else (("Right",) if rng.random() < 0.6 else ("Left",))
+        stroke = start_frame + ss[0] * fps - rng.randint(1, 3)
+        beats = [start_frame + t * fps - rng.randint(1, 2) for t in ss[1:]]
+        hold = min(start_frame + b * fps + 0.25 * fps, (beats[-1] if beats else stroke) + 2.5 * fps)
+        units.append(dict(kind=kind, hands=used, stroke=stroke, beats=beats, hold=max(hold, stroke + 4)))
     return units
 
 
-def _sample(unit, s):
-    """A unit's pose (bone -> delta Quaternion) at fractional sample s."""
-    s = min(max(s, 0.0), unit["n"] - 1.0)
-    a = int(s)
-    b = min(a + 1, unit["n"] - 1)
-    return {bone: qs[a].slerp(qs[b], s - a) for bone, qs in unit["rot"].items()}
-
-
-def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), bank=None, seed=1, max_drop=None):
-    """Co-speech gestures for a voice line starting at start_frame: a gesture unit's stroke lands 1-3 frames
-    before each stressed syllable (stress_times), a unit never twice in a row; between strokes inside a
-    phrase the hands hold, and only across pauses over 0.5 s do they go back to rest. energy 0..1: size
-    (0.5 + energy times the captured motion) and speed (0.8 + 0.4 energy); energy >= 0.6 uses the agitated
-    (quarrel) units. Only the bones of `hands` (plus spine, neck, head) move: a hand holding something stays.
-    The head nods 2-4 degrees on each stroke. max_drop (m): only units that lower the used hands no more than this
-    (seated, hands on the lap: a gesture going down would go into the thighs or the chair). Returns the stroke
-    frames; the units used are in rig["gesture_log"]."""
-    import numpy as np
-    rng = random.Random(seed)
-    fps = bpy.context.scene.render.fps
-    bank = bank or gesture_bank(rig)
-    kind = "agitated" if energy >= 0.6 else "calm"
-    pool = [u for u in bank if u["energy"] == kind] or bank
-    if max_drop is not None:
-        sides = [k for k, s in enumerate(("Left", "Right")) if s in hands]
-        low = [u for u in pool if all(u["drop"][k] <= max_drop for k in sides)]
-        pool = low if len(low) >= 2 else sorted(pool, key=lambda u: max(u["drop"][k] for k in sides))[:2]
-    times, _, _, voiced = _voicing(wav)
-    pauses, run = [], None                            # unvoiced runs over 0.5 s, in scene frames
-    for t, v in zip(times, voiced):
-        if not v and run is None:
-            run = t
-        if v and run is not None:
-            if t - run > 0.5:
-                pauses.append((start_frame + run * fps, start_frame + t * fps))
-            run = None
-    speed, size = 0.8 + 0.4 * energy, 0.5 + energy
-    placed, last_id = [], None
-    for t in stress_times(wav):
-        stroke = start_frame + t * fps - rng.randint(1, 3)
-        if placed and stroke < placed[-1]["stroke"] + 0.3 * fps:
-            continue                                  # still in the last gesture
-        choices = [u for u in pool if u["id"] != last_id] or pool
-        unit = rng.choice(choices)
-        prep = unit["stroke"] / speed
-        begin = max(stroke - prep, placed[-1]["stroke"] + 0.2 * fps if placed else start_frame - prep)
-        placed.append({"unit": unit, "stroke": stroke, "begin": begin})
-        last_id = unit["id"]
-    if not placed:
-        rig["gesture_log"] = []
+def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=None, seed=1):
+    """Co-speech gestures for a voice line starting at start_frame (see the research above): per phrase, a hand
+    (or both) rises from where it rests into the space in front of the chest, angled toward `toward` (the
+    listener's head, a world point), the palm and fingers shaped for the gesture (palm-up open hand, palm-down
+    beats; agitated: chop, fist, spread), arriving with a small flick 1-3 frames before the stressed syllable;
+    later stresses in the phrase are quick beats; it holds (drifting a little) through the phrase and goes back
+    to rest at a pause over 0.5 s. energy 0..1: calm (small, low) to agitated (>= 0.6: larger, higher, faster).
+    Only the hands in `hands` move (one holding something stays put). The head nods 2-4 degrees on each stroke.
+    Returns the stroke frames (gestures and beats); rig["gesture_log"] has each stroke's kind."""
+    scene = bpy.context.scene
+    fps = scene.render.fps
+    rng = random.Random(seed + 7)
+    units = _gesture_units(wav, start_frame, energy, hands, seed, fps)
+    rig["gesture_log"] = []
+    if not units:
         return []
-    for k, p in enumerate(placed):                    # retract after p, or hold it into the next one?
-        nxt = placed[k + 1] if k + 1 < len(placed) else None
-        tail = (p["unit"]["n"] - 1 - p["unit"]["stroke"]) / speed
-        paused = nxt is None or any(p["stroke"] < a < nxt["stroke"] for a, _ in pauses)
-        p["end"] = p["stroke"] + tail if paused else nxt["begin"]
-        p["retract"] = paused
-    bones = [b for b in GESTURE_BONES if not b.startswith(("Left", "Right")) or b.startswith(tuple(hands))]
-    ident = Quaternion()
+    size = (0.75 + 0.5 * energy) * rig.matrix_world.to_scale().x
+    prep = (0.22 if energy >= 0.6 else 0.35) * fps
+    back = (0.35 if energy >= 0.6 else 0.5) * fps
+    strokes = []
+    for side in ("Left", "Right"):
+        mine = [u for u in units if side in u["hands"]]
+        if not mine:
+            continue
+        keys, pose = [], None                        # (frame, kind or None for rest)
+        for i, u in enumerate(mine):
+            begin = max(u["stroke"] - prep, keys[-1][0] + 2 if keys else start_frame - prep)
+            keys += [(begin, pose), (u["stroke"], u["kind"])]
+            nxt = mine[i + 1] if i + 1 < len(mine) else None
+            if nxt is not None and nxt["stroke"] - prep <= u["hold"] + back:
+                pose = u["kind"]                     # straight on into the next gesture
+                continue
+            keys += [(u["hold"], u["kind"]), (u["hold"] + back, None)]
+            pose = None
+        first, last = int(keys[0][0]), int(math.ceil(keys[-1][0])) + 1
+        pb = rig.pose.bones
+        frames = range(first, last + 1)
+        rest, body = {}, {}
+        for f in frames:                             # where the hand rests and where the body is, before any key
+            scene.frame_set(f)
+            m = rig.matrix_world
+            rest[f] = (m @ pb[f"{side}Hand"].head, (m.to_3x3().normalized() @ pb[f"{side}Hand"].matrix.to_3x3()).normalized())
+            fwd = (m.to_3x3() @ Vector((0, -1, 0)))
+            fwd.z = 0
+            fwd.normalize()
+            out = (m.to_3x3() @ Vector((1, 0, 0))).normalized() * (1 if side == "Left" else -1)
+            chest = m @ pb["Spine1"].head
+            if toward is not None:                   # into the space shared with the listener (up to ~25 deg)
+                to = Vector(toward) - chest
+                to.z = 0
+                if to.length > 0.1:
+                    fwd = (fwd + 0.5 * to.normalized()).normalized()
+            body[f] = (chest, fwd, out)
 
-    def pose_of(p, f):
-        u = p["unit"]
-        if f <= p["stroke"]:
-            return _sample(u, u["stroke"] - (p["stroke"] - f) * speed)
-        if p["retract"]:
-            return _sample(u, u["stroke"] + (f - p["stroke"]) * speed)
-        return _sample(u, u["stroke"])                # hold the stroke into the next gesture
+        def place(kind, f):
+            g = GESTURES[kind]
+            chest, fwd, out = body[f]
+            a, b, c = g["at"]
+            p = chest + fwd * a * size + Vector((0, 0, b * size)) + out * c * size
+            p += Vector((0, 0, 0.008 * math.sin(2 * math.pi * 0.4 * f / fps + (1 if side == "Left" else 0))))
+            fingers = fwd + out * 0.25 + Vector((0, 0, -0.15))
+            palm = {"up": Vector((0, 0, 1)), "down": Vector((0, 0, -1)), "in": -out}[g["palm"]]
+            if g["palm"] == "down":
+                fingers = fwd + out * 0.15 + Vector((0, 0, -0.35))
+            return p, hand_frame(fingers, palm)
 
-    def smooth(k):
-        k = min(max(k, 0.0), 1.0)
-        return k * k * (3 - 2 * k)
-    first, last = int(placed[0]["begin"]), int(math.ceil(placed[-1]["end"])) + 1
+        def at(f):
+            for (fa, ka), (fb, kb) in zip(keys, keys[1:]):
+                if fa <= f <= fb:
+                    pa = place(ka, f) if ka else rest[f]
+                    if ka == kb:
+                        return pa, 1.0 if ka else 0.0
+                    w = min(1.0, max(0.0, (f - fa) / max(fb - fa, 1)))
+                    w = w * w * (3 - 2 * w)
+                    pb_ = place(kb, f) if kb else rest[f]
+                    return (pa[0].lerp(pb_[0], w), pa[1].to_quaternion().slerp(pb_[1].to_quaternion(), w).to_matrix()), \
+                        (w if kb else 1 - w) if (ka is None) != (kb is None) else 1.0
+            return rest[f], 0.0
+        flicks = [(u["stroke"], GESTURES[u["kind"]]) for u in mine] + \
+                 [(b_, GESTURES[u["kind"]]) for u in mine for b_ in u["beats"]]
+        targets, turns = {}, {}
+        for f in frames:
+            (p, rot), on = at(f)
+            for t, g in flicks:                      # the stroke: a quick flick down (and out, offering)
+                d = (f - t) / (0.07 * fps)
+                if abs(d) < 3:
+                    chest, fwd, out = body[f]
+                    dirn = Vector((0, 0, -1)) + (fwd * 0.6 if g["palm"] == "up" else Vector())
+                    p = p + dirn.normalized() * g["dip"] * size * on * math.exp(-d * d)
+            targets[f], turns[f] = p, rot
+        reach(rig, side, first, last, target=lambda f: targets[f], hand=lambda f: turns[f], blend=1)
+        shape = lambda k: FINGER_CURL[GESTURES[k]["fingers"]] if k else FINGER_CURL["relaxed"]
+        for (fa, ka), (fb, kb) in zip(keys, keys[1:]):
+            if kb != ka:                             # the fingers change over the same frames the hand moves
+                _finger_shape(rig, side, int(fa), shape(ka))
+                _finger_shape(rig, side, int(fb), shape(kb))
+        strokes += [(int(round(u["stroke"])), u["kind"]) for u in mine] + \
+                   [(int(round(b_)), "beat") for u in mine for b_ in u["beats"]]
+    strokes = sorted(set(strokes))
+    nods = [(f, rng.uniform(2, 4)) for f, _ in strokes]
+    lo, hi = min(f for f, _ in strokes) - 10, max(f for f, _ in strokes) + 10
+    _layer(rig, lo, hi, lambda f: {"Head": (0, sum(a * math.exp(-((f - s_) / (0.12 * fps)) ** 2) for s_, a in nods), 0)})
+    rig["gesture_log"] = [k for _, k in strokes]
+    return [f for f, _ in strokes]
 
-    def offsets(f):
-        prev = {b: ident for b in bones}
-        for k, p in enumerate(placed):
-            if f < p["begin"]:
-                return {b: ident.slerp(prev[b], size) for b in bones}
-            cur = pose_of(p, f)
-            if f <= p["stroke"]:                      # preparation: blend from where the hands were
-                w = smooth((f - p["begin"]) / max(p["stroke"] - p["begin"], 1))
-                cur = {b: prev[b].slerp(cur[b], w) for b in bones}
-            elif p["retract"]:                        # retraction: blend back to rest
-                w = smooth((f - p["stroke"]) / max(p["end"] - p["stroke"], 1))
-                cur = {b: cur[b].slerp(ident, w) for b in bones}
-            if f <= p["end"]:
-                return {b: ident.slerp(cur[b], size) for b in bones}
-            prev = cur if not p["retract"] else {b: ident for b in bones}
-        return {b: ident for b in bones}
-    _layer(rig, first, last, offsets, local=True)
-    nods = [(p["stroke"], rng.uniform(2, 4)) for p in placed]
-    _layer(rig, first, last, lambda f: {"Head": (0, sum(a * math.exp(-((f - s) / (0.12 * fps)) ** 2)
-                                                         for s, a in nods), 0)})
-    rig["gesture_log"] = [p["unit"]["id"] for p in placed]
-    return [int(round(p["stroke"])) for p in placed]
 
 
 def listen(rig, start, end, speaker_rig, phrase_ends=(), seed=1, gaze=True, shift="Hips"):
@@ -1705,21 +1728,47 @@ def _selfcheck_gestures():
     for f in range(1, 73):
         scene.frame_set(f)
         before[f] = {n: rig.pose.bones[n].rotation_quaternion.copy() for n in left}
-    bank = gesture_bank(rig, {"18_08": "calm", "19_08": "calm"})
-    assert len(bank) >= 3, f"only {len(bank)} gesture units"
-    for u in bank:            # a unit starts from wherever the arms are (seated, holding, standing): no offset at 0
-        assert all(q[0].angle < 1e-4 or abs(q[0].angle - 2 * math.pi) < 1e-4 for q in u["rot"].values()), \
-            f"unit {u['id']} does not start from the arms' own pose"
-    strokes = gestures(rig, wav, 1, hands=("Right",), bank=bank)
+    rest = {}
+    for f in range(1, 73):
+        scene.frame_set(f)
+        rest[f] = (rig.matrix_world @ rig.pose.bones["RightHand"].head).copy()
+    strokes = gestures(rig, wav, 1, hands=("Right",), toward=Vector((0.3, -2.0, 1.4)), seed=4)
     assert strokes, "no strokes"
     for f in strokes:
         assert any(b * fps + 1 - 0.15 * fps - 1 <= f <= b * fps + 1 + 1 for b in bursts), f"stroke at {f} off the stress"
-    log = list(rig["gesture_log"])
-    assert all(a != b for a, b in zip(log, log[1:])), f"unit repeated: {log}"
-    seated = build({"name": "SeatedGestureCheck", "character": "Narrator"}, location=(-3, 0, 0))
-    gestures(seated, wav, 1, hands=("Right",), bank=bank, max_drop=0.02)      # seated: never down into the lap
-    drops = {u["id"]: u["drop"] for u in bank}
-    assert all(drops[i][1] <= 0.02 for i in seated["gesture_log"]), "a seated gesture lowers the hand"
+    kinds = list(rig["gesture_log"])
+    shown = [k for k in kinds if k != "beat"]
+    assert all(a != b for a, b in zip(shown, shown[1:])), f"the same gesture twice in a row: {kinds}"
+    pb = rig.pose.bones
+    for f, kind in zip(strokes, kinds):          # research-based gesture space (compact, in front, toward the listener)
+        scene.frame_set(f)
+        m = rig.matrix_world
+        fwd = (m.to_3x3() @ Vector((0, -1, 0))).normalized()
+        chest, wrist = m @ pb["Spine1"].head, m @ pb["RightHand"].head
+        ahead, up = (wrist - chest).dot(fwd), wrist.z - chest.z
+        assert ahead >= 0.15, f"{kind} at {f}: the hand is not in front of the body ({ahead:.2f} m)"
+        assert -0.42 <= up <= 0.12, f"{kind} at {f}: the hand is out of the gesture space ({up:+.2f} m from the chest)"
+        if kind == "offer":                      # palm-up open hand: the forearm supine, the palm facing up
+            palm = (m.to_3x3() @ pb["RightHand"].matrix.to_3x3() @ Vector((0, 0, -1))).normalized()
+            assert palm.z > 0.5, f"offer at {f}: the palm faces {tuple(round(c, 2) for c in palm)}, not up"
+    low = 9.0
+    for f in range(1, 73):
+        scene.frame_set(f)
+        m = rig.matrix_world
+        assert (m @ pb["RightForeArm"].head).z < (m @ pb["RightArm"].head).z, f"the elbow rises above the shoulder at {f}"
+        low = min(low, (m @ pb["RightHand"].head).z - rest[f].z)
+    assert low >= -0.02, f"the hand goes {-low * 100:.1f} cm below where it rests (into the lap)"
+    angry = build({"name": "AngryGestureCheck", "character": "Narrator"}, location=(-3, 0, 0))
+    relax_arms(angry)
+    gestures(angry, wav, 1, hands=("Right",), energy=0.9, seed=4)
+
+    def highest(r):
+        top = -9.0
+        for f in range(1, 73):
+            scene.frame_set(f)
+            top = max(top, (r.matrix_world @ r.pose.bones["RightHand"].head).z - r.matrix_world.translation.z)
+        return top
+    assert highest(angry) > highest(rig) + 0.05, "agitated gestures are no larger than calm ones"
     for f in range(1, 73):
         scene.frame_set(f)
         for n in left:
@@ -1749,7 +1798,8 @@ def _selfcheck_gestures():
         scene.frame_set(f)
         assert max(abs(x) for row in (sitter.pose.bones["Hips"].matrix - hips0) for x in row) < 1e-5, "seated hips moved"
     print(f"humans gestures OK: {len(found)} stresses, strokes on time, held hand still, listener nods "
-          f"({len(bank)} units; strokes {strokes}; nod {nod:.1f} deg)")
+          f"(gestures {kinds} at {strokes}: in front of the chest, palm up when offering, elbow below the "
+          f"shoulder, never below the lap; agitated higher; nod {nod:.1f} deg)")
 
     # eyes() with a look target and gaze mode that change over time (one call per character per scene, so the
     # head never snaps back to centre between spans): far left until frame 60, then far right

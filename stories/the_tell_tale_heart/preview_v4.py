@@ -675,10 +675,11 @@ def _converse(ctx, lines, a, b, energy, idle, seated=True):
                     for l in lines)
     phrases = {e: _phrases(humans, e[3], e[0]) for e in events}
     spans = {n: [] for n in rigs}
-    prev = None
+    prev, addressee = None, {}
     for e in events:
         f0, f1, spk, _ = e
         to = prev if prev and prev != spk else ("Narrator" if spk != "Narrator" else "Hale")
+        addressee[e] = to
         for n in rigs:
             spans[n].append((f0, f1 + 12, to if n == spk else spk, "talking" if n == spk else "listening"))
         prev = spk
@@ -694,21 +695,16 @@ def _converse(ctx, lines, a, b, energy, idle, seated=True):
         humans.listen(rig, a, b, rig, phrase_ends=others, seed=_seed(n, 89), gaze=False,
                       shift="LowerBack" if seated else "Hips")
         humans.sway(rig, a, b, amount=0.7 if seated else 0.8, seed=_seed(n, 83))
-    if not events:
-        return events, phrases
-    cache = ctx["cache"]
-    if "bank" not in cache:
-        cache["bank"] = humans.gesture_bank(ctx.get("all_rigs", rigs)["Narrator"])
-        both = [u for u in cache["bank"] if max(u["drop"]) <= 0.02]
-        print(f"V4 gestures: {len(cache['bank'])} units, {len(both)} that keep both hands up "
-              f"({sum(u['energy'] == 'calm' for u in both)} calm, {sum(u['energy'] == 'agitated' for u in both)} agitated)")
-    bank = cache["bank"]
-    for e in events:
+    everyone = ctx.get("all_rigs", rigs)
+    for e in events:                     # the speaker's hands, toward whom he speaks to; his lips, from his voice
         f0, f1, spk, wav = e
-        free = ctx.get("busy_hands", {}).get(spk, ())
+        busy = ctx.get("busy_hands", {}).get(spk, ())
+        ctx["bpy"].context.scene.frame_set(f0)
+        listener = everyone[addressee[e]]
         humans.gestures(rigs[spk], wav, f0, energy=energy.get(spk, 0.4),
-                        hands=tuple(s for s in ("Left", "Right") if s not in free), bank=bank, seed=f0,
-                        max_drop=0.02 if seated else None)       # seated: out and up from the lap, never into it
+                        hands=tuple(s for s in ("Left", "Right") if s not in busy),
+                        toward=listener.matrix_world @ listener.pose.bones["Head"].head, seed=f0)
+        humans.lip_sync(rigs[spk], wav, f0)
     return events, phrases
 
 
@@ -1028,7 +1024,8 @@ def check(shots=None, step=4):
     a hand more than 5 mm inside another person (body, shirt, trousers) or a chair (every `step` frames);
     a held prop drifting over 1 cm from its hand; planted feet (ball of the foot under 4 cm, moving under 25 cm/s,
     so a foot swinging low through a step doesn't count) sliding over 2 cm/s on average (not on the stair);
-    an on-camera character moving less than 0.5 deg (summed over the spine, neck, head and arms) in any 1 s."""
+    an on-camera character moving less than 0.5 deg (summed over the spine, neck, head and arms) in any 1 s;
+    a speaker's jaw opening less than 0.08 over a line he speaks on screen (lips must move while talking)."""
     import bpy
     from bpy_extras.object_utils import world_to_camera_view
     from mathutils.bvhtree import BVHTree
@@ -1104,6 +1101,21 @@ def check(shots=None, step=4):
                 mean = slide / max(count, 1)
                 if mean > 0.02:
                     fails.append(f"{sid}: {n}'s planted feet slide {mean * 100:.1f} cm/s")
+        tl = json.loads((OUT / "timeline.json").read_text())                 # 5. lips move while they speak
+        spoken = [l for s_ in tl["shots"] for l in s_["lines"] if l["who"] in ON_SCREEN] + tl["chatter"]
+        for l in spoken:
+            l0, l1 = _frame(l["start"]), _frame(l["start"] + l["seconds"])
+            if not (f0 <= l0 <= f1):
+                continue
+            keys = bpy.data.objects[f"{WHO[l['who']]}.body"].data.shape_keys.key_blocks
+            jaw = []
+            for f in range(l0, l1, 2):
+                scene.frame_set(f)
+                jaw.append(keys["jawOpen"].value)
+            moved = max(jaw) - min(jaw)
+            notes.append(f"{sid}: {l['line']} ({WHO[l['who']]}): jaw opens {moved:.2f}")
+            if moved < 0.08:
+                fails.append(f"{sid}: {WHO[l['who']]}'s lips still while he speaks {l['line']} (jaw range {moved:.2f})")
         if animated:                                                         # 4. nobody frozen on camera
             for n, rig in rigs.items():
                 for w0 in range(f0, f1 - FPS + 1, FPS // 2):
@@ -1125,7 +1137,7 @@ def check(shots=None, step=4):
     if fails:
         kinds = {}
         for line in fails:
-            key = next((k for k in ("inside", "drifts", "slide", "frozen") if k in line), "other")
+            key = next((k for k in ("inside", "drifts", "slide", "frozen", "lips") if k in line), "other")
             who = line.split(": ", 1)[1].split("'")[0] if ": " in line else ""
             kinds[(key, who)] = kinds.get((key, who), 0) + 1
         print("V4 check failures by kind: " + ", ".join(f"{k} {w}: {n}" for (k, w), n in sorted(kinds.items())))
