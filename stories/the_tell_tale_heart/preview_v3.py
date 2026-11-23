@@ -62,19 +62,19 @@ def seconds(path):
         return w.getnframes() / w.getframerate()
 
 
-def timeline():
-    t, shots = 0.0, []
-    for sid, lines, minimum in SHOTS:
+def timeline(shots=None, voice_fn=None):
+    t, out = 0.0, []
+    for sid, lines, minimum in shots or SHOTS:
         at, placed = LEAD, []
         for prefix, who in lines:
-            path = voice(prefix)
+            path = (voice_fn or voice)(prefix)
             placed.append({"file": str(path.relative_to(ROOT)).replace("\\", "/"), "who": who, "line": prefix,
                            "start": round(t + at, 3), "seconds": round(seconds(path), 3)})
             at += placed[-1]["seconds"] + GAP
         length = max(minimum, at - GAP + TAIL)
-        shots.append({"id": sid, "start": round(t, 3), "seconds": round(length, 3), "lines": placed})
+        out.append({"id": sid, "start": round(t, 3), "seconds": round(length, 3), "lines": placed})
         t += length
-    return {"fps": FPS, "seconds": round(t, 3), "frames": int(round(t * FPS)), "shots": shots}
+    return {"fps": FPS, "seconds": round(t, 3), "frames": int(round(t * FPS)), "shots": out}
 
 
 def ease(a, b, x):
@@ -832,7 +832,7 @@ def _cycle_at(cyc, phase):
             cyc["bob"][i].lerp(cyc["bob"][i + 1], t))
 
 
-def _mocap_gait(humans, rig, track, first, last, hands_busy, fps=FPS):
+def _mocap_gait(humans, rig, track, first, last, hands_busy, fps=FPS, clips=GAIT_CLIPS):
     """Steps for a body moved along `track` (its object carries it), from two mocap strides on its own
     skeleton (a plain and a hurried walk) blended by speed. The stride advances with the distance the body
     covers, so each step is as long as the ground it gains: walking backward plays it backward, and faster
@@ -843,7 +843,7 @@ def _mocap_gait(humans, rig, track, first, last, hands_busy, fps=FPS):
     import bpy
     from mathutils import Quaternion, Vector
     scene = bpy.context.scene
-    slow, fast = (_gait_cycle(humans, c, n) for c, n in GAIT_CLIPS)
+    slow, fast = (_gait_cycle(humans, c, n) for c, n in clips)
     for c in (slow, fast):
         print(f"V3 gait: {c['clip']} {c['speed']:.2f} m/s, stride {c['stride']:.2f} m in {c['frames']} frames, "
               f"hips stray {100 * c['drift']:.1f} cm (of {c['candidates']} strides)")
@@ -1507,40 +1507,43 @@ def soundtrack(out_wav):
     return out_wav
 
 
-def render(part, parts, folder="frames", size=None):
+def render(part, parts, folder="frames", size=None, out=None):
     import bpy
+    out = Path(out or OUT)
     scene = bpy.context.scene
     if size:
         scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = size[0], size[1], 100
     frames = list(range(scene.frame_start, scene.frame_end + 1))
     share = frames[int(part) - 1::int(parts)]
-    (OUT / folder).mkdir(parents=True, exist_ok=True)
+    (out / folder).mkdir(parents=True, exist_ok=True)
     for f in share:
-        target = OUT / folder / f"{f:05d}.png"
+        target = out / folder / f"{f:05d}.png"
         if target.exists():
             continue
         scene.frame_set(f)
         scene.render.filepath = str(target)
         scene.render.image_settings.file_format = "PNG"
         bpy.ops.render.render(write_still=True)
-    print(f"V3 rendered part {part}/{parts}: {len(share)} frames -> {folder}")
+    print(f"rendered part {part}/{parts}: {len(share)} frames -> {out / folder}")
 
 
-def draft():
-    """480p draft: frames, soundtrack and an H.264 MP4, encoded by Blender."""
+def draft(out=None, mix=None, blend_name="V3"):
+    """480p draft: frames, soundtrack and an H.264 MP4, encoded by Blender. `out`, `mix(out_wav)`: another
+    scene's output folder and soundtrack (preview_v4 reuses this)."""
     import bpy
+    out = Path(out or OUT)
     folder = "frames/480p"
-    render(1, 1, folder, size=(854, 480))
+    render(1, 1, folder, size=(854, 480), out=out)
     scene = bpy.context.scene
     first, last = scene.frame_start, scene.frame_end
-    wav = soundtrack(OUT / "soundtrack_draft.wav")
+    wav = (mix or soundtrack)(out / "soundtrack_draft.wav")
     ed = bpy.data.scenes.new("Draft480")
     ed.render.fps = FPS
     ed.render.resolution_x, ed.render.resolution_y, ed.render.resolution_percentage = 854, 480, 100
     ed.frame_start, ed.frame_end = first, last
     se = ed.sequence_editor_create()
     strips = se.strips if hasattr(se, "strips") else se.sequences
-    img = strips.new_image("frames", str(OUT / folder / f"{first:05d}.png"), 1, first)
+    img = strips.new_image("frames", str(out / folder / f"{first:05d}.png"), 1, first)
     for f in range(first + 1, last + 1):
         img.elements.append(f"{f:05d}.png")
     strips.new_sound("sound", str(wav), 2, first)
@@ -1550,10 +1553,10 @@ def draft():
     r.image_settings.file_format = "FFMPEG"
     r.ffmpeg.format, r.ffmpeg.codec, r.ffmpeg.constant_rate_factor = "MPEG4", "H264", "HIGH"
     r.ffmpeg.audio_codec, r.ffmpeg.audio_bitrate, r.ffmpeg.audio_channels = "AAC", 192, "STEREO"
-    r.filepath = str(OUT / "draft_480p.mp4")
+    r.filepath = str(out / "draft_480p.mp4")
     r.use_sequencer = True
     bpy.ops.render.render(animation=True, scene=ed.name)
-    print(f"V3 draft: {OUT / 'draft_480p.mp4'}")
+    print(f"{blend_name} draft: {out / 'draft_480p.mp4'}")
 
 
 if __name__ == "__main__":
