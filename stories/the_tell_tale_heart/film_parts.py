@@ -12,6 +12,7 @@ import json
 import math
 import shutil
 import subprocess
+import time
 import sys
 import tempfile
 import wave
@@ -42,11 +43,11 @@ PARTS = [
     _v5("02_seven_nights", "Seven Nights", _ids(2, 9)),
     dict(key="03_eighth_night", title="The Eighth Night", shots=_ids(3, 10),
          blend=SCENES / "tell_tale_heart_v2_preview.blend",
-         timeline=RENDERS / "the_tell_tale_heart_v2_preview" / "timeline.json",
+         timeline=FILM / "parts" / "03_eighth_night" / "timeline.json",
          voice_dir=VOICES / "the_tell_tale_heart_v2"),
     dict(key="04_the_attack", title="The Attack", shots=[f"3.{i}" for i in range(11, 22)],
          blend=SCENES / "tell_tale_heart_v3_attack.blend",
-         timeline=RENDERS / "the_tell_tale_heart_v3_attack" / "timeline.json", voice_dir=None),
+         timeline=FILM / "parts" / "04_the_attack" / "timeline.json", voice_dir=None),
     _v5("05_concealment", "Concealment", _ids(4, 6)),
     dict(key="06_the_visitors", title="The Visitors", shots=_ids(5, 15),
          blend=SCENES / "tell_tale_heart_v4_visitors.blend",
@@ -130,9 +131,10 @@ def write_index():
 
 
 # ----------------------------------------------------------------------------------------------- picture
-def render(key):
+def render(key, resume=None):
     """Inside Blender, with the part's scene open: every frame at 854x480 into the part's frames/480p folder,
-    emptied first (Blender's render keeps frames it finds: a re-rendered part must not show old ones)."""
+    emptied first (Blender's render keeps frames it finds: a re-rendered part must not show old ones). `resume`
+    (a frame) keeps the frames before it and renders on from there - after a render that hung part-way."""
     import bpy
     scene = bpy.context.scene
     r = scene.render
@@ -140,9 +142,10 @@ def render(key):
     r.image_settings.file_format, r.image_settings.color_mode = "PNG", "RGB"
     scene.eevee.taa_render_samples = 24
     out = part_dir(key) / "frames" / "480p"
-    shutil.rmtree(out, ignore_errors=True)
-    out.mkdir(parents=True)
-    for f in range(scene.frame_start, scene.frame_end + 1):
+    if resume is None:
+        shutil.rmtree(out, ignore_errors=True)
+    out.mkdir(parents=True, exist_ok=True)
+    for f in range(resume or scene.frame_start, scene.frame_end + 1):
         scene.frame_set(f)
         r.filepath = str(out / f"{f:05d}.png")
         bpy.ops.render.render(write_still=True)
@@ -150,6 +153,42 @@ def render(key):
     assert count == scene.frame_end - scene.frame_start + 1, f"{count} frames for {scene.frame_start}..{scene.frame_end}"
     print(f"film_parts render {key}: {count} frames -> {out}")
     return count
+
+
+BLENDER = "/Applications/Blender.app/Contents/MacOS/Blender"
+
+
+def renders(keys, stall=600):
+    """Outside Blender: render the parts in turn, one GPU job at a time. A key "06_the_visitors:260" resumes at
+    frame 260. A render with no new frame for `stall` s (Eevee can hang in a Metal readback) is killed and
+    resumed from its last frame, which is rendered again (it may have been cut off mid-write)."""
+    for spec in keys:
+        key, _, at = spec.partition(":")
+        part = next(p for p in PARTS if p["key"] == key)
+        out, log = part_dir(key) / "frames" / "480p", part_dir(key) / "render.log"
+        resume = int(at) if at else None
+        while True:
+            cmd = [BLENDER, "-b", str(part["blend"]), "--python-exit-code", "1", "--python", __file__, "--",
+                   "render", key] + ([str(resume)] if resume else [])
+            with open(log, "a") as fh:
+                proc = subprocess.Popen(cmd, stdout=fh, stderr=subprocess.STDOUT)
+            seen, last, hung = -1, time.time(), False
+            while proc.poll() is None:
+                time.sleep(15)
+                n = len(list(out.glob("*.png"))) if out.exists() else 0
+                if n != seen:
+                    seen, last = n, time.time()
+                elif time.time() - last > stall:
+                    proc.kill()
+                    proc.wait()
+                    hung = True
+            if not hung:
+                if proc.returncode:
+                    raise RuntimeError(f"render {key} failed ({proc.returncode}): see {log}")
+                print(f"film_parts renders: {key} done")
+                break
+            resume = max(int(f.stem) for f in out.glob("*.png"))
+            print(f"film_parts renders: {key} hung; resuming at {resume}", flush=True)
 
 
 def _media_seconds(path):
@@ -434,4 +473,5 @@ if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
     {"selfcheck": selfcheck, "index": lambda: print(write_index()), "mix": lambda: print(mix()),
      "mux": lambda: print(mux(args[1])), "join": lambda: print(join()),
-     "render": lambda: print(render(args[1]))}[args[0]]()
+     "render": lambda: print(render(args[1], int(args[2]) if len(args) > 2 else None)),
+     "renders": lambda: renders(args[1:])}[args[0]]()

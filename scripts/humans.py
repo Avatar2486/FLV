@@ -340,6 +340,62 @@ SPEECH_GAIN = {"jawOpen": 1.3, "mouthUpperUp": 0.7, "mouthLowerDown": 0.8, "mout
 REST_SEAL = 0.0     # mouthShrugLower at rest: our characters' neutral mouth is already closed
 
 
+def wear(rig, keys):
+    """A face worn by sleepless nights: keys [(frame, w 0..1)], each held from its frame on (it never eases). w
+    drains the skin (saturation 1 - 0.35 w, value 1 - 0.18 w) and weighs the lids (blinks + 0.15 w); kept on
+    rig["worn"] for the continuity check. Call after every face/eyes key: the lids are added to the blinks there."""
+    keys = sorted(keys)
+    assert all(b[1] >= a[1] for a, b in zip(keys, keys[1:])), f"worn eases: {keys}"
+    steps = [(max(1, keys[0][0] - 1), 0.0)] + keys
+    at = lambda f: max([w for k, w in steps if k <= f] or [0.0])
+
+    def fcurves(idb):
+        ad = idb.animation_data
+        return [fc for layer in ad.action.layers for strip in layer.strips
+                for fc in strip.channelbag(ad.action_slot).fcurves] if ad and ad.action else []
+    skin = next(m for o in rig.children if o.type == "MESH" for m in o.data.materials if m and "Skin" in m.name)
+    nodes = skin.node_tree.nodes
+    hs = nodes.get("Worn")
+    if hs is None:
+        bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+        src = bsdf.inputs["Base Color"].links[0].from_socket
+        hs = nodes.new("ShaderNodeHueSaturation")
+        hs.name = "Worn"
+        skin.node_tree.links.new(src, hs.inputs["Color"])
+        skin.node_tree.links.new(hs.outputs["Color"], bsdf.inputs["Base Color"])
+    for f, w in steps:
+        rig["worn"] = w
+        rig.keyframe_insert('["worn"]', frame=f)
+        hs.inputs["Saturation"].default_value, hs.inputs["Value"].default_value = 1 - 0.35 * w, 1 - 0.18 * w
+        hs.inputs["Saturation"].keyframe_insert("default_value", frame=f)
+        hs.inputs["Value"].keyframe_insert("default_value", frame=f)
+    for fc in fcurves(rig) + fcurves(skin.node_tree):
+        if "worn" in fc.data_path or "Worn" in fc.data_path:
+            for k in fc.keyframe_points:
+                k.interpolation = "CONSTANT"
+    names = ('key_blocks["eyeBlinkLeft"].value', 'key_blocks["eyeBlinkRight"].value')
+    for obj in face_meshes(rig):
+        sk = obj.data.shape_keys
+        for path in names:
+            if not any(fc.data_path == path for fc in fcurves(sk)):
+                kb = sk.key_blocks.get(path.split('"')[1])
+                if kb is None:
+                    continue
+                kb.keyframe_insert("value", frame=1)
+        for fc in fcurves(sk):
+            if fc.data_path not in names:
+                continue
+            for f, _ in steps:                       # step edges, so the lids drop at each night and not before
+                for e in (f - 1, f):
+                    fc.keyframe_points.insert(e, fc.evaluate(e), options={"FAST"})
+            for k in fc.keyframe_points:
+                d = 0.15 * at(k.co.x) * (1 - k.co.y)
+                k.co.y += d
+                k.handle_left.y += d
+                k.handle_right.y += d
+            fc.update()
+
+
 def lip_sync(rig, wav, start_frame, fps=24, lead=1.0, gain=1.0):
     """Lips, jaw, cheeks and tongue driven by the voice itself: scripts/speech_face.py runs Wav2ARKit, a model
     learned from real talking faces, so the jaw opens only a little while the lips do most of the work, sounds
@@ -2039,6 +2095,17 @@ def _selfcheck_gestures():
             q = rig.pose.bones[n].rotation_quaternion
             assert min((q - before[f][n]).magnitude, (q + before[f][n]).magnitude) < 1e-4, f"{n} moved at {f}"
 
+    tired = build({"name": "WearCheck", "character": "Narrator"}, location=(-12, 0, 0))   # seven sleepless nights
+    face(tired, 1, {"eyeBlinkLeft": 0.0, "eyeBlinkRight": 0.0})
+    face(tired, 40, {"eyeBlinkLeft": 0.0, "eyeBlinkRight": 0.0})
+    wear(tired, [(10, 0.2), (20, 0.6)])
+    lid = face_meshes(tired)[0].data.shape_keys.key_blocks["eyeBlinkLeft"]
+    skin = next(m for o in tired.children if o.type == "MESH" for m in o.data.materials if m and "Skin" in m.name)
+    for f, w in ((5, 0.0), (15, 0.2), (30, 0.6)):
+        scene.frame_set(f)
+        sat = skin.node_tree.nodes["Worn"].inputs["Saturation"].default_value
+        assert abs(lid.value - 0.15 * w) < 2e-3 and abs(sat - (1 - 0.35 * w)) < 1e-3 and abs(tired["worn"] - w) < 1e-6, \
+            f"worn {w} at {f}: lids {lid.value:.3f}, saturation {sat:.3f}, worn {tired['worn']}"
     speaker = build({"name": "SpeakerCheck", "character": "Narrator"}, location=(0, -2.0, 0))
     speaker.rotation_euler.z = math.pi                            # facing the listeners
     nodder = build({"name": "NodCheck", "character": "Narrator"}, location=(3, 0, 0))

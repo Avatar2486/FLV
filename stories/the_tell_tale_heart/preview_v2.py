@@ -19,19 +19,21 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 VO = ROOT / "audio" / "voiceovers" / "the_tell_tale_heart_v2"
-OUT = ROOT / "output" / "renders" / "the_tell_tale_heart_v2_preview"
+OUT = ROOT / "output" / "renders" / "the_tell_tale_heart_film" / "parts" / "03_eighth_night"    # the film's part 03
 BLEND = ROOT / "blender" / "scenes" / "tell_tale_heart_v2_preview.blend"
 FPS, LEAD, GAP, TAIL = 24, 0.4, 0.35, 0.7
 
 # shot id, camera, lines (voice files in VO, who), minimum seconds - the film's own shot list, 3.1-3.10
 SHOTS = [
     ("3.1", "door_from_room", [("3.1_N", "N")], 7.0),
+    ("3.2", "door_edge", [("3.2_N", "N")], 6.0),
     ("3.3", "gap", [("3.3_N", "N")], 4.5),
     ("3.4", "corner", [("3.4_N", "N")], 4.5),
     ("3.5", "gap", [("3.5_N", "N")], 6.0),
     ("3.6", "lantern", [("3.6_N", "N")], 5.5),
     ("3.7", "bed", [("3.7_N", "N"), ("3.7_OM", "OM")], 5.0),
     ("3.8", "corner", [("3.8_N", "N")], 7.0),
+    ("3.9", "beetle", [], 3.0),
     ("3.10", "old_face", [("3.10_N", "N"), ("3.10_OM_groan", "OM")], 6.0),
 ]
 
@@ -81,6 +83,19 @@ def build():
     C = {n: su.collection(n, root) for n in ("SET", "CAST", "PROPS", "CAMERAS")}
     lights = {}
     room = sets.chamber(C["SET"], lights)
+    sets.beetle_macro(C["SET"], lights)                              # 3.9: the death-watch in the wall
+    lights["beetle_moon"].data.energy = 0.7
+    taps = []                                                        # it knocks its head on the timber: two bursts
+    for burst in (0.3, 1.6):
+        taps.append(frame["3.9"] + int(burst * FPS))
+        for o in (bpy.data.objects["BE_Beetle"], bpy.data.objects["BE_Beetle_Head"]):
+            y0 = o.location.y
+            o.keyframe_insert("location", frame=1)
+            for k in range(4):
+                for df, dy in ((0, 0.0), (1, 0.0012), (2, 0.0)):
+                    o.location.y = y0 + dy
+                    o.keyframe_insert("location", frame=taps[-1] + 4 * k + df)
+            o.location.y = y0
     for name, energy in (("moon", 700), ("fill", 30), ("warm", 0), ("sun", 0), ("shadow", 0)):
         lights[name].data.energy = energy
     world = bpy.data.worlds.new("WORLD_Night")
@@ -219,6 +234,7 @@ def build():
     humans.face(om, wake - 1, {"eyeBlinkLeft": 1.0, "eyeBlinkRight": 1.0}, meshes)
     humans.breathe(om, 1, wake, style="sleep", seed=3)
     humans.startle(om, line_frame["3.4_N"] + 6, strength=0.35, face_too=False, legs=False)
+    humans.sway(om, 1, wake, amount=0.3, seed=5)                    # a sleeper is never quite still (on the startle too)
     humans.startle(om, wake, strength=1.0, until=end, legs=False)
     humans.rise_in_bed(om, rise, end, seconds=1.1, lead="Right")
 
@@ -239,10 +255,10 @@ def build():
     sheet, height = humans.bedsheet("V2_Blanket", C["SET"], room["blanket"].active_material, om,
                                     center=(0.9, 0.725), size=(1.35, 0.85), top=MATTRESS,
                                     frames=[1] + list(range(rise, rise + 40, 2)))
-    # his hands: at his sides on the blanket in sleep; on the rise one elbow props and both hands push on
+    # his hands: on his belly in sleep; on the rise one elbow props and both hands push on
     # the mattress beside his hips (right first, toward the door), and stay planted as he sits listening
     def hands(side, dx, lead_in):
-        rest = Vector((0.9 + dx, 1.12, height(0.9 + dx, 1.12) + 0.03))
+        rest = Vector((0.9 + dx * 0.45, 1.32, 0.70))      # folded on his belly in sleep (elbows bent, not locked)
         push = Vector((0.9 + dx * 1.25, 1.40, MATTRESS + 0.035))
         a, b = rise + lead_in, rise + lead_in + 7
 
@@ -268,6 +284,9 @@ def build():
         "bed": dict(at=(2.05, -0.75, 1.35), look=(0.85, 1.15, 1.0), lens=30, focus=(0.9, 1.0, 1.1)),
         "old_face": dict(at=tuple(face_at + Vector((0.18, -0.95, 0.0))), look=tuple(face_at), lens=85,
                          focus=tuple(face_at)),
+        # 3.2: the door's free edge from inside, creeping open under his palm; 3.9: the beetle in the wall timber
+        "door_edge": dict(at=(-2.2, -1.65, 1.4), look=(-1.84, -2.15, 1.35), lens=85, focus=(-1.84, -2.15, 1.35)),
+        "beetle": dict(at=(160.03, -0.13, 0.03), look=(160.0, 0.008, 0.012), lens=100, focus=(160.0, 0.008, 0.012)),
     }
     cams = {}
     for name, c in rigs.items():
@@ -276,12 +295,17 @@ def build():
         cam.data.dof.aperture_fstop = 2.8
         cam.data.dof.focus_distance = (Vector(c["focus"]) - Vector(c["at"])).length
         cams[name] = cam
+    cams["beetle"].data.dof.aperture_fstop = 8.0                     # a 7 mm beetle at 14 cm: enough depth to read it
     for s in tl["shots"]:
         marker = scene.timeline_markers.new(f"SHOT_{s['id']}", frame=frame[s["id"]])
         marker.camera = cams[s["camera"]]
     scene.camera = cams[tl["shots"][0]["camera"]]
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "timeline.json").write_text(json.dumps(dict(tl, click=(click - 1) / FPS, wake=(wake - 1) / FPS, rise=(rise - 1) / FPS), indent=1))
+    scene["v2_held"] = json.dumps([dict(prop=door.name, rig=nar.name, bone="RightHand", f0=door_from, f1=push_until,
+                                        point=[0.40, 0.02, 1.25])])     # his palm on the door, measured by check
+    marks = {"3.9/deathwatch": (taps[0] - 1) / FPS, "3.9/deathwatch#2": (taps[1] - 1) / FPS}
+    (OUT / "timeline.json").write_text(json.dumps(dict(tl, click=(click - 1) / FPS, wake=(wake - 1) / FPS, rise=(rise - 1) / FPS,
+                                                       marks=marks), indent=1))
     BLEND.parent.mkdir(parents=True, exist_ok=True)
     su.save_blend(BLEND, compress=True)
     print(f"PREVIEW built: {len(tl['shots'])} shots, {end} frames ({tl['seconds']:.1f} s) -> {BLEND.name}")
@@ -374,6 +398,50 @@ def mix():
     print(f"PREVIEW film: {final} ({tl['seconds']:.1f} s)")
 
 
+def _spans():
+    tl = json.loads((OUT / "timeline.json").read_text())
+    return {s["id"]: (1 + int(round(s["start"] * FPS)), int(round((s["start"] + s["seconds"]) * FPS)))
+            for s in tl["shots"]}, tl
+
+
+def check(shots=None, step=4):
+    """The shared measured checks (preview_v4.run_checks) on the built scene; printed and kept in check.txt."""
+    import contextlib
+    import io
+    import bpy
+    sys.path[:0] = [str(ROOT / "scripts"), str(HERE)]
+    import preview_v4 as v4
+    spans, tl = _spans()
+    spoken = [dict(l, line=Path(l["file"]).stem) for s in tl["shots"] for l in s["lines"] if l["who"] == "OM"]
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            v4.run_checks("V2", ["Narrator", "OldMan"], (), json.loads(bpy.context.scene.get("v2_held", "[]")), spans,
+                          shots, spoken, {"N": "Narrator", "OM": "OldMan"}, step=step)
+    finally:
+        print(buf.getvalue(), end="")
+        (OUT / "check.txt").write_text(buf.getvalue())
+
+
+def stills(shots=None):
+    """One 480p frame per shot (or "<shot>@<seconds>") -> stills/."""
+    import bpy
+    scene = bpy.context.scene
+    r = scene.render
+    r.resolution_x, r.resolution_y, r.resolution_percentage = 854, 480, 100
+    scene.eevee.taa_render_samples = 16
+    (OUT / "stills").mkdir(parents=True, exist_ok=True)
+    spans, _ = _spans()
+    for want in shots or list(spans):
+        sid, _, sec = want.partition("@")
+        f0, f1 = spans[sid]
+        scene.frame_set(f0 + int(float(sec) * FPS) if sec else (f0 + f1) // 2)
+        r.filepath = str(OUT / "stills" / f"{want}.png")
+        bpy.ops.render.render(write_still=True)
+
+
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
-    {"build": build, "render": lambda: render(*args[1:3]), "soundtrack": soundtrack, "mix": mix}[args[0]]()
+    {"build": build, "render": lambda: render(*args[1:3]), "soundtrack": soundtrack, "mix": mix,
+     "check": lambda: check(args[1].split(",") if len(args) > 1 else None),
+     "stills": lambda: stills(args[1].split(",") if len(args) > 1 else None)}[args[0]]()

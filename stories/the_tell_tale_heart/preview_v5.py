@@ -133,6 +133,7 @@ def build(part, out_dir=None):
                rigs=rigs, props={}, cams=cams, lights=lights, set=set_out, C=C, marks={}, held=[], cache={},
                stand=stand, part=part)
     mod.act(ctx)
+    assert not ctx.get("contact_misses"), "hands that can't reach: " + "; ".join(ctx["contact_misses"])
     for sid, sec, cam in list(mod.CUTS) + ctx.get("extra_cuts", []):
         scene.timeline_markers.new(f"SHOT_{sid}_{cam}_{sec:.1f}", frame=T(sid, sec)).camera = cams[cam]
     scene.camera = cams[mod.CUTS[0][2]]

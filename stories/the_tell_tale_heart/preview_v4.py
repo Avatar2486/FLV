@@ -2086,8 +2086,9 @@ def _check_locked(cx, sid, f0, f1, step):
                 hip, knee = m @ pb[f"{side}UpLeg"].head, m @ pb[f"{side}Leg"].head
                 t = max(0.0, min(1.0, (W - hip).dot(knee - hip) / (knee - hip).length_squared))
                 on_lap = knee.z > hip.z - 0.15 and (W - hip.lerp(knee, t)).length < 0.2
+                upright = S.z - hip.z > 0.3                   # seated (not lying, where straight arms are rest)
                 elbow = math.degrees((S - E).angle(W - E))
-                if on_lap and elbow > 150:
+                if on_lap and upright and elbow > 150:
                     fails.append(f"{sid} f{f}: {n}'s {side.lower()} arm locked straight on his lap ({elbow:.0f} deg)")
     return fails, []
 
@@ -2119,6 +2120,8 @@ def _check_frozen(cx, sid, f0, f1):
     scene, fails = cx["scene"], []
     for n, rig in cx["rigs"].items():
         for w0 in range(f0, f1 - FPS + 1, FPS // 2):
+            if w0 + FPS > rig.get("dead_from", 10 ** 9):    # the dead are still
+                continue
             scene.frame_set(w0 + FPS // 2)
             head = rig.matrix_world @ rig.pose.bones["Head"].head
             v = world_to_camera_view(scene, scene.camera, head)
@@ -2196,8 +2199,7 @@ def run_checks(label, cast, chair_prefix, held, spans, shots, spoken, who, step=
             who_ = line.split(": ", 1)[1].split("'")[0] if ": " in line else ""
             kinds[(key, who_)] = kinds.get((key, who_), 0) + 1
         print(f"{label} check failures by kind: " + ", ".join(f"{k} {w}: {n}" for (k, w), n in sorted(kinds.items())))
-        print(f"{label} check FAILED:\n  " + "\n  ".join(fails[:40]) +
-              (f"\n  ... {len(fails)} in all" if len(fails) > 40 else ""))
+        print(f"{label} check FAILED ({len(fails)}):\n  " + "\n  ".join(fails))
         raise SystemExit(1)
     print(f"{label} check OK ({'animated' if animated else 'no animation yet: stillness skipped'})")
 

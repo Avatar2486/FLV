@@ -288,6 +288,14 @@ def corridor(coll, lights):
     su.box("CO_Door_Dark", coll, M("MAT_Black"), (0.1, 1.2, 2.4), (x + 1.25, 1.2, 1.2), bevel=0)
     lib.door(coll, (x - 0.9, -2.2, 0), rotation=90, prefix="CO_DOOR_NARRATOR")
     out["clock"] = ph("vintage_grandfather_clock_01", coll, "CO_Long_Case_Clock", (x, 3.7, 0))     # faces -Y
+    for o in out["clock"].children:                   # its glass is see-through: the dial and hands behind it read
+        for m in getattr(o.data, "materials", []):
+            if m and "glass" in m.name.lower() and m.use_nodes:
+                bs = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+                for link in list(bs.inputs["Alpha"].links):   # its own alpha map kept it near opaque
+                    m.node_tree.links.remove(link)
+                bs.inputs["Alpha"].default_value = 0.08
+                m.use_transparent_shadow = True               # light reaches the dial through it
     ph("fancy_picture_frame_01", coll, "CO_Portrait", (x - 0.88, 0.8, 1.8), rotation=-90)
     lib.window(coll, (x, -4.0, 1.65), 0.8, 1.3, t, rotation=180, prefix="CO_WINDOW")
     su.box("CO_Sky", coll, M("MAT_Night_Sky"), (3.0, 0.02, 3.0), (x, -4.9, 1.6), bevel=0).visible_shadow = False
@@ -647,22 +655,63 @@ def watch_macro(coll, lights):
     return out
 
 
+def _timber_macro():
+    """Oak seen from 15 cm: fine grain bands with a little bump (the set's floor wood is scaled for a room)."""
+    m = bpy.data.materials.get("MAT_Timber_Macro")
+    if m:
+        return m
+    m = bpy.data.materials.new("MAT_Timber_Macro")
+    m.use_nodes = True
+    nt = m.node_tree
+    bs = nt.nodes["Principled BSDF"]
+    tc, mapping, wave, ramp, bump = (nt.nodes.new(t) for t in ("ShaderNodeTexCoord", "ShaderNodeMapping",
+                                                                "ShaderNodeTexNoise", "ShaderNodeValToRGB", "ShaderNodeBump"))
+    mapping.inputs["Scale"].default_value = (8.0, 8.0, 400.0)          # long fibres along the board (x)
+    wave.inputs["Scale"].default_value, wave.inputs["Detail"].default_value = 6.0, 8.0
+    wave.inputs["Roughness"].default_value = 0.65
+    ramp.color_ramp.elements[0].color = (0.10, 0.06, 0.035, 1)
+    ramp.color_ramp.elements[1].color = (0.30, 0.19, 0.11, 1)
+    bump.inputs["Strength"].default_value = 0.12
+    nt.links.new(tc.outputs["Object"], mapping.inputs["Vector"])
+    nt.links.new(mapping.outputs["Vector"], wave.inputs["Vector"])
+    nt.links.new(wave.outputs["Fac"], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], bs.inputs["Base Color"])
+    nt.links.new(wave.outputs["Fac"], bump.inputs["Height"])
+    nt.links.new(bump.outputs["Normal"], bs.inputs["Normal"])
+    bs.inputs["Roughness"].default_value = 0.75
+    return m
+
+
 def beetle_macro(coll, lights):
+    """A death-watch beetle (Xestobium, ~7 mm) climbing old wall timber, back to the lens: the head tucked under
+    a hood-like pronotum (it knocks it on the wood), domed elytra with their seam, jointed legs to the wood,
+    short antennae; a few of its round exit holes nearby."""
     x = SET_X["beetle"]
     out = {}
     bm = bmesh.new()
     for i in range(6):
         su.add_box(bm, (0.6, 0.02, 0.11), (0, 0, -0.25 + i * 0.112))
-    su.make_object("BE_Wall_Timber", coll, M("MAT_Floor_Old"), bm, (x, 0.02, 0), bevel=0.003)
-    bm = bmesh.new()
-    su.add_sphere(bm, 1.0, (0, 0, 0), scale=(0.0035, 0.0025, 0.0055), segments=16)
+    su.make_object("BE_Wall_Timber", coll, _timber_macro(), bm, (x, 0.02, 0), bevel=0.003)
+    holes = bmesh.new()
+    for hx, hz in ((-0.013, 0.004), (0.016, 0.019), (0.009, -0.009), (-0.021, 0.024), (0.024, -0.002)):
+        su.add_cylinder(holes, 0.0011, 0.0002, (hx, 0, hz), rotation=(90, 0, 0), segments=12)
+    su.make_object("BE_Exit_Holes", coll, M("MAT_Black"), holes, (x, 0.00995, 0))        # flush, dark bores
+    bm = bmesh.new()                                  # body, back to the lens (-y), climbing (+z); the wall at y 0.01
+    su.add_sphere(bm, 1.0, (0, 0.0074, 0.0085), scale=(0.0028, 0.0022, 0.0042), segments=20)   # elytra
+    su.add_sphere(bm, 1.0, (0, 0.0076, 0.0135), scale=(0.0027, 0.0021, 0.0022), segments=16)   # pronotum
+    for k, zk in enumerate((0.0125, 0.0095, 0.0068)):
+        for side in (-1, 1):
+            knee = (side * 0.0043, 0.0080, zk + (0.0008 if k < 2 else -0.0004))
+            foot = (side * 0.0051, 0.0097, zk + (-0.0012 if k < 2 else -0.0022))
+            su.add_rod(bm, (side * 0.0022, 0.0086, zk), knee, 0.00032, segments=5)
+            su.add_rod(bm, knee, foot, 0.00026, segments=5)
     for side in (-1, 1):
-        for k in range(3):
-            su.add_rod(bm, (side * 0.002, 0, 0.003 - k * 0.003), (side * 0.0055, -0.001, 0.004 - k * 0.0035),
-                       0.00035, segments=4)
-    body = su.make_object("BE_Beetle", coll, M("MAT_Beetle"), bm, (x, 0.008, 0.01), smooth_angle=180)
-    out["head"] = su.sphere("BE_Beetle_Head", coll, M("MAT_Beetle"), 0.0022, (x, 0.007, 0.0165))
-    del body
+        su.add_rod(bm, (side * 0.0006, 0.0084, 0.0158), (side * 0.0021, 0.0090, 0.0182), 0.00017, segments=4)
+    su.make_object("BE_Beetle", coll, M("MAT_Beetle"), bm, (x, 0.0, 0.0), smooth_angle=60)
+    seam = su.box("BE_Beetle_Seam", coll, M("MAT_Soot"), (0.00014, 0.0004, 0.0072), (x, 0.0053, 0.0086), bevel=0)
+    seam.parent = bpy.data.objects["BE_Beetle"]
+    seam.location = (0, 0.0053, 0.0086)
+    out["head"] = su.sphere("BE_Beetle_Head", coll, M("MAT_Beetle"), 0.0012, (x, 0.0086, 0.0153))
     lights["beetle_moon"] = su.light("BE_LIGHT_Moon", coll, "AREA", (x + 0.12, -0.12, 0.12), 0, (0.6, 0.72, 1.0),
                                      target=(x, 0, 0), shape="DISK", size=0.05)
     return out
