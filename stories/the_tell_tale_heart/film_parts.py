@@ -296,13 +296,16 @@ def mix():
                 if gain <= 0:
                     continue
                 at = offset if offset >= 0 else d + offset
-                if f"{sid}/{name}" in marks:
+                if f"{sid}/{name}" in marks:                # the mark is when that cue happens: once
+                    if f"{sid}/{name}" in used:
+                        continue
                     at = marks[f"{sid}/{name}"] - t
                     used.add(f"{sid}/{name}")
                 m.put(cue_sound(name, starts[sid] + at, d - at), starts[sid] + at, gain * 0.8)
         for mark, at in marks.items():
             if mark not in used:
-                m.put(cue_sound(mark.split("/", 1)[1], c["start"] + at, 4.0), c["start"] + at, 0.7)
+                cue = mark.split("/", 1)[1].split("#")[0]   # "5.15/stomp#2": the same cue again
+                m.put(cue_sound(cue, c["start"] + at, 4.0), c["start"] + at, 0.7)
     # heartbeats
     for run in film.HEARTBEATS:
         sid, off, b0, b1, eid, eoff, muffled = run[:7]

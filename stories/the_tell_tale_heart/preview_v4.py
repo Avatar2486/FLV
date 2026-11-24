@@ -242,9 +242,9 @@ LIGHT_KEYS = {
     "5.4": dict(ki_fill=70), "5.5": dict(warm=70, fill=8, moon=60), "5.6": dict(warm=100, fill=8, moon=60),
     "5.7": dict(warm=130, fill=8, moon=60), "5.8": dict(warm=95, fill=14, moon=70),
     "5.9": dict(warm=85, fill=14, moon=70), "5.10": dict(warm=60, fill=20, moon=80),
-    "5.11": dict(warm=18, fill=18, moon=90), "5.12": dict(warm=8, fill=26, moon=110),
-    "5.13": dict(warm=6, fill=28, moon=110), "5.14": dict(warm=5, fill=30, moon=120),
-    "5.15": dict(warm=5, fill=30, moon=120)}
+    "5.11": dict(warm=25, fill=40, moon=110), "5.12": dict(warm=12, fill=50, moon=130),
+    "5.13": dict(warm=10, fill=55, moon=130), "5.14": dict(warm=8, fill=55, moon=140),
+    "5.15": dict(warm=8, fill=55, moon=140)}         # cold, but readable at 480p
 LANTERN_GLOW = {"5.2": 10, "5.3": 10, "5.4": 16, "5.5": 14, "5.6": 14, "5.7": 16, "5.8": 12, "5.9": 12, "5.10": 10, "5.11": 8, "5.12": 5, "5.13": 5,
                 "5.14": 5, "5.15": 5}
 
@@ -339,6 +339,7 @@ def build(acts=True):
         if n != "Narrator":
             props[f"hat_{n}"] = top_hat(C["PROPS"], rig)
             props[f"badge_{n}"] = star_badge(C["PROPS"], rig)
+    stand = {pb.name: pb.rotation_quaternion.copy() for pb in rigs["Narrator"].pose.bones}   # standing, arms down
     for s in tl["shots"]:
         for n, (x, y, h) in places(s["id"]).items():
             rig = rigs[n]
@@ -389,7 +390,7 @@ def build(acts=True):
     # ---- cameras and cuts
     cams, cam_rigs = _cameras(T, su, C, Vector)
     ctx = dict(bpy=bpy, humans=humans, su=su, sets=sets, cast3d=cast3d, tl=tl, T=T, start=start, end=end,
-               rigs=rigs, props=props, cams=cams, cam_rigs=cam_rigs, lights=lights, room=room, entry=entry, C=C,
+               rigs=rigs, props=props, cams=cams, cam_rigs=cam_rigs, lights=lights, room=room, entry=entry, C=C, stand=stand,
                marks={}, held=[], cache={})
     if acts:
         for act in ACTS:
@@ -432,7 +433,8 @@ def _street_outside(bpy, su, sets, coll, lights):
 # ----------------------------------------------------------------------------------------------- acting
 WHO = {"NS": "Narrator", "O1": "Hale", "O2": "Brandt", "O3": "Mercer"}
 OFFICERS = ("Hale", "Brandt", "Mercer")
-HEARTBEATS = [("5.8", 2.0, 60, 150, "5.15", 6.0)]      # the heart under the floor, rising to the confession
+import film  # noqa: E402  (the shot list; its HEARTBEATS drive the sound and these pictures alike)
+HEARTBEATS = [h for h in film.HEARTBEATS if h[0].startswith("5.")]   # the heart under the floor, to the confession
 WORRY = {"browInnerUp": 0.35, "mouthPressLeft": 0.25, "mouthPressRight": 0.25, "mouthSmileLeft": 0.1,
          "mouthSmileRight": 0.1}
 WINCE = {"browDownLeft": 0.45, "browDownRight": 0.45, "browInnerUp": 0.3, "eyeSquintLeft": 0.5, "eyeSquintRight": 0.5,
@@ -454,7 +456,7 @@ def beat_times(tl):
     """Seconds of every heartbeat he hears (HEARTBEATS: from a shot + offset, bpm rising, to a shot + offset)."""
     start = {s["id"]: s["start"] for s in tl["shots"]}
     out = []
-    for sid, off, b0, b1, eid, eoff in HEARTBEATS:
+    for sid, off, b0, b1, eid, eoff, *_ in HEARTBEATS:
         t0, t1 = start[sid] + off, start[eid] + eoff
         t = t0
         while t < t1:
@@ -719,7 +721,7 @@ def _look_fn(ctx, n, frame_ref):
     return toward
 
 
-def _converse(ctx, lines, a, b, energy, idle, seated=True):
+def _converse(ctx, lines, a, b, energy, idle, seated=True, no_fidget=()):
     """Everyone in a scene, frames a..b: speakers' lips (Wav2ARKit) and gestures; everyone's gaze (one eyes()
     call each: the speaker looks at whom he answers, listeners at the speaker, idle eyes per `idle`); listeners
     nod at phrase ends; breathing and sway. lines: timeline entries; energy: {name: 0..1}; idle(n, f) -> (target,
@@ -761,6 +763,8 @@ def _converse(ctx, lines, a, b, energy, idle, seated=True):
                         force=ctx.get("force_gestures", {}).get(Path(wav).stem, ()))
         humans.lip_sync(rigs[spk], wav, f0)
     for n, rig in rigs.items():          # and nobody's hands freeze between lines (a hand holding something excepted)
+        if n in no_fidget:
+            continue
         busy = ctx.get("busy_hands", {}).get(n, ())
         humans.fidget(rig, a, b, seed=_seed(n, 79), sides=tuple(s for s in ("Left", "Right") if s not in busy))
     return events, phrases
@@ -799,7 +803,7 @@ def _at(obj, f):
     return Matrix.LocRotScale(Vector(loc), Euler(rot), obj.scale)
 
 
-def _walk(ctx, rig, path, a, b, busy=None, z=None):
+def _walk(ctx, rig, path, a, b, busy=None, z=None, clips=None):
     """Key rig's place every frame from a to b along path [(frame, (x, y), heading)] (z: frame -> height), and
     remember it in ctx["tracks"] (the gaze follows it); then mocap steps along it. busy: frames both hands are
     busy (no arm swing); None: all."""
@@ -812,7 +816,8 @@ def _walk(ctx, rig, path, a, b, busy=None, z=None):
         rig.keyframe_insert("rotation_euler", frame=f)
     ctx.setdefault("tracks", {}).setdefault(rig.name, {}).update(track)
     if len({p for _, p, _ in path}) > 1 or len({h for _, _, h in path}) > 1:
-        v3._mocap_gait(ctx["humans"], rig, track, a, b, set(range(a, b + 1)) if busy is None else busy)
+        v3._mocap_gait(ctx["humans"], rig, track, a, b, set(range(a, b + 1)) if busy is None else busy,
+                       **({"clips": clips} if clips else {}))
     return track
 
 
@@ -878,7 +883,8 @@ def _arrive_stairs(ctx):
     T, nar, scene = ctx["T"], ctx["rigs"]["Narrator"], bpy.context.scene
     a, b = T("5.1"), T("5.2") - 1
     knock, go = T("5.1", 2.6), T("5.1", 3.2)
-    ctx["marks"]["knock"] = knock
+    ctx["marks"]["5.1/knock3"] = knock
+    ctx["marks"]["5.1/steps_wood"] = go
     steps = 15                                    # tread 13 down to the hall floor, and a last step off the stair
     done = go + steps * STEP_FRAMES
 
@@ -983,6 +989,7 @@ def _arrive_door(ctx):
     a, b = T("5.2"), T("5.4") - 1
     door, handle = ctx["entry"]["door"], bpy.data.objects["EN_DOOR_Handle"]
     GRAB, OPEN, LET = T("5.2", 0.9), T("5.2", 2.4), T("5.2", 3.4)
+    ctx["marks"]["5.2/door_open"] = GRAB
     for f, deg in ((1, 0), (GRAB + 2, 0), (OPEN, -45), (LET, -84), (LET + 10, -82)):
         door.rotation_euler.z = math.radians(deg)
         door.keyframe_insert("rotation_euler", frame=f)
@@ -1077,6 +1084,7 @@ def _arrive_kitchen(ctx):
     T, rigs, tl = ctx["T"], ctx["rigs"], ctx["tl"]
     a, b = T("5.4"), T("5.5") - 1
     t = lambda sec: T("5.4", sec)
+    ctx["marks"]["5.4/steps_group"] = a + 6
     paths = {
         "Narrator": [(a, (59.75, -1.45), 150), (b, (59.75, -1.45), 150)],
         "Brandt": [(a, (59.0, -1.3), 205), (t(3.4), (57.95, 0.35), 215), (t(4.2), (57.95, 0.35), 268),
@@ -1130,6 +1138,7 @@ def _arrive_chest(ctx):
     a, b = T("5.5"), T("5.6") - 1
     t = lambda sec: T("5.5", sec)
     BEND0, GRAB, LET, UP = t(0.8), t(1.6), t(2.5), t(3.5)
+    ctx["marks"]["5.5/coin"] = LET + 8
     lid = next(o for o in room["chest"].children if o.name.endswith("_lid"))
     lid.rotation_mode = "XYZ"                         # an imported asset, in quaternions: keyed Euler did nothing
     hinge = lid.matrix_world.translation.copy()
@@ -1390,6 +1399,7 @@ def _act_chamber(ctx):
     Q = C - 0.6 * d                            # he stands here to set it down: the top rail 30 cm in front of him
     W0, W1 = T("5.6", 7.5), T("5.6", 11.3)
     D0, D1 = T("5.6", 11.5), T("5.6", 12.7)    # "placed my own seat upon the very spot"
+    ctx["marks"]["5.6/chair_place"] = D1
     door = (-1.4, -1.85)
     path = [(A, door, 180), (W0, door, 180), (W0 + 38, (-1.45, -0.75), 170), (W1, (Q.x, Q.y), hn), (N7 - 1, (Q.x, Q.y), hn)]
     track = v3._sample_path(path, A, N7 - 1)
@@ -1488,6 +1498,7 @@ def _act_chamber(ctx):
             humans.breathe(rig, A, B, style="calm", phrases=mine, seed=_seed(n, 71))
     laugh = next(e for e in events if e[2] == "Brandt" and "c3" in str(e[3]))     # the stove went out at two
     humans.chuckle(rigs["Hale"], laugh[1] + 4, rest=cast3d.PLEASANT, seed=3)
+    ctx["marks"]["5.7/laugh_group"] = laugh[1] + 4
 
     # ---- 5.8: "my head ached" - his left hand to his temple, and back
     H0, H1 = T("5.8", 5.0), T("5.8", 7.6)
@@ -1602,7 +1613,301 @@ def _frame_chamber_cams(ctx):
     aim("floor", T("5.6"), T("5.7") - 1, (-0.55, -1.05, 0.14), (-0.55, -1.0, 0.14), (-0.62, 0.05, 0.12), 24)
 
 
-ACTS = [_act_arrival, _act_chamber]          # the animation, part by part, in story order
+# ----------------------------------------------------------------------------------------------- the breakdown
+# heavy strides (100STYLE): the angry walk is as fast as the hurried one (2.08 m/s), so it is blended with the plain
+# walk by speed; its clip loops round the capture floor, so its straightest stretch is sought in 3 s, not 10
+ANGRY = (("Neutral_FW", 240), ("Angry_FW", 72))
+RAIL_GRIP = ((0.14, 0.37, 1.06), (-0.14, 0.37, 1.06))     # his palms on the chair's top rail, chair-local (as in 5.6)
+
+
+def _stand_up(ctx, rig, r0, r1, stand, tuck=0.15):
+    """Sit to stand, r0..r1: the feet slide back `tuck` m under the chair, the hips go forward over them and rise,
+    the trunk leaning forward on the way up and the hands pushing on the thighs; the feet stay put through the rise
+    (leg IK); he ends upright over them in `stand` (bone -> rotation). -> where he stands (world)."""
+    bpy, humans = ctx["bpy"], ctx["humans"]
+    from mathutils import Vector
+    scene = bpy.context.scene
+    _hold(bpy, rig, r0)
+    scene.frame_set(r0)
+    k, pb = rig.scale.x, rig.pose.bones
+    seated_feet = {s: rig.matrix_world @ pb[f"{s}Foot"].head for s in ("Left", "Right")}
+    back = rig.matrix_world.to_3x3().normalized() @ Vector((0, 1, 0))      # toward the chair
+    back.z = 0
+    feet = {s: p + back.normalized() * tuck for s, p in seated_feet.items()}
+    tucked = r0 + int(0.3 * (r1 - r0))
+    rest_mid = sum((rig.data.bones[f"{s}Foot"].head_local for s in ("Left", "Right")), Vector()) / 2
+    seat = rig.location.copy()
+    up = (feet["Left"] + feet["Right"]) / 2 - rig.matrix_world.to_3x3().normalized() @ (rest_mid * k)
+    up.z = 0.0
+    for name, q in stand.items():
+        pb[name].rotation_quaternion = q
+        pb[name].keyframe_insert("rotation_quaternion", frame=r1)
+    pb["Hips"].location = (0, 0, 0)
+    pb["Hips"].keyframe_insert("location", frame=r1)
+    for f in range(r0, r1 + 1):
+        u = (f - r0) / (r1 - r0)
+        loc = seat.lerp(up, v3.ease(0.0, 0.55, u))
+        loc.z = seat.z + (up.z - seat.z) * v3.ease(0.3, 1.0, u)
+        rig.location = loc
+        rig.keyframe_insert("location", frame=f)
+    lean = lambda f: math.sin(math.pi * min(1.0, max(0.0, (f - r0) / (0.8 * (r1 - r0)))))
+    humans._layer(rig, r0, r1, lambda f: {"LowerBack": (0, 26 * lean(f), 0), "Spine": (0, 12 * lean(f), 0),
+                                          "Neck1": (0, -16 * lean(f), 0)})
+    rest = {bb.name: bb.matrix_local.copy() for bb in rig.data.bones}
+    for f in range(r0, r1 + 1):
+        scene.frame_set(f)
+        inv = rig.matrix_world.inverted()
+        for s in ("Left", "Right"):
+            chain = (f"{s}UpLeg", f"{s}Leg", f"{s}Foot")
+            pose = {n: pb[n].matrix.copy() for n in chain + ("Hips",)}
+            u = v3.ease(r0, tucked, f)
+            humans._two_bone(rig, rest, pose, f, *chain, inv @ seated_feet[s].lerp(feet[s], u), pole=(0, -1, 0),
+                             force_pole=True)
+            bpy.context.view_layer.update()
+    push = r0 + int(0.65 * (r1 - r0))                 # the hands push on the thighs, then let go
+    for s in ("Left", "Right"):
+        def on_thigh(f, s=s):
+            if f > push:
+                return None
+            scene.frame_set(f)
+            m = rig.matrix_world
+            return m @ pb[f"{s}UpLeg"].head.lerp(pb[f"{s}Leg"].head, 0.45) + Vector((0, 0, 0.1))
+        humans.reach(rig, s, r0, r1, target=on_thigh, blend=6,
+                     hand=lambda f: humans.hand_frame(_at(rig, f).to_3x3() @ Vector((0, -1, -0.3)), (0, 0, -1)))
+    return up
+
+
+def _act_breakdown(ctx):
+    """5.11-5.15. He rises and argues about trifles, in a high key, with violent gesticulations; paces with heavy
+    strides; grips his chair, swings it and grinds it on the boards; the officers chat on, smiling (Mercer sips
+    his tea); his horror; the cuts on the beat; the confession - stamping on the planks and pointing - and the
+    officers start to their feet."""
+    bpy, humans, cast3d = ctx["bpy"], ctx["humans"], ctx["cast3d"]
+    from mathutils import Matrix, Vector
+    T, rigs, props, tl, cams = ctx["T"], ctx["rigs"], ctx["props"], ctx["tl"], ctx["cams"]
+    scene = bpy.context.scene
+    nar, chair, mer = rigs["Narrator"], props["chair_Narrator"], rigs["Mercer"]
+    a, end = T("5.11"), ctx["end"]
+    t = lambda sid, sec: T(sid, sec)
+    face = lambda rig, f, e: humans.face(rig, f, {**cast3d.NEUTRAL, **e})
+    scene.frame_set(a)
+    c0 = chair.matrix_world.copy()
+    hn = math.degrees(c0.to_euler().z)
+    back = (c0 @ Vector((0, 0.62, 0))).xy                # behind the backrest, where he grips it
+
+    # ---- 5.11: up out of the chair, arguing; then pacing to and fro with heavy strides, back to the chair
+    R0, R1 = t("5.11", 0.3), t("5.11", 1.5)
+    S = _stand_up(ctx, nar, R0, R1, ctx["stand"]).xy
+    hale_dir = heading_to(S, (0.65, -0.3))
+    W, N, Sx = (-1.75, -0.6), (-1.75, 0.75), (-1.7, -0.45)
+    path = [(R1, tuple(S), hn), (t("5.11", 4.6), tuple(S), hale_dir), (t("5.11", 5.6), (-0.3, -0.52), 230),
+            (t("5.11", 7.2), (-1.0, -0.55), 270), (t("5.11", 9.0), (-1.0, -0.55), 80),
+            (t("5.11", 9.6), W, heading_to((-1.0, -0.55), W)), (t("5.11", 9.9), W, 180),       # to and fro, twice
+            (t("5.11", 10.95), N, 180), (t("5.11", 11.25), N, 0), (t("5.11", 12.2), Sx, heading_to(N, Sx)),
+            (t("5.11", 12.5), Sx, 180), (t("5.11", 13.5), N, 180),
+            (t("5.11", 13.8), N, heading_to(N, tuple(back))), (t("5.11", 14.6), tuple(back), heading_to(N, tuple(back))),
+            (T("5.12") - 1, tuple(back), hn)]          # turned to the chair as he takes hold of it
+    talk = {f for c in tl["chatter"] if c["line"] in ("5.11_c10_NS", "5.11_c11_NS")
+            for f in range(_frame(c["start"]) - 8, _frame(c["start"] + c["seconds"]) + 8)}
+    _walk(ctx, nar, path, R1 + 1, T("5.12") - 1, busy=talk, clips=ANGRY)
+    ctx["marks"]["5.11/steps_heavy"] = t("5.11", 9.0)
+
+    # ---- 5.12: both hands on the rail; the chair lifted, swung out and back, banged down, ground on the boards
+    G, REL = t("5.12", 0.5), t("5.15", 0.3)
+
+    def heading(f):
+        return hn + 60 * v3.ease(t("5.12", 1.5), t("5.12", 2.8), f) * (1 - v3.ease(t("5.12", 2.8), t("5.12", 3.6), f))
+
+    def lift(f):
+        return 0.18 * v3.ease(t("5.12", 1.0), t("5.12", 1.5), f) * (1 - v3.ease(t("5.12", 2.8), t("5.12", 3.6), f))
+
+    def grind(f):
+        u = (f - t("5.12", 4.0)) / (t("5.12", 8.5) - t("5.12", 4.0))
+        return 0.0 if not 0 < u < 1 else 0.16 * math.sin(2 * math.pi * 3 * u) * math.sin(math.pi * u)
+
+    def chair_m2(f):
+        h = heading(f)
+        R = Matrix.Rotation(math.radians(h), 3, "Z")
+        at = Vector((*back, 0)) + Vector((*_dir(h), 0)) * grind(f)
+        return Matrix.Translation(at - R @ Vector((0, 0.62, 0)) + Vector((0, 0, lift(f)))) @ R.to_4x4()
+    for f in range(G, t("5.12", 8.5) + 1):
+        chair.matrix_world = chair_m2(f)
+        chair.keyframe_insert("location", frame=f)
+        chair.keyframe_insert("rotation_euler", frame=f)
+    _constant(chair, ("location", "rotation_euler"))
+    ctx["marks"]["5.12/chair_scrape"] = t("5.12", 4.0)
+    body = [(f, tuple(Vector((*back, 0)).xy + Vector(_dir(heading(f))) * 0.7 * grind(f)), heading(f))
+            for f in range(T("5.12"), REL + 1, 2)]
+    _walk(ctx, nar, body, T("5.12"), REL)
+    # ---- 5.15: he lets go and steps onto the planks
+    _walk(ctx, nar, [(REL, body[-1][1], body[-1][2]), (t("5.15", 1.1), (-1.1, -0.2), 115), (end, (-1.1, -0.2), 115)],
+          REL, end, busy=set())
+
+    # ---- 5.15: the officers rise (the base pose: before any layer bakes the seated pose into every frame)
+    for i, n in enumerate(OFFICERS):
+        _stand_up(ctx, rigs[n], t("5.15", 1.2) + 2 * i, t("5.15", 2.6) + 2 * i, ctx["stand"])
+
+    # ---- faces, breath, talk, gaze
+    face(nar, a, cast3d.TENSE)
+    face(nar, t("5.11", 5.0), cast3d.FURY)
+    face(nar, t("5.13", 6.0), cast3d.HORROR)
+    face(nar, T("5.15"), cast3d.FURY)
+    smiling = {**cast3d.PLEASANT, "mouthSmileLeft": 0.65, "mouthSmileRight": 0.6, "cheekSquintLeft": 0.35,
+               "cheekSquintRight": 0.3}                # "the men chatted pleasantly, and smiled"
+    for n in OFFICERS:
+        face(rigs[n], a, cast3d.PLEASANT)
+        face(rigs[n], T("5.13"), smiling)
+        face(rigs[n], t("5.15", 0.5), smiling)
+        face(rigs[n], t("5.15", 1.0), {**cast3d.FEAR, "browInnerUp": 0.6})
+    lines = [c for c in tl["chatter"] if _frame(c["start"]) >= a]
+    lines += [l for s in tl["shots"] if s["id"] == "5.15" for l in s["lines"] if l["who"] in ON_SCREEN]
+    ctx["busy_hands"] = {"Mercer": ("Right",)}
+    ctx["force_gestures"] = {"5.15_0_NS": [(0.43, "chop"), (3.34, "fist"), (4.66, "point")]}
+    officers = [n for n in OFFICERS]
+
+    def idle(n, f):
+        if n == "Narrator":
+            k = int(f // 19) % 3                      # darting from one smiling face to the next
+            return officers[k], ("fear" if f >= T("5.13") else "talking")
+        return (officers[(officers.index(n) + 1) % 3] if int(f // 60) % 3 == 1 else "Narrator"), "listening"
+    events, phrases = _converse(ctx, lines, a, end, {"Narrator": 0.9, "Hale": 0.4, "Brandt": 0.4, "Mercer": 0.35},
+                                idle, seated=True, no_fidget=("Narrator",))
+    ctx["busy_hands"], ctx["force_gestures"] = {}, {}
+    mine = [p for e in events if e[2] == "Narrator" for p in phrases[e]]
+    humans.breathe(nar, a, end, style="panic", phrases=mine, seed=91)
+    for n in OFFICERS:
+        humans.breathe(rigs[n], a, end, style="calm", seed=_seed(n, 93))
+    humans.chuckle(rigs["Hale"], t("5.13", 2.0), rest=cast3d.PLEASANT, seed=7)
+    ctx["marks"]["5.13/laugh_group"] = t("5.13", 2.0)
+    humans.tremble(nar, T("5.13"), T("5.15") - 1, strength=0.8, seed=95)
+    shake = lambda f, k: 0.8 * math.sin(2 * math.pi * 8.2 * f / FPS + k) * math.sin(2 * math.pi * 0.37 * f / FPS + 2 * k)
+    humans._layer(nar, T("5.13"), T("5.15") - 1, lambda f: {"Spine1": (shake(f, 0), shake(f, 1), 0),
+                                                           "Neck1": (shake(f, 2), shake(f, 3), 0),
+                                                           "Head": (shake(f, 4), 0, shake(f, 5))})
+
+    # ---- 5.15: stamping on the planks; the officers start up and rise
+    for k, sec in enumerate((6.1, 6.6)):
+        hit = t("5.15", sec)
+        ctx["marks"]["5.15/stomp" + ("" if k == 0 else "#2")] = hit
+        s = lambda f, hit=hit: v3.ease(hit - 5, hit - 1, f) * (1 - v3.ease(hit - 1, hit + 1, f))
+        humans._layer(nar, hit - 8, hit + 6, lambda f, s=s: {"RightUpLeg": (0, -45 * s(f), 0),
+                                                            "RightLeg": (0, 70 * s(f), 0), "RightFoot": (0, -15 * s(f), 0)})
+    for i, n in enumerate(OFFICERS):                  # they start at "Villains!"
+        humans.startle(rigs[n], t("5.15", 0.55) + i, strength=1.0, legs=False)
+
+    # ---- hands that hold things, after every layer: his on the chair rail; Mercer's on his cup (and the sip)
+    for x, side in zip((0.14, -0.14), ("Left", "Right")):
+        from mathutils import Quaternion
+        fingers = [b for b in nar.pose.bones if b.name.startswith(f"{side}Hand") and b.name != f"{side}Hand"]
+        scene.frame_set(G - 1)
+        for pb in fingers:
+            pb.keyframe_insert("rotation_quaternion", frame=G - 1)
+        for finger, degs in humans.GRIP.items():
+            for j, deg in enumerate(degs, 1):
+                pb = nar.pose.bones.get(f"{side}Hand{finger}{j}")
+                if pb is not None:
+                    pb.rotation_quaternion = Quaternion((1, 0, 0), math.radians(deg * 0.55))
+                    pb.keyframe_insert("rotation_quaternion", frame=G)
+                    pb.keyframe_insert("rotation_quaternion", frame=REL)
+        humans._finger_shape(nar, side, REL + 3, "relaxed")
+        def on_rail(f, x=x):
+            if f < G - 6 or f > REL + 6:
+                return None
+            up = 0.1 * max(0.0, (G - f) / 6, (f - REL) / 6)          # onto it from above, off it upward
+            return chair_m2(min(max(f, G), t("5.12", 8.5))) @ Vector((x, 0.37, 1.06)) + Vector((0, 0, up))
+        _contact(ctx, nar, side, G - 14, REL + 14, on_rail,
+                 lambda f: humans.hand_frame(chair_m2(min(max(f, G), t("5.12", 8.5))).to_3x3() @ Vector((0, -1, -0.05)),
+                                             Vector((0, 0, -1))), blend=10)
+        ctx["held"].append(dict(prop=chair.name, rig=nar.name, bone=f"{side}Hand", f0=G, f1=REL,
+                                point=[x, RAIL_GRIP[0][1], RAIL_GRIP[0][2]]))
+    hip = lambda f: mer.matrix_world @ mer.pose.bones["RightUpLeg"].head
+    knee = lambda f: mer.matrix_world @ mer.pose.bones["RightLeg"].head
+    S0, S1, SIP0, SIP1 = t("5.15", 1.2) + 4, t("5.15", 2.6) + 4, t("5.13", 9.0), t("5.13", 12.5)
+
+    def cup_at(f):
+        scene.frame_set(f)
+        on_thigh = hip(f).lerp(knee(f), 0.5) + Vector((0, 0, 0.11))
+        head = mer.matrix_world @ mer.pose.bones["Head"].head
+        fwd = (mer.matrix_world.to_3x3() @ Vector((0, -1, 0))).normalized()
+        sip = v3.ease(SIP0, SIP0 + 20, f) * (1 - v3.ease(SIP1 - 20, SIP1, f))
+        p = on_thigh.lerp(head + fwd * 0.1 - Vector((0, 0, 0.12)), sip)
+        held = _at(mer, f) @ Vector((-0.2, -0.25, 0.98))
+        return p.lerp(held, v3.ease(S0, S1, f))
+    humans.reach(mer, "Right", a, end, target=cup_at,
+                 hand=lambda f: humans.hand_frame(_at(mer, f).to_3x3() @ Vector((0, -1, -0.2)),
+                                                  _at(mer, f).to_3x3() @ Vector((1, 0, 0))), blend=1, pole=(-0.35, 0.7, -0.6))
+    _carry(ctx, props["cup"], mer, "RightHand", a, end)
+
+    # ---- cameras: the orbit round him (5.11); the officers in a dolly zoom (5.13); cuts on the beat (5.14);
+    # the push and the whip to the planks (5.15)
+    heads = {}
+    for f in range(a, T("5.12"), 6):
+        scene.frame_set(f)
+        heads[f] = nar.matrix_world @ nar.pose.bones["Head"].head
+    keys = []
+    for i, (f, h) in enumerate(sorted(heads.items())):
+        ang = math.radians(-110 + 170 * i / max(1, len(heads) - 1))
+        at = Vector((min(2.3, max(-2.3, h.x + 1.4 * math.cos(ang))), min(2.1, max(-2.1, h.y + 1.4 * math.sin(ang))), 1.6))
+        keys.append((f, tuple(at), h - Vector((0, 0, 0.1))))
+    ctx["su"].animate_camera(cams["orbit"], keys)
+    oc = cams["officers"]
+    ctx["su"].animate_camera(oc, [(T("5.13"), (-0.4, -0.05, 1.25), (0.17, -0.15, 1.15)),
+                                  (T("5.14") - 1, (-0.75, 0.02, 1.25), (0.17, -0.15, 1.15))])
+    for f, lens in ((T("5.13"), 35), (T("5.14") - 1, 52)):
+        oc.data.lens = lens
+        oc.data.keyframe_insert("lens", frame=f)
+    scene.frame_set(T("5.14"))                        # the ECU of his eye, from the eye bone and its gaze
+    eb = nar.matrix_world @ nar.pose.bones["LeftEye"].matrix
+    eye, gaze = eb.translation, (eb.to_3x3() @ Vector((0, 1, 0))).normalized()
+    ctx["su"].animate_camera(cams["eye_n"], [(T("5.14"), tuple(eye + gaze * 0.32), tuple(eye))])
+    cams["eye_n"].data.lens = 85
+    for name in ("eye_n", "smile_h", "smile_b", "smile_m"):        # cut fast: every frame must read sharp
+        cams[name].data.dof.use_dof = False
+    for name, n in (("smile_h", "Hale"), ("smile_b", "Brandt"), ("smile_m", "Mercer")):   # each smile, from the face
+        r = rigs[n]
+        eyes = [r.matrix_world @ r.pose.bones[f"{s}Eye"].matrix for s in ("Left", "Right")]
+        mid = (eyes[0].translation + eyes[1].translation) / 2
+        look = sum(((e.to_3x3() @ Vector((0, 1, 0))).normalized() for e in eyes), Vector()).normalized()
+        nose = mid - Vector((0, 0, 0.05))
+        ctx["su"].animate_camera(cams[name], [(T("5.14"), tuple(nose + look * 0.42 + Vector((0, 0, 0.02))), tuple(nose))])
+        cams[name].data.lens = 50
+    oc.data.dof.focus_object = rigs["Hale"]
+    if hasattr(oc.data.dof, "focus_subtarget"):
+        oc.data.dof.focus_subtarget = "Head"
+    s14, s15 = T("5.14"), T("5.15")
+    beats = [_frame(b) for b in beat_times(tl) if s14 <= _frame(b) < s15]
+    cycle = ["smile_h", "macro", "smile_b", "eye_n", "smile_m", "macro"]
+    for i, b in enumerate(beats[1::2]):
+        ctx.setdefault("extra_cuts", []).append(("5.14", (b - s14) / FPS, cycle[i % len(cycle)]))
+    for name in ("eye_n", "smile_h", "smile_b", "smile_m", "macro"):
+        cam = cams[name]
+        for k, b in enumerate(beats):
+            for f, deg in ((b - 1, 0.0), (b, 1.2 * (1 if k % 2 else -1)), (b + 3, 0.0)):
+                cam.delta_rotation_euler = (math.radians(deg), 0, math.radians(deg * 0.5))
+                cam.keyframe_insert("delta_rotation_euler", frame=f)
+    _dust(ctx, s14, s15 - 1)
+    scene.frame_set(T("5.15"))
+    face_at = nar.matrix_world @ nar.pose.bones["Head"].head
+    planks = Vector((-0.85, -0.1, 0.0))
+    # from the south-west, clear of where the officers stand once they are up
+    # in front of him, in the gap between where Hale and Mercer stand once they are up, over the chair's back;
+    # it follows his face as he steps onto the planks
+
+    def face_now(f):
+        scene.frame_set(f)
+        return tuple(nar.matrix_world @ nar.pose.bones["Head"].head + Vector((0, 0, -0.04)))
+    ctx["su"].animate_camera(cams["ms15"], [
+        (T("5.15"), (0.05, -0.38, 1.6), face_now(T("5.15"))), (t("5.15", 1.4), (0.0, -0.37, 1.6), face_now(t("5.15", 1.4))),
+        (t("5.15", 5.8), (-0.2, -0.35, 1.6), face_now(t("5.15", 5.8))),
+        (t("5.15", 6.2), (-0.2, -0.35, 1.6), tuple(planks)), (t("5.15", 6.9), (-0.2, -0.35, 1.6), tuple(planks)),
+        (t("5.15", 7.2), (-0.22, -0.34, 1.6), face_now(t("5.15", 7.2))), (end, (-0.3, -0.33, 1.6), face_now(end))])
+    cams["ms15"].data.dof.focus_object = nar
+    if hasattr(cams["ms15"].data.dof, "focus_subtarget"):
+        cams["ms15"].data.dof.focus_subtarget = "Head"
+    assert not ctx.get("contact_misses"), "hands that can't reach: " + "; ".join(ctx["contact_misses"])
+
+
+ACTS = [_act_arrival, _act_chamber, _act_breakdown]          # the animation, part by part, in story order
 
 
 # ----------------------------------------------------------------------------------------------- checks

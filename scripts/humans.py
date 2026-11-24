@@ -1340,6 +1340,9 @@ GESTURES = {
     # and the welcoming arm - it opens out to the side, palm up, the elbow more extended (an inviting sweep)
     "wave": dict(dir=(0.60, -0.45, 0.35), elbow=110, palm="away", fingers="open", dip=0.07),
     "welcome": dict(dir=(0.55, -0.50, 0.70), elbow=135, palm="up", fingers="open", dip=0.03),
+    # pointing at something on the floor in front ("here, here!"): the arm reaches out and down, the index
+    # finger straight, the others closed (asked for at a word only)
+    "point": dict(dir=(0.60, -0.80, 0.00), elbow=160, palm="down", fingers="point", dip=0.03),
 }
 # The joints that hang off the forearm move like it: a relaxed wrist sags ~22 deg under gravity and the hand
 # and fingers settle into a new pose in 0.38-0.48 s (Neff & Seidel 2006, Tables 1-2); gesturing, the wrist is
@@ -1366,7 +1369,8 @@ HAND_SHAPES = {"relaxed": RELAXED_HAND,
                "open": {**{k: tuple(round(a * 0.35) for a in v) for k, v in RELAXED_HAND.items()}, "Thumb": (4, 8, 5)},
                "fist": {"Thumb": (45, 40, 30), "Index": (85, 100, 70), "Middle": (88, 100, 70), "Ring": (88, 100, 70),
                         "Pinky": (85, 95, 65)}}
-THUMB_ACROSS = {"relaxed": 15, "open": -5, "fist": 25}   # open: a soft L beside the index, not sticking up
+HAND_SHAPES["point"] = {**HAND_SHAPES["fist"], "Index": (5, 5, 3), "Thumb": (30, 30, 20)}
+THUMB_ACROSS = {"relaxed": 15, "open": -5, "fist": 25, "point": 20}   # open: a soft L beside the index, not sticking up
 # The thumb is turned ~55-60 deg against the fingers (opposition), so its own knuckles (MCP, IP) bend across the
 # palm toward the little finger, not up out of it; our rigs' thumbs are rolled like fingers (bending them about X
 # stood the relaxed thumb 77 deg out of the palm, a hitchhiker's). They bend about an axis tilted OPPOSE degrees.
@@ -1679,7 +1683,7 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
             sag = Vector((0, 0, -1)) - Vector((0, 0, -1)).project(line)
             fingers = line + WRIST_SAG * sag.normalized() if sag.length > 1e-3 else line
             palm = {"up": Vector((0, 0, 1)), "upin": Vector((0, 0, 0.75)) - out * 0.65, "in": -out,
-                    "away": out * 0.75 + fwd * 0.35 - Vector((0, 0, 0.35))}[g["palm"]]
+                    "away": out * 0.75 + fwd * 0.35 - Vector((0, 0, 0.35)), "down": Vector((0, 0, -1))}[g["palm"]]
             return p, hand_frame(fingers, palm)
 
         def at(f):
@@ -2016,6 +2020,19 @@ def _selfcheck_gestures():
     relax_arms(asked)
     got = dict(zip(gestures(asked, wav, 1, hands=("Left",), seed=4, force=[(1.5, "welcome")]), asked["gesture_log"]))
     assert any(k == "welcome" and abs(f - (1 + 1.5 * fps)) <= 3 for f, k in got.items()), f"no welcome at 1.5 s: {got}"
+    pointer = build({"name": "PointCheck", "character": "Narrator"}, location=(-9, 0, 0))   # "here, here!"
+    relax_arms(pointer)
+    got = dict(zip(gestures(pointer, wav, 1, hands=("Right",), seed=4, force=[(1.5, "point")]), pointer["gesture_log"]))
+    at = next((f for f, k in got.items() if k == "point"), None)
+    assert at is not None, f"no point stroke: {got}"
+    scene.frame_set(at + 2)
+    pp = pointer.pose.bones
+    S, E, W = (pp[f"Right{b}"].head for b in ("Arm", "ForeArm", "Hand"))
+    reach_out = math.degrees((S - E).angle(W - E))
+    assert reach_out >= 140, f"pointing with the elbow at {reach_out:.0f} deg (a point reaches out)"
+    curl = {fg: sum(math.degrees(pp[f"RightHand{fg}{j}"].rotation_quaternion.angle) for j in (1, 2, 3))
+            for fg in ("Index", "Middle")}
+    assert curl["Index"] < 25 < 150 < curl["Middle"], f"not a pointing hand: {curl}"
     for f in range(1, 73):
         scene.frame_set(f)
         for n in left:
