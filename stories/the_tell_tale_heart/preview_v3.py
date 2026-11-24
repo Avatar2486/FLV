@@ -26,7 +26,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 VO = ROOT / "audio" / "voiceovers" / "the_tell_tale_heart"
-OUT = ROOT / "output" / "renders" / "the_tell_tale_heart_v3_attack"
+OUT = ROOT / "output" / "renders" / "the_tell_tale_heart_film" / "parts" / "04_the_attack"     # the film's part 04
+VO_V5 = ROOT / "audio" / "voiceovers" / "the_tell_tale_heart_v5"        # the film's Chatterbox lines (preview_v5)
 BLEND = ROOT / "blender" / "scenes" / "tell_tale_heart_v3_attack.blend"
 FPS, LEAD, GAP, TAIL = 24, 0.4, 0.35, 0.7
 
@@ -40,6 +41,7 @@ SHOTS = [
     ("3.16", [("3.16_0_N", "N")], 12.0),
     ("3.17", [], 3.0),
     ("3.18", [("3.18_0_N", "N")], 11.0),
+    ("3.19", [], 5.0),
     ("3.20", [("3.20_0_N", "N")], 7.0),
     ("3.21", [("3.21_0_N", "N")], 9.0),
 ]
@@ -51,7 +53,9 @@ VO_V3 = ROOT / "audio" / "voiceovers" / "the_tell_tale_heart_v3"
 
 
 def voice(prefix):
-    """The Chatterbox take (preview_v3/lines.json) if it has been made, else the first Piper take."""
+    """The film's Chatterbox take (preview_v5/lines.json); else v3's own, else the first Piper take."""
+    if (VO_V5 / f"{prefix}.wav").exists():
+        return VO_V5 / f"{prefix}.wav"
     shot, _, who = prefix.split("_")
     v3 = VO_V3 / f"{shot}_{who}.wav"
     return v3 if v3.exists() else next(VO.glob(f"{prefix}_*.wav"))
@@ -154,6 +158,7 @@ def build():
     K0 = T("3.18", 6.30)                                # kneeling beside him
     K1 = K0 + 22
     DEAD = T("3.20", 3.0)                               # the heart stops
+    om["dead_from"] = DEAD                              # for check(): the dead are still
     UP = T("3.20", 4.6)                                 # he eases off
 
     # ---- the old man: sitting up (as at the end of v2), then pushed down flat
@@ -322,7 +327,7 @@ def build():
     humans.reach(nar, "Right", 1, FL + 2, right_hand, hand=right_turn)
 
     # ---- the grab: his hands in the old man's nightshirt at the shoulders, through the push and the haul
-    def shoulder(side, up=0.10, back=0.0):
+    def shoulder(side, up=0.215, back=0.0):                        # in his nightshirt, on the chest's surface
         def at(f):
             scene.frame_set(f)
             pb = om.pose.bones[f"{side}Arm"]
@@ -334,7 +339,7 @@ def build():
                  hand=humans.hand_frame((1, 0, -0.4), (0.2, 0, -1)))
     humans.reach(nar, "Left", GRAB - 4, D1, lambda f: shoulder("Left")(f) if f >= GRAB + 2 else None,
                  hand=humans.hand_frame((1, 0.2, -0.4), (0.2, 0, -1)))
-    humans.grip(nar, "Right", frame=GRAB + 2, curl=0.6)
+    humans.grip(nar, "Right", frame=GRAB + 2, curl=0.3)             # a fistful of nightshirt, not of him
     humans.grip(nar, "Left", frame=GRAB + 4, curl=-0.4)
     # his hands on the mattress beside his hips, as he sat up (v2) ...
     for side, dx in (("Right", -0.24), ("Left", 0.24)):
@@ -348,8 +353,11 @@ def build():
                 return None
             scene.frame_set(f)
             pb = nar.pose.bones[f"{other}ForeArm"]
-            return nar.matrix_world @ pb.head.lerp(pb.tail, 0.7)
+            p = nar.matrix_world @ pb.head.lerp(pb.tail, 0.7)
+            toward = (om.matrix_world @ om.pose.bones[f"{side}Arm"].head - p).normalized()
+            return p + toward * 0.115                         # round the forearm, not in it
         humans.reach(om, side, GRAB - 4, D0 + 30, wrist)        # long enough for the 8-frame let-go to finish
+        humans.grip(om, side, frame=GRAB + 6, curl=0.3)
                                                                  # (else the arms stay a third raised, for good)
 
     # ---- his blanket, shaped over his legs; it falls flat when his legs are hauled out from under it, and
@@ -456,12 +464,28 @@ def build():
     humans.grip(nar, "Left", frame=W1 + 4, curl=1.6)
 
     # ---- kneeling, both hands pressing the feather-bed down over his chest; then, the heart still, he eases off
+    body_top = {}
+
+    def under(x, y, f):                                  # the top of his posed body (or the floor) under a point
+        if (x, y, f) not in body_top:
+            scene.frame_set(f)
+            dg, best = bpy.context.evaluated_depsgraph_get(), 0.0
+            for o in om.children:
+                if o.type == "MESH" and o.name.endswith((".body", ".nightshirt")):
+                    ev = o.evaluated_get(dg)
+                    inv = ev.matrix_world.inverted()
+                    hit, loc, *_ = ev.ray_cast(inv @ Vector((x, y, 2.0)), (inv.to_3x3() @ Vector((0, 0, -1))).normalized())
+                    if hit:
+                        best = max(best, (ev.matrix_world @ loc).z)
+            body_top[(x, y, f)] = best
+        return body_top[(x, y, f)]
+
     def press(dx, dy):
         def at(f):
             if f > UP + 10:
                 return None
             x, y = -0.25 + dx, 1.20 + dy                 # wrist ~4 cm above the palm, sunk a little into it
-            top = quilt_pressed(x, y, heights(x, y))
+            top = max(quilt_pressed(x, y, heights(x, y)), under(x, y, f) + 0.04)   # his body under it stops the hand
             return Vector((x, y, top + 0.035 - 0.015 * _beat(f, HEARTBEATS, tl, FPS)))
         return at
     humans.reach(nar, "Right", K0 + 4, UP + 22, press(0.06, -0.12), hand=humans.hand_frame((1, 0.3, 0), (0, 0, -1)))
@@ -476,7 +500,7 @@ def build():
         pb = om.pose.bones["Spine"]
         p = om.matrix_world @ pb.head.lerp(pb.tail, 0.35)
         up = (om.matrix_world.to_3x3() @ Vector((0, -1, 0))).normalized()
-        return p + up * 0.11 + Vector((-0.08, 0, 0))          # low on the near side of his chest
+        return p + up * 0.21 + Vector((-0.08, 0, 0))          # low on the near side of his chest, on it
     humans.reach(nar, "Right", S21, end, on_chest, hand=humans.hand_frame((0.9, 0.4, 0), (0, 0, -1)))
 
     # ---- faces and eyes
@@ -586,6 +610,9 @@ def build():
         cam.data.dof.aperture_fstop = 2.8
         cam.data.dof.focus_distance = (Vector(c["look"]) - Vector(c["at"])).length
         cams[name] = cam
+    cams["street"], held = _neighbour(bpy, su, sets, humans, cast3d, C, lights, T)       # 3.19
+    scene["v3_held"] = json.dumps(held)
+    scene["v3_grips"] = json.dumps([[GRAB, D0 + 30]])           # the haul: hands in each other's clothes
     # the top-down camera: north up in frame
     cams["top"].rotation_mode = "XYZ"
     cams["top"].rotation_euler = Euler((0, 0, 0))
@@ -661,7 +688,8 @@ def build():
             ("3.15", 0.0, "nar_cu"), ("3.16", 0.0, "eye"), ("3.16", 1.6, "nar_cu"), ("3.16", 3.4, "lantern_hand"),
             ("3.16", 4.6, "eye"), ("3.16", 5.7, "nar_cu"), ("3.16", 7.0, "eye"), ("3.16", 7.8, "nar_cu"),
             ("3.16", 8.7, "eye"), ("3.16", 9.3, "nar_cu"), ("3.16", 10.0, "eye"), ("3.16", 10.5, "nar_cu"),
-            ("3.17", 0.0, "ws"), ("3.18", 0.0, "top"), ("3.20", 0.0, "floor"), ("3.21", 0.0, "hand")]
+            ("3.17", 0.0, "ws"), ("3.18", 0.0, "top"), ("3.19", 0.0, "street"), ("3.20", 0.0, "floor"),
+            ("3.21", 0.0, "hand")]
     for sid, sec, cam in cuts:
         marker = scene.timeline_markers.new(f"SHOT_{sid}_{cam}_{sec:.1f}", frame=T(sid, sec))
         marker.camera = cams[cam]
@@ -669,7 +697,17 @@ def build():
 
     OUT.mkdir(parents=True, exist_ok=True)
     marks = dict(release=RELEASE, flood=FL, grab=GRAB, drag=D0, pull=G0, kneel=K0, dead=DEAD, landed=D0 + 20)
-    (OUT / "timeline.json").write_text(json.dumps(dict(tl, marks={k: (v - 1) / FPS for k, v in marks.items()}), indent=1))
+    cues = {}                                         # the film mix's cues: "<shot>/<sound>", "#2" for a repeat
+    for f, name in ((RELEASE + 11, "clink"), (FL, "lantern_open"), (D0, "bed_drag"), (D0 + 20, "stomp"),
+                    (G0, "bed_drag"), (K0, "bed_creak")):
+        sid = max((s for s in tl["shots"] if T(s["id"]) <= f), key=lambda s: s["start"])["id"]
+        key, n = f"{sid}/{name}", 1
+        while key in cues:
+            n += 1
+            key = f"{sid}/{name}#{n}"
+        cues[key] = (f - 1) / FPS
+    (OUT / "timeline.json").write_text(json.dumps(dict(tl, marks=cues, v3_marks={k: (v - 1) / FPS for k, v in marks.items()}),
+                                                  indent=1))
     BLEND.parent.mkdir(parents=True, exist_ok=True)
     su.save_blend(BLEND, compress=True)
     print(f"V3 built: {len(tl['shots'])} shots, {end} frames ({tl['seconds']:.1f} s) -> {BLEND.name}")
@@ -1422,7 +1460,7 @@ def soundtrack(out_wav):
     from sound_library import LOOPS, RATE, heart, loop, music, sfx, thud, scrape, norm
     tl = json.loads((OUT / "timeline.json").read_text())
     shots = {s["id"]: s for s in tl["shots"]}
-    marks = tl["marks"]
+    marks = tl.get("v3_marks", tl["marks"])
     total = tl["seconds"] + 1.5
     buf = np.zeros((int(total * RATE), 2), np.float32)
 
@@ -1559,7 +1597,163 @@ def draft(out=None, mix=None, blend_name="V3"):
     print(f"{blend_name} draft: {out / 'draft_480p.mp4'}")
 
 
+def _neighbour(bpy, su, sets, humans, cast3d, C, lights, T):
+    """3.19, across the street: the neighbour who heard the shriek. His window is cut through the house front, with
+    his room behind it; a candle comes into view in his hand (its light goes where the hand takes it), his other
+    hand draws the curtain aside, he looks out toward the old man's house, and lets it fall back. -> (camera, held)"""
+    import bmesh
+    from mathutils import Euler, Matrix, Vector
+    from material_library import material as M
+    import preview_v4 as v4
+    ctx = dict(bpy=bpy, humans=humans, su=su, tracks={}, held=[])
+    sets.street(C["SET"], lights)
+    lights["ex_window"].data.energy = 0.0                         # the candle is his light now
+    lights["ex_moon"].data.energy = 0.6
+    x0 = sets.SET_X["exterior"]
+    wx, wz, h, floor = x0 + 1.9, 4.9, 1.4, 3.4
+    front = bpy.data.objects["EX_Opposite_3_Front"]
+    cut = su.box("V3_Window_Cut", C["SET"], M("MAT_Black"), (1.0, 0.8, h), (wx, -14.25, wz), bevel=0)
+    cut.hide_render = cut.hide_viewport = True
+    mod = front.modifiers.new("Window", "BOOLEAN")
+    mod.operation, mod.object = "DIFFERENCE", cut
+    glass = bpy.data.objects[f"EX_Opposite_3_Win_1_{wx:.1f}"]
+    glass.hide_render = glass.hide_viewport = True                # an open sash: the bars stay
+    paper, boards = M("MAT_Wallpaper_Dark"), M("MAT_Floor_Old")
+    for name, size, at, mat in (("Floor", (3.0, 2.6, 0.05), (wx, -15.8, floor - 0.025), boards),
+                                ("Back", (3.0, 0.05, 2.8), (wx, -17.1, floor + 1.4), paper),
+                                ("Left", (0.05, 2.6, 2.8), (wx - 1.5, -15.8, floor + 1.4), paper),
+                                ("Right", (0.05, 2.6, 2.8), (wx + 1.5, -15.8, floor + 1.4), paper),
+                                ("Ceiling", (3.0, 2.6, 0.05), (wx, -15.8, floor + 2.8), paper)):
+        su.box(f"V3_Neighbour_{name}", C["SET"], mat, size, at, bevel=0)
+    # the curtains: thin cotton (the candle glows through it), two panels; the right one is drawn aside by a hand
+    cloth = bpy.data.materials.new("MAT_V3_Curtain")
+    cloth.use_nodes = True
+    nt = cloth.node_tree
+    out = nt.nodes["Material Output"]
+    diff, trans, mix = (nt.nodes.new(t) for t in ("ShaderNodeBsdfDiffuse", "ShaderNodeBsdfTranslucent", "ShaderNodeMixShader"))
+    diff.inputs["Color"].default_value = trans.inputs["Color"].default_value = (0.82, 0.76, 0.64, 1)
+    mix.inputs["Fac"].default_value = 0.55
+    nt.links.new(diff.outputs[0], mix.inputs[1])
+    nt.links.new(trans.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs["Surface"])
+    top, bottom, y0 = wz + 0.72, wz - 0.72, -14.56
+    S0, S1, LET, BACK = T("3.19", 2.0), T("3.19", 2.8), T("3.19", 4.1), T("3.19", 4.6)
+    grip_z = wz + 0.05
+
+    def gather(z):                                                # how far a height is drawn when the edge is held
+        return max(0.25, 1.0 - abs(z - grip_z) / 1.1)
+    panels = {}
+    for side, outer, inner in (("L", wx - 0.52, wx + 0.02), ("R", wx + 0.52, wx - 0.02)):
+        bm = bmesh.new()
+        nx, nz = 14, 12
+        vs = [[bm.verts.new((outer + (inner - outer) * i / nx, y0 + 0.012 * math.sin(i * 1.9),
+                             bottom + (top - bottom) * j / nz)) for j in range(nz + 1)] for i in range(nx + 1)]
+        for i in range(nx):
+            for j in range(nz):
+                bm.faces.new((vs[i][j], vs[i + 1][j], vs[i + 1][j + 1], vs[i][j + 1]))
+        mesh = bpy.data.meshes.new(f"V3_Curtain_{side}")
+        bm.to_mesh(mesh)
+        bm.free()
+        obj = bpy.data.objects.new(f"V3_Curtain_{side}", mesh)
+        C["SET"].objects.link(obj)
+        obj.data.materials.append(cloth)
+        panels[side] = (obj, outer, inner)
+    drawn_obj, outer, inner = panels["R"]
+    drawn_obj.shape_key_add(name="Basis")
+    drawn = drawn_obj.shape_key_add(name="Drawn")
+    for v, k in zip(drawn_obj.data.vertices, drawn.data):
+        u = (v.co.x - outer) / (inner - outer)
+        g = gather(v.co.z)
+        k.co = Vector((outer + (v.co.x - outer) * (1 - 0.72 * g), y0 - 0.03 * g * abs(math.sin(u * 9.4)), v.co.z))
+    held_k = lambda f: ease(S0, S1, f) * (1 - ease(LET, BACK, f))
+    for f in [1] + list(range(S0 - 1, BACK + 2)):
+        drawn.value = held_k(f)
+        drawn.keyframe_insert("value", frame=f)
+    edge = lambda f: Vector((outer + (inner - outer) * (1 - 0.72 * held_k(f)), y0 - 0.06, grip_z))
+    # the neighbour: comes to the window with a candle in his left hand
+    rig = humans.build(cast3d.HALE)
+    humans.relax_arms(rig)
+    for pb in rig.pose.bones:
+        pb.keyframe_insert("rotation_quaternion", frame=1)
+    a, b = T("3.19"), T("3.19", 5.0)
+    stand = (wx + 0.12, -14.85)
+    v4._walk(ctx, rig, [(1, (wx + 1.05, -16.2), 160), (a, (wx + 1.05, -16.2), 160), (T("3.19", 1.6), stand, 180),
+                        (b, stand, 180)], 1, b, z=lambda f: floor)
+    humans.face(rig, a, {**cast3d.NEUTRAL, "browInnerUp": 0.55, "eyeWideLeft": 0.3, "eyeWideRight": 0.3})
+    humans.eyes(rig, a, b, mode=lambda f: "listening", look=lambda f: (-8.0 if f > S1 else 0.0, -4.0), seed=71)
+    humans.breathe(rig, a, b, style="anxious", seed=72)
+    v4._contact(ctx, rig, "Right", S0 - 12, BACK, lambda f: edge(f) if S0 - 2 <= f <= LET else None,
+                lambda f: humans.hand_frame((0, 1, 0.3), (-1, 0, 0)), blend=10)
+    humans.grip(rig, "Right", S0, curl=0.7)
+    candle_at = lambda f: v4._at(rig, f) @ Vector((0.22, -0.18, 1.05))           # his left, clear of the curtain
+    v4._contact(ctx, rig, "Left", 1, b, candle_at, lambda f: humans.hand_frame((0, 1, 0), (0, 0, 1)), blend=1)
+    humans.grip(rig, "Left", 1, curl=0.8)
+    assert not ctx.get("contact_misses"), "3.19: " + "; ".join(ctx["contact_misses"])
+    bm = bmesh.new()
+    su.add_cylinder(bm, 0.045, 0.012, (0, 0, -0.06), segments=20)               # the holder's dish
+    su.add_cylinder(bm, 0.011, 0.14, (0, 0, 0.01), segments=12)                 # the candle
+    candle = su.make_object("V3_Neighbour_Candle", C["PROPS"], M("MAT_Pillow"), bm)
+    flame = su.sphere("V3_Neighbour_Flame", C["PROPS"], M("MAT_Bulb"), 0.008, (0, 0, 0.095), scale=(1, 1, 1.8))
+    glow = su.light("V3_LIGHT_Candle", C["PROPS"], "POINT", (0, 0, 0.11), 0, (1.0, 0.62, 0.3), shadow_soft_size=0.02)
+    for o in (flame, glow):
+        o.parent = candle
+    bpy.context.scene.frame_set(1)
+    hand = rig.matrix_world @ rig.pose.bones["LeftHand"].matrix
+    candle.matrix_world = Matrix.Translation(hand.translation + Vector((0, 0, 0.05)))
+    v4._carry(ctx, candle, rig, "LeftHand", 1, b)
+    for f in range(a, b + 1, 2):                                  # a candle flame: never quite still
+        glow.data.energy = 28 * (0.85 + 0.15 * math.sin(f * 1.3) * math.sin(f * 0.37 + 0.5))
+        glow.data.keyframe_insert("energy", frame=f)
+    cam = su.camera("CAM_street", C["CAMERAS"], (wx - 0.6, -3.6, 1.7), (wx, -14.3, wz), lens=85)
+    return cam, ctx["held"]
+
+
+def _spans():
+    tl = json.loads((OUT / "timeline.json").read_text())
+    return {s["id"]: (1 + int(round(s["start"] * FPS)), int(round((s["start"] + s["seconds"]) * FPS)))
+            for s in tl["shots"]}, tl
+
+
+def check(shots=None, step=4):
+    """The shared measured checks (preview_v4.run_checks) on the built scene; printed and kept in check.txt."""
+    import contextlib
+    import io
+    import bpy
+    sys.path[:0] = [str(ROOT / "scripts"), str(HERE)]
+    import preview_v4 as v4
+    spans, tl = _spans()
+    spoken = [l for s in tl["shots"] for l in s["lines"] if l["who"] == "OM"]
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            v4.run_checks("V3", ["Narrator", "OldMan", "Hale"], (), json.loads(bpy.context.scene.get("v3_held", "[]")),
+                          spans, shots, spoken, {"N": "Narrator", "OM": "OldMan"}, step=step,
+                          grips=json.loads(bpy.context.scene.get("v3_grips", "[]")))
+    finally:
+        print(buf.getvalue(), end="")
+        (OUT / "check.txt").write_text(buf.getvalue())
+
+
+def stills(shots=None):
+    """One 480p frame per shot (or "<shot>@<seconds>") -> stills/."""
+    import bpy
+    scene = bpy.context.scene
+    r = scene.render
+    r.resolution_x, r.resolution_y, r.resolution_percentage = 854, 480, 100
+    scene.eevee.taa_render_samples = 16
+    (OUT / "stills").mkdir(parents=True, exist_ok=True)
+    spans, _ = _spans()
+    for want in shots or list(spans):
+        sid, _, sec = want.partition("@")
+        f0, f1 = spans[sid]
+        scene.frame_set(f0 + int(float(sec) * FPS) if sec else (f0 + f1) // 2)
+        r.filepath = str(OUT / "stills" / f"{want}.png")
+        bpy.ops.render.render(write_still=True)
+
+
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
     {"build": build, "render": lambda: render(*args[1:3]), "draft": draft,
-     "soundtrack": lambda: soundtrack(OUT / "soundtrack_draft.wav")}[args[0]]()
+     "soundtrack": lambda: soundtrack(OUT / "soundtrack_draft.wav"),
+     "check": lambda: check(args[1].split(",") if len(args) > 1 else None),
+     "stills": lambda: stills(args[1].split(",") if len(args) > 1 else None)}[args[0]]()

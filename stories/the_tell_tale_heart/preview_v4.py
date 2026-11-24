@@ -1603,17 +1603,33 @@ def _frame_chamber_cams(ctx):
     toward_b = (head["Brandt"] - group) * 0.3
     aim("four", T("5.7"), T("5.8") - 1, behind, behind - side * 0.5 + fwd * 0.15,
         group - Vector((0, 0, 0.15)) + toward_b, 22)
-    aim("nar_cu", T("5.8"), T("5.9") - 1, face_at + fwd * 1.35, face_at + fwd * 0.95, face_at, 85)
-    hh = face_at + (fwd * 0.97 + side * 0.24).normalized() * 0.85
+    others = [head[n] for n in rigs if n != "Narrator"]
+
+    def clear(dirs, reach):
+        """Of these directions from his face, the one whose line to the lens passes furthest from the officers'
+        heads (straight on, the officer opposite filled the frame)."""
+        def gap(d):
+            return min(((h - face_at) - d * max(0.0, min(reach, (h - face_at).dot(d)))).length for h in others)
+        return max((d.normalized() for d in dirs), key=gap)
+    cu = clear([fwd * math.cos(math.radians(a)) + side * math.sin(math.radians(a)) for a in (-35, -20, 20, 35)], 1.35)
+    aim("nar_cu", T("5.8"), T("5.9") - 1, face_at + cu * 1.35, face_at + cu * 0.95, face_at, 85)
+    hh = face_at + clear([fwd * 0.97 + side * k for k in (-0.5, -0.24, 0.24, 0.5)], 0.85) * 0.85
     aim("nar_hh", T("5.10"), T("5.11") - 1, hh, hh - (hh - face_at).normalized() * 0.2, face_at, 50)
+    for name in ("nar_cu", "nar_hh"):                     # the push moves the lens 40 cm: focus follows his head
+        cams[name].data.dof.focus_object = nar
+        if hasattr(cams[name].data.dof, "focus_subtarget"):
+            cams[name].data.dof.focus_subtarget = "Head"
     for fc in v3._fcurves(cams["nar_hh"]):                 # handheld: a slow, small drift
         if fc.data_path == "rotation_euler":
             mod = fc.modifiers.new("NOISE")
             mod.scale, mod.strength = 14.0, 0.012
     seam = Vector((-0.72, -0.09, 0.0))
-    aim("macro", T("5.9"), T("5.10") - 1, seam + Vector((0.24, -0.26, 0.045)), seam + Vector((0.2, -0.22, 0.04)),
-        seam, 100)
-    cams["macro"].data.dof.aperture_fstop = 4.0
+    aim("macro", T("5.9"), T("5.10") - 1, seam + Vector((0.22, -0.20, 0.18)), seam + Vector((0.12, -0.11, 0.12)),
+        seam, 100)                                        # down along the seam, as the prologue's 0.2 (it grazed
+    cams["macro"].data.dof.aperture_fstop = 4.0           # the boards at 4.5 cm: nothing lay in the focus plane)
+    for f, at in ((T("5.9"), seam + Vector((0.22, -0.20, 0.18))), (T("5.10") - 1, seam + Vector((0.12, -0.11, 0.12)))):
+        cams["macro"].data.dof.focus_distance = (at - seam).length       # the seam sharp all through the push
+        cams["macro"].data.dof.keyframe_insert("focus_distance", frame=f)
     aim("floor", T("5.6"), T("5.7") - 1, (-0.55, -1.05, 0.14), (-0.55, -1.0, 0.14), (-0.62, 0.05, 0.12), 24)
 
 
@@ -2000,8 +2016,9 @@ def _check_scene(cast, chair_prefix):
                 chairs=chairs, hands=hands)
 
 
-def _check_inside(cx, sid, f0, f1, step):
-    """A hand more than 5 mm inside another person (body, shirt, trousers) or a chair, every `step` frames."""
+def _check_inside(cx, sid, f0, f1, step, grips=()):
+    """A hand more than 5 mm inside another person (body, shirt, trousers) or a chair, every `step` frames. In a
+    grip window [(f0, f1)] (one person hauling another by the clothes) a grip may sink 2.5 cm into a person (cloth and flesh under a fist; the cloth is not simulated)."""
     from mathutils.bvhtree import BVHTree
     scene, deps, rigs, obstacles = cx["scene"], cx["deps"], cx["rigs"], cx["obstacles"]
     fails, worst = [], 0.0
@@ -2013,6 +2030,7 @@ def _check_inside(cx, sid, f0, f1, step):
             me = ev.to_mesh()
             pts[n] = [ev.matrix_world @ me.vertices[i].co for i in cx["hands"][n]]
             ev.to_mesh_clear()
+        tol = 0.025 if any(g0 <= f <= g1 for g0, g1 in grips) else 0.005
         for n in rigs:
             others = [o for m in rigs if m != n and (rigs[m].matrix_world.translation -
                                                      rigs[n].matrix_world.translation).length < 2.0
@@ -2023,7 +2041,10 @@ def _check_inside(cx, sid, f0, f1, step):
                     loc, normal, _, dist = tree.find_nearest(inv @ p, 0.12)
                     if loc is not None:
                         depth = -((inv @ p) - loc).dot(normal)
-                        if depth > 0.005:
+                        # inside only if going out along that normal crosses the surface: near a body cut away
+                        # under clothes, the nearest point is the cut's edge and its normal points sideways
+                        lim = 0.005 if o in cx["chairs"] else tol
+                        if depth > lim and tree.ray_cast(inv @ p, normal, depth + 0.02)[0] is not None:
                             worst = max(worst, depth)
                             fails.append(f"{sid} f{f}: {n}'s hand {depth * 100:.1f} cm inside {o.name}")
                             break
@@ -2173,13 +2194,14 @@ def _check_continuity(cx, sid, f0, f1, step):
     return fails, []
 
 
-def run_checks(label, cast, chair_prefix, held, spans, shots, spoken, who, step=4, no_feet=(), animated=True):
+def run_checks(label, cast, chair_prefix, held, spans, shots, spoken, who, step=4, no_feet=(), animated=True,
+               grips=()):
     """Every measured check, shot by shot, printed with numbers (prefixed `label`); raises SystemExit on a fail."""
     cx = _check_scene(cast, chair_prefix)
     fails, notes = [], []
     for sid in shots or list(spans):
         f0, f1 = spans[sid]
-        parts = [_check_inside(cx, sid, f0, f1, step), _check_held(cx, sid, f0, f1, held)]
+        parts = [_check_inside(cx, sid, f0, f1, step, grips), _check_held(cx, sid, f0, f1, held)]
         if sid not in no_feet:
             parts.append(_check_feet(cx, sid, f0, f1))
         parts += [_check_locked(cx, sid, f0, f1, step), _check_lips(cx, sid, f0, f1, spoken, who),

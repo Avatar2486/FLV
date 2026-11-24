@@ -131,10 +131,11 @@ def write_index():
 
 
 # ----------------------------------------------------------------------------------------------- picture
-def render(key, resume=None):
+def render(key, resume=None, until=None):
     """Inside Blender, with the part's scene open: every frame at 854x480 into the part's frames/480p folder,
     emptied first (Blender's render keeps frames it finds: a re-rendered part must not show old ones). `resume`
-    (a frame) keeps the frames before it and renders on from there - after a render that hung part-way."""
+    (a frame) keeps the frames before it and renders on from there - after a render that hung part-way; `until`
+    stops there (re-rendering one fixed stretch: the other frames are kept)."""
     import bpy
     scene = bpy.context.scene
     r = scene.render
@@ -145,7 +146,7 @@ def render(key, resume=None):
     if resume is None:
         shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True, exist_ok=True)
-    for f in range(resume or scene.frame_start, scene.frame_end + 1):
+    for f in range(resume or scene.frame_start, (until or scene.frame_end) + 1):
         scene.frame_set(f)
         r.filepath = str(out / f"{f:05d}.png")
         bpy.ops.render.render(write_still=True)
@@ -163,13 +164,14 @@ def renders(keys, stall=600):
     frame 260. A render with no new frame for `stall` s (Eevee can hang in a Metal readback) is killed and
     resumed from its last frame, which is rendered again (it may have been cut off mid-write)."""
     for spec in keys:
-        key, _, at = spec.partition(":")
+        key, _, at = spec.partition(":")                  # "key:from" or "key:from-to"
         part = next(p for p in PARTS if p["key"] == key)
         out, log = part_dir(key) / "frames" / "480p", part_dir(key) / "render.log"
-        resume = int(at) if at else None
+        resume, _, until = at.partition("-")
+        resume, until = (int(resume) if resume else None), (int(until) if until else None)
         while True:
             cmd = [BLENDER, "-b", str(part["blend"]), "--python-exit-code", "1", "--python", __file__, "--",
-                   "render", key] + ([str(resume)] if resume else [])
+                   "render", key] + ([str(resume)] if resume else []) + ([str(until)] if until else [])
             with open(log, "a") as fh:
                 proc = subprocess.Popen(cmd, stdout=fh, stderr=subprocess.STDOUT)
             seen, last, hung = -1, time.time(), False
@@ -473,5 +475,5 @@ if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
     {"selfcheck": selfcheck, "index": lambda: print(write_index()), "mix": lambda: print(mix()),
      "mux": lambda: print(mux(args[1])), "join": lambda: print(join()),
-     "render": lambda: print(render(args[1], int(args[2]) if len(args) > 2 else None)),
+     "render": lambda: print(render(args[1], *(int(a) for a in args[2:4]))),
      "renders": lambda: renders(args[1:])}[args[0]]()
