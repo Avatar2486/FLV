@@ -721,20 +721,24 @@ def _look_fn(ctx, n, frame_ref):
     return toward
 
 
-def _converse(ctx, lines, a, b, energy, idle, seated=True, no_fidget=()):
+def _converse(ctx, lines, a, b, energy, idle, seated=True, no_fidget=(), who=None):
     """Everyone in a scene, frames a..b: speakers' lips (Wav2ARKit) and gestures; everyone's gaze (one eyes()
     call each: the speaker looks at whom he answers, listeners at the speaker, idle eyes per `idle`); listeners
     nod at phrase ends; breathing and sway. lines: timeline entries; energy: {name: 0..1}; idle(n, f) -> (target,
     mode), target a name or (yaw, pitch). Expressions must be keyed before (lips add on top of them)."""
     humans, rigs = ctx["humans"], ctx["rigs"]
-    events = sorted((_frame(l["start"]), _frame(l["start"] + l["seconds"]), WHO[l["who"]], ROOT / l["file"])
+    who = who or WHO
+    events = sorted((_frame(l["start"]), _frame(l["start"] + l["seconds"]), who[l["who"]], ROOT / l["file"])
                     for l in lines)
     phrases = {e: _phrases(humans, e[3], e[0]) for e in events}
     spans = {n: [] for n in rigs}
     prev, addressee = None, {}
+    present = list(ctx.get("all_rigs", rigs))
     for e in events:
         f0, f1, spk, _ = e
-        to = prev if prev and prev != spk else ("Narrator" if spk != "Narrator" else "Hale")
+        others = [m for m in present if m != spk]                   # alone (the void): he speaks to us
+        to = prev if prev and prev != spk else ("Narrator" if spk != "Narrator" and "Narrator" in present
+                                                else (others[0] if others else None))
         addressee[e] = to
         for n in rigs:
             spans[n].append((f0, f1 + 12, to if n == spk else spk, "talking" if n == spk else "listening"))
@@ -743,7 +747,7 @@ def _converse(ctx, lines, a, b, energy, idle, seated=True, no_fidget=()):
         toward = _look_fn(ctx, n, a + 2)
 
         def current(f, n=n):
-            hit = [s for s in spans[n] if s[0] <= f <= s[1]]
+            hit = [s for s in spans[n] if s[0] <= f <= s[1] and s[2] is not None]
             return (hit[-1][2], hit[-1][3]) if hit else idle(n, f)
         humans.eyes(rig, a, b, mode=lambda f: current(f)[1], look=lambda f, t=toward: t(current(f)[0], f),
                     pauses=[p[1] for e in events if e[2] == n for p in phrases[e][:-1]], seed=_seed(n, 97))
@@ -756,10 +760,10 @@ def _converse(ctx, lines, a, b, energy, idle, seated=True, no_fidget=()):
         f0, f1, spk, wav = e
         busy = ctx.get("busy_hands", {}).get(spk, ())
         ctx["bpy"].context.scene.frame_set(f0)
-        listener = everyone[addressee[e]]
+        listener = everyone.get(addressee[e]) if addressee[e] else None
         humans.gestures(rigs[spk], wav, f0, energy=energy.get(spk, 0.4),
                         hands=tuple(s for s in ("Left", "Right") if s not in busy),
-                        toward=listener.matrix_world @ listener.pose.bones["Head"].head, seed=f0,
+                        toward=listener.matrix_world @ listener.pose.bones["Head"].head if listener else None, seed=f0,
                         force=ctx.get("force_gestures", {}).get(Path(wav).stem, ()))
         humans.lip_sync(rigs[spk], wav, f0)
     for n, rig in rigs.items():          # and nobody's hands freeze between lines (a hand holding something excepted)
@@ -1978,144 +1982,238 @@ def _spans():
             for s in tl["shots"]}
 
 
-def check(shots=None, step=4):
-    """Measured checks on the built scene, printed with numbers; fails on any of:
-    a hand more than 5 mm inside another person (body, shirt, trousers) or a chair (every `step` frames);
-    a held prop drifting over 1 cm from its hand; planted feet (ball of the foot under 4 cm, moving under 25 cm/s,
-    so a foot swinging low through a step doesn't count) sliding over 2 cm/s on average (not on the stair);
-    an on-camera character moving less than 0.5 deg (summed over the spine, neck, head and arms) in any 1 s;
-    a speaker's jaw opening less than 0.08 over a line he speaks on screen (lips must move while talking);
-    a seated man's arm locked straight (elbow over 150 deg) with the hand on his lap."""
+def _check_scene(cast, chair_prefix):
+    """What every check reads from the built scene: the rigs, their body/shirt/trousers meshes, the chairs, and
+    each rig's hand vertices (weighted over 0.5 to a hand bone)."""
     import bpy
-    from bpy_extras.object_utils import world_to_camera_view
-    from mathutils.bvhtree import BVHTree
-    scene = bpy.context.scene
-    spans = _spans()
-    rigs = {n: bpy.data.objects[n] for n in CAST}
-    obstacles = {n: [bpy.data.objects[f"{n}.{p}"] for p in ("body", "shirt", "trousers")] for n in CAST}
+    rigs = {n: bpy.data.objects[n] for n in cast}
+    obstacles = {n: [o for o in (bpy.data.objects.get(f"{n}.{p}") for p in ("body", "shirt", "trousers")) if o]
+                 for n in cast}
     chairs = [o for o in bpy.data.objects if o.type == "MESH" and any(
-        a.name.startswith("V4_Chair_") for a in [o] + list(_ancestors(o)))]
+        a.name.startswith(chair_prefix) for a in [o] + list(_ancestors(o)))]
     hands = {}
-    for n in CAST:
+    for n in cast:
         body = obstacles[n][0]
         groups = {g.index for g in body.vertex_groups if g.name.startswith(("LeftHand", "RightHand"))}
         hands[n] = [v.index for v in body.data.vertices if any(g.group in groups and g.weight > 0.5 for g in v.groups)]
-    held = json.loads(scene.get("v4_held", "[]"))
-    animated = any(len(fc.keyframe_points) > 1 for r in rigs.values() for fc in v3._fcurves(r)
-                   if fc.data_path.startswith("pose.bones"))
-    deps = bpy.context.evaluated_depsgraph_get()
+    return dict(scene=bpy.context.scene, deps=bpy.context.evaluated_depsgraph_get(), rigs=rigs, obstacles=obstacles,
+                chairs=chairs, hands=hands)
+
+
+def _check_inside(cx, sid, f0, f1, step):
+    """A hand more than 5 mm inside another person (body, shirt, trousers) or a chair, every `step` frames."""
+    from mathutils.bvhtree import BVHTree
+    scene, deps, rigs, obstacles = cx["scene"], cx["deps"], cx["rigs"], cx["obstacles"]
+    fails, worst = [], 0.0
+    for f in range(f0, f1 + 1, step):
+        scene.frame_set(f)
+        pts = {}
+        for n in rigs:
+            ev = obstacles[n][0].evaluated_get(deps)
+            me = ev.to_mesh()
+            pts[n] = [ev.matrix_world @ me.vertices[i].co for i in cx["hands"][n]]
+            ev.to_mesh_clear()
+        for n in rigs:
+            others = [o for m in rigs if m != n and (rigs[m].matrix_world.translation -
+                                                     rigs[n].matrix_world.translation).length < 2.0
+                      for o in obstacles[m]] + cx["chairs"]
+            for o in others:
+                tree, inv = BVHTree.FromObject(o, deps), o.matrix_world.inverted()
+                for p in pts[n]:
+                    loc, normal, _, dist = tree.find_nearest(inv @ p, 0.12)
+                    if loc is not None:
+                        depth = -((inv @ p) - loc).dot(normal)
+                        if depth > 0.005:
+                            worst = max(worst, depth)
+                            fails.append(f"{sid} f{f}: {n}'s hand {depth * 100:.1f} cm inside {o.name}")
+                            break
+    return fails, [f"{sid}: hands inside others worst {worst * 100:.1f} cm"]
+
+
+def _check_held(cx, sid, f0, f1, held):
+    """A held prop drifting over 1 cm from its hand."""
+    import bpy
+    from mathutils import Vector
+    fails, notes = [], []
+    for h in held:
+        a, b = max(h["f0"], f0), min(h["f1"], f1)
+        if a > b:
+            continue
+        prop, rig = bpy.data.objects[h["prop"]], cx["rigs"][h["rig"]]
+        drift, ref = 0.0, None
+        for f in range(a, b + 1, 2):
+            cx["scene"].frame_set(f)
+            hand = rig.matrix_world @ rig.pose.bones[h["bone"]].matrix
+            off = hand.inverted() @ (prop.matrix_world @ Vector(h["point"]))
+            ref = ref or off
+            drift = max(drift, (off - ref).length)
+        notes.append(f"{sid}: {h['prop']} in {h['rig']}'s hand, drift {drift * 100:.1f} cm")
+        if drift > 0.01:
+            fails.append(f"{sid}: {h['prop']} drifts {drift * 100:.1f} cm from {h['rig']}'s hand")
+    return fails, notes
+
+
+def _check_feet(cx, sid, f0, f1):
+    """Planted feet (ball of the foot under 4 cm, moving under 25 cm/s, so a foot swinging low through a step
+    doesn't count) sliding over 2 cm/s on average."""
+    fails = []
+    for n, rig in cx["rigs"].items():
+        prev, slide, count = {}, 0.0, 0
+        for f in range(f0, f1 + 1):
+            cx["scene"].frame_set(f)
+            for side in ("Left", "Right"):
+                p = rig.matrix_world @ rig.pose.bones[f"{side}ToeBase"].head
+                speed = (p.xy - prev[side].xy).length * FPS if side in prev else 9.0
+                if side in prev and p.z < 0.04 and prev[side].z < 0.04 and speed < 0.25:   # down, still
+                    slide += speed
+                    count += 1
+                prev[side] = p
+        mean = slide / max(count, 1)
+        if mean > 0.02:
+            fails.append(f"{sid}: {n}'s planted feet slide {mean * 100:.1f} cm/s")
+    return fails, []
+
+
+def _check_locked(cx, sid, f0, f1, step):
+    """A seated man's arm locked straight (elbow over 150 deg) with the hand on his lap."""
+    fails = []
+    for n, rig in cx["rigs"].items():
+        for f in range(f0, f1 + 1, step * 3):
+            cx["scene"].frame_set(f)
+            m, pb = rig.matrix_world, rig.pose.bones
+            for side in ("Left", "Right"):
+                S, E, W = (m @ pb[f"{side}{b}"].head for b in ("Arm", "ForeArm", "Hand"))
+                hip, knee = m @ pb[f"{side}UpLeg"].head, m @ pb[f"{side}Leg"].head
+                t = max(0.0, min(1.0, (W - hip).dot(knee - hip) / (knee - hip).length_squared))
+                on_lap = knee.z > hip.z - 0.15 and (W - hip.lerp(knee, t)).length < 0.2
+                elbow = math.degrees((S - E).angle(W - E))
+                if on_lap and elbow > 150:
+                    fails.append(f"{sid} f{f}: {n}'s {side.lower()} arm locked straight on his lap ({elbow:.0f} deg)")
+    return fails, []
+
+
+def _check_lips(cx, sid, f0, f1, spoken, who):
+    """A speaker's jaw opening less than 0.08 over a line he speaks on screen (lips must move while talking).
+    spoken: timeline lines ({start, seconds, who, line}); who: voice code -> rig name."""
+    import bpy
+    fails, notes = [], []
+    for l in spoken:
+        l0, l1 = _frame(l["start"]), _frame(l["start"] + l["seconds"])
+        if not (f0 <= l0 <= f1):
+            continue
+        keys = bpy.data.objects[f"{who[l['who']]}.body"].data.shape_keys.key_blocks
+        jaw = []
+        for f in range(l0, l1, 2):
+            cx["scene"].frame_set(f)
+            jaw.append(keys["jawOpen"].value)
+        moved = max(jaw) - min(jaw)
+        notes.append(f"{sid}: {l['line']} ({who[l['who']]}): jaw opens {moved:.2f}")
+        if moved < 0.08:
+            fails.append(f"{sid}: {who[l['who']]}'s lips still while he speaks {l['line']} (jaw range {moved:.2f})")
+    return fails, notes
+
+
+def _check_frozen(cx, sid, f0, f1):
+    """An on-camera character moving less than 0.5 deg (summed over the spine, neck, head and arms) in any 1 s."""
+    from bpy_extras.object_utils import world_to_camera_view
+    scene, fails = cx["scene"], []
+    for n, rig in cx["rigs"].items():
+        for w0 in range(f0, f1 - FPS + 1, FPS // 2):
+            scene.frame_set(w0 + FPS // 2)
+            head = rig.matrix_world @ rig.pose.bones["Head"].head
+            v = world_to_camera_view(scene, scene.camera, head)
+            if not (0 < v.x < 1 and 0 < v.y < 1 and v.z > 0):
+                continue
+            base, most = None, 0.0
+            for f in range(w0, w0 + FPS, 2):
+                scene.frame_set(f)
+                q = [(rig.matrix_world @ rig.pose.bones[b].matrix).to_quaternion() for b in LIVING]
+                base = base or q
+                most = max(most, sum(math.degrees(a.rotation_difference(b).angle) for a, b in zip(base, q)))
+            if most < 0.5:
+                fails.append(f"{sid} f{w0}: {n} frozen on camera ({most:.2f} deg in 1 s)")
+    return fails, []
+
+
+def _check_continuity(cx, sid, f0, f1, step):
+    """One film across the parts: the strongbox lid shut (except 1.5 and 5.5, where a hand opens it), the loose
+    planks at rest (except 4.3-4.4, where his hands lift them) and the narrator's worn look never easing (it
+    grows through Nights II-VII and stays)."""
+    import bpy
+    scene, fails = cx["scene"], []
+    lid = bpy.data.objects.get("CH_Strongbox_treasure_chest_lid")
+    planks = [o for o in bpy.data.objects if o.name.startswith("CH_Plank_Loose_")]
+    nar = cx["rigs"].get("Narrator")
+    if lid is not None and sid not in ("1.5", "5.5"):
+        scene.frame_set(1)
+        shut = lid.matrix_world.to_quaternion()
+        for f in range(f0, f1 + 1, step * 3):
+            scene.frame_set(f)
+            if math.degrees(shut.rotation_difference(lid.matrix_world.to_quaternion()).angle) > 2.0:
+                fails.append(f"{sid} f{f}: continuity: the strongbox lid is open with no hand on it")
+                break
+    if planks and sid not in ("4.3", "4.4"):
+        for f in range(f0, f1 + 1, step * 3):
+            scene.frame_set(f)
+            off = max(abs(o.matrix_world.translation.z + 0.025) for o in planks)
+            if off > 0.002:
+                fails.append(f"{sid} f{f}: continuity: a loose plank is {off * 100:.1f} cm off its rest")
+                break
+    if nar is not None and "worn" in nar.keys():
+        last = None
+        for f in range(f0, f1 + 1, step * 3):
+            scene.frame_set(f)
+            if last is not None and nar["worn"] < last - 1e-4:
+                fails.append(f"{sid} f{f}: continuity: the narrator's worn look eases ({last:.2f} -> {nar['worn']:.2f})")
+                break
+            last = nar["worn"]
+    return fails, []
+
+
+def run_checks(label, cast, chair_prefix, held, spans, shots, spoken, who, step=4, no_feet=(), animated=True):
+    """Every measured check, shot by shot, printed with numbers (prefixed `label`); raises SystemExit on a fail."""
+    cx = _check_scene(cast, chair_prefix)
     fails, notes = [], []
     for sid in shots or list(spans):
         f0, f1 = spans[sid]
-        worst = 0.0
-        for f in range(f0, f1 + 1, step):                                   # 1. hands inside someone
-            scene.frame_set(f)
-            pts = {}
-            for n in CAST:
-                ev = obstacles[n][0].evaluated_get(deps)
-                me = ev.to_mesh()
-                pts[n] = [ev.matrix_world @ me.vertices[i].co for i in hands[n]]
-                ev.to_mesh_clear()
-            for n in CAST:
-                others = [o for m in CAST if m != n and (rigs[m].matrix_world.translation -
-                                                         rigs[n].matrix_world.translation).length < 2.0
-                          for o in obstacles[m]] + chairs
-                for o in others:
-                    tree, inv = BVHTree.FromObject(o, deps), o.matrix_world.inverted()
-                    for p in pts[n]:
-                        loc, normal, _, dist = tree.find_nearest(inv @ p, 0.12)
-                        if loc is not None:
-                            depth = -((inv @ p) - loc).dot(normal)
-                            if depth > 0.005:
-                                worst = max(worst, depth)
-                                fails.append(f"{sid} f{f}: {n}'s hand {depth * 100:.1f} cm inside {o.name}")
-                                break
-        notes.append(f"{sid}: hands inside others worst {worst * 100:.1f} cm")
-        for h in held:                                                       # 2. held props stay in the hand
-            a, b = max(h["f0"], f0), min(h["f1"], f1)
-            if a > b:
-                continue
-            prop, rig = bpy.data.objects[h["prop"]], rigs[h["rig"]]
-            drift, ref = 0.0, None
-            for f in range(a, b + 1, 2):
-                scene.frame_set(f)
-                hand = rig.matrix_world @ rig.pose.bones[h["bone"]].matrix
-                off = hand.inverted() @ (prop.matrix_world @ __import__("mathutils").Vector(h["point"]))
-                ref = ref or off
-                drift = max(drift, (off - ref).length)
-            notes.append(f"{sid}: {h['prop']} in {h['rig']}'s hand, drift {drift * 100:.1f} cm")
-            if drift > 0.01:
-                fails.append(f"{sid}: {h['prop']} drifts {drift * 100:.1f} cm from {h['rig']}'s hand")
-        if sid != "5.1":                                                     # 3. planted feet
-            for n, rig in rigs.items():
-                prev, slide, count = {}, 0.0, 0
-                for f in range(f0, f1 + 1):
-                    scene.frame_set(f)
-                    for side in ("Left", "Right"):
-                        p = rig.matrix_world @ rig.pose.bones[f"{side}ToeBase"].head
-                        speed = (p.xy - prev[side].xy).length * FPS if side in prev else 9.0
-                        if side in prev and p.z < 0.04 and prev[side].z < 0.04 and speed < 0.25:   # down, still
-                            slide += speed
-                            count += 1
-                        prev[side] = p
-                mean = slide / max(count, 1)
-                if mean > 0.02:
-                    fails.append(f"{sid}: {n}'s planted feet slide {mean * 100:.1f} cm/s")
-        for n, rig in rigs.items():                                          # 6. no locked arms on the lap
-            for f in range(f0, f1 + 1, step * 3):
-                scene.frame_set(f)
-                m, pb = rig.matrix_world, rig.pose.bones
-                for side in ("Left", "Right"):
-                    S, E, W = (m @ pb[f"{side}{b}"].head for b in ("Arm", "ForeArm", "Hand"))
-                    hip, knee = m @ pb[f"{side}UpLeg"].head, m @ pb[f"{side}Leg"].head
-                    t = max(0.0, min(1.0, (W - hip).dot(knee - hip) / (knee - hip).length_squared))
-                    on_lap = knee.z > hip.z - 0.15 and (W - hip.lerp(knee, t)).length < 0.2
-                    elbow = math.degrees((S - E).angle(W - E))
-                    if on_lap and elbow > 150:
-                        fails.append(f"{sid} f{f}: {n}'s {side.lower()} arm locked straight on his lap ({elbow:.0f} deg)")
-        tl = json.loads((OUT / "timeline.json").read_text())                 # 5. lips move while they speak
-        spoken = [l for s_ in tl["shots"] for l in s_["lines"] if l["who"] in ON_SCREEN] + tl["chatter"]
-        for l in spoken:
-            l0, l1 = _frame(l["start"]), _frame(l["start"] + l["seconds"])
-            if not (f0 <= l0 <= f1):
-                continue
-            keys = bpy.data.objects[f"{WHO[l['who']]}.body"].data.shape_keys.key_blocks
-            jaw = []
-            for f in range(l0, l1, 2):
-                scene.frame_set(f)
-                jaw.append(keys["jawOpen"].value)
-            moved = max(jaw) - min(jaw)
-            notes.append(f"{sid}: {l['line']} ({WHO[l['who']]}): jaw opens {moved:.2f}")
-            if moved < 0.08:
-                fails.append(f"{sid}: {WHO[l['who']]}'s lips still while he speaks {l['line']} (jaw range {moved:.2f})")
-        if animated:                                                         # 4. nobody frozen on camera
-            for n, rig in rigs.items():
-                for w0 in range(f0, f1 - FPS + 1, FPS // 2):
-                    scene.frame_set(w0 + FPS // 2)
-                    head = rig.matrix_world @ rig.pose.bones["Head"].head
-                    v = world_to_camera_view(scene, scene.camera, head)
-                    if not (0 < v.x < 1 and 0 < v.y < 1 and v.z > 0):
-                        continue
-                    base, most = None, 0.0
-                    for f in range(w0, w0 + FPS, 2):
-                        scene.frame_set(f)
-                        q = [(rig.matrix_world @ rig.pose.bones[b].matrix).to_quaternion() for b in LIVING]
-                        base = base or q
-                        most = max(most, sum(math.degrees(a.rotation_difference(b).angle) for a, b in zip(base, q)))
-                    if most < 0.5:
-                        fails.append(f"{sid} f{w0}: {n} frozen on camera ({most:.2f} deg in 1 s)")
+        parts = [_check_inside(cx, sid, f0, f1, step), _check_held(cx, sid, f0, f1, held)]
+        if sid not in no_feet:
+            parts.append(_check_feet(cx, sid, f0, f1))
+        parts += [_check_locked(cx, sid, f0, f1, step), _check_lips(cx, sid, f0, f1, spoken, who),
+                  _check_continuity(cx, sid, f0, f1, step)]
+        if animated:
+            parts.append(_check_frozen(cx, sid, f0, f1))
+        for fl, nt in parts:
+            fails += fl
+            notes += nt
     for line in notes:
-        print("V4 check:", line)
+        print(f"{label} check:", line)
     if fails:
         kinds = {}
         for line in fails:
-            key = next((k for k in ("inside", "drifts", "slide", "frozen", "lips", "locked") if k in line), "other")
-            who = line.split(": ", 1)[1].split("'")[0] if ": " in line else ""
-            kinds[(key, who)] = kinds.get((key, who), 0) + 1
-        print("V4 check failures by kind: " + ", ".join(f"{k} {w}: {n}" for (k, w), n in sorted(kinds.items())))
-        print("V4 check FAILED:\n  " + "\n  ".join(fails[:40]) + (f"\n  ... {len(fails)} in all" if len(fails) > 40 else ""))
+            key = next((k for k in ("inside", "drifts", "slide", "frozen", "lips", "locked", "continuity")
+                        if k in line), "other")
+            who_ = line.split(": ", 1)[1].split("'")[0] if ": " in line else ""
+            kinds[(key, who_)] = kinds.get((key, who_), 0) + 1
+        print(f"{label} check failures by kind: " + ", ".join(f"{k} {w}: {n}" for (k, w), n in sorted(kinds.items())))
+        print(f"{label} check FAILED:\n  " + "\n  ".join(fails[:40]) +
+              (f"\n  ... {len(fails)} in all" if len(fails) > 40 else ""))
         raise SystemExit(1)
-    print(f"V4 check OK ({'animated' if animated else 'no animation yet: stillness skipped'})")
+    print(f"{label} check OK ({'animated' if animated else 'no animation yet: stillness skipped'})")
+
+
+def check(shots=None, step=4):
+    """The Visitors' measured checks (run_checks): hands inside people or chairs, held props drifting, planted
+    feet sliding (not on the stair, 5.1), seated arms locked straight, lips still while speaking, continuity, and
+    nobody frozen on camera."""
+    import bpy
+    rigs = {n: bpy.data.objects[n] for n in CAST}
+    animated = any(len(fc.keyframe_points) > 1 for r in rigs.values() for fc in v3._fcurves(r)
+                   if fc.data_path.startswith("pose.bones"))
+    tl = json.loads((OUT / "timeline.json").read_text())
+    spoken = [l for s_ in tl["shots"] for l in s_["lines"] if l["who"] in ON_SCREEN] + tl["chatter"]
+    run_checks("V4", CAST, "V4_Chair_", json.loads(bpy.context.scene.get("v4_held", "[]")), _spans(), shots,
+               spoken, WHO, step=step, no_feet=("5.1",), animated=animated)
 
 
 def _voices(out_wav, t0, t1):
