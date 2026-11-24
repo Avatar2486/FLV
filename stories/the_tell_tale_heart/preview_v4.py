@@ -583,9 +583,40 @@ def _feet_down(ctx, rig, frame, drop):
         bpy.context.view_layer.update()
 
 
+# Seated hands at rest: (how far along the thigh from hip to knee, how far in from its middle in m) - a little
+# different for each man. Wrists out near the knees locked every arm straight: shop-window dummies.
+HAND_REST = {"Hale": (0.38, 0.03), "Brandt": (0.48, 0.0), "Mercer": (0.45, 0.01), "Narrator": (0.42, 0.015)}
+# How far each leans in, degrees (engaged listeners lean toward the speaker: Mehrabian's immediacy cues).
+LEAN = {"Hale": 8.0, "Brandt": 12.0, "Mercer": 10.0, "Narrator": 12.0}
+
+
+def _sit_up(ctx, rig, frame):
+    """Shoulders down and a slight lean in, keyed at `frame`. The mocap sitter's shoulders were shrugged (the
+    collarbones 25-28 deg up, the shoulder joints 3 cm high): with the trunk upright that put the shoulders 52 cm
+    above the lap - the arm's whole length - so every resting hand locked its arm straight. The collarbones go to
+    rest; the trunk leans LEAN degrees forward from the lower back and spine, the neck taking most of it back so
+    the face stays level (people keep their eyes level when they lean)."""
+    from mathutils import Quaternion, Vector
+    bpy = ctx["bpy"]
+    bpy.context.scene.frame_set(frame)
+    pb = rig.pose.bones
+    lean = LEAN.get(rig.name, 10.0)
+    for side in ("Left", "Right"):
+        pb[f"{side}Shoulder"].rotation_quaternion = Quaternion()
+        pb[f"{side}Shoulder"].keyframe_insert("rotation_quaternion", frame=frame)
+    for name, deg in (("LowerBack", 0.6 * lean), ("Spine", 0.4 * lean), ("Neck1", -0.8 * lean)):
+        bpy.context.view_layer.update()
+        b = pb[name]
+        axis = (b.matrix.to_3x3().normalized().inverted() @ Vector((1, 0, 0))).normalized()   # forward about the body's X
+        b.rotation_quaternion = b.rotation_quaternion @ Quaternion(axis, math.radians(deg))
+        b.keyframe_insert("rotation_quaternion", frame=frame)
+    bpy.context.view_layer.update()
+
+
 def _hands_on_thighs(ctx, rig, frame, skip=()):
-    """Seated hands at rest: each wrist just above the thigh, three quarters of the way to the knee, the palm down and
-    the fingers along the thigh, past the seat edge (arm IK, keyed at `frame`). The mocap's own seated arms were mid-gesture."""
+    """Seated hands at rest: each wrist on the thigh about halfway to the knee (HAND_REST), the elbow bent and
+    pointing back and a little out, the hand turned in, palm down, the fingers draped over the thigh in the resting
+    cascade (arm IK, keyed at `frame`). The mocap's own seated arms were mid-gesture."""
     bpy, humans = ctx["bpy"], ctx["humans"]
     from mathutils import Vector
     bpy.context.scene.frame_set(frame)
@@ -596,11 +627,13 @@ def _hands_on_thighs(ctx, rig, frame, skip=()):
             continue
         hip, knee = pb[f"{side}UpLeg"].head, pb[f"{side}Leg"].head
         along = (knee - hip).normalized()
-        target = hip.lerp(knee, 0.75) + Vector((-0.01 * out, 0, 0.10))        # on the thigh near the knee, past the seat edge
+        k, inward = HAND_REST.get(rig.name, (0.5, 0.01))
+        target = hip.lerp(knee, k) + Vector((-inward * out, 0, 0.10))
         chain = (f"{side}Arm", f"{side}ForeArm", f"{side}Hand")
         pose = {n: pb[n].matrix.copy() for n in chain + (pb[chain[0]].parent.name,)}
-        hand = humans.hand_frame(along + Vector((0, 0, -0.35)), Vector((0, 0, -1)))
-        humans._two_bone(rig, rest, pose, frame, *chain, target, pole=(0.3 * out, 0.6, -0.4), end_rot=hand)
+        hand = humans.hand_frame(along + Vector((-0.45 * out, 0, -0.3)), Vector((0, 0, -1)))   # turned in ~25 deg
+        humans._two_bone(rig, rest, pose, frame, *chain, target, pole=(0.35 * out, 0.7, -0.6), end_rot=hand,
+                         force_pole=True)
         humans._finger_shape(rig, side, frame, "relaxed")          # draped in the resting cascade, not flat
         bpy.context.view_layer.update()
 
@@ -610,6 +643,7 @@ def _sit(ctx, rig, chair, frame, shots, skip_hands=()):
     from mathutils import Euler
     T = ctx["T"]
     _key_pose(rig, frame, _sit_pose(ctx))
+    _sit_up(ctx, rig, frame)
     loc, rz, toes = _seat_on(ctx, rig, chair, frame)
     for sid in shots:
         rig.location, rig.rotation_euler = loc, Euler((0, 0, rz))
@@ -706,6 +740,9 @@ def _converse(ctx, lines, a, b, energy, idle, seated=True):
                         hands=tuple(s for s in ("Left", "Right") if s not in busy),
                         toward=listener.matrix_world @ listener.pose.bones["Head"].head, seed=f0)
         humans.lip_sync(rigs[spk], wav, f0)
+    for n, rig in rigs.items():          # and nobody's hands freeze between lines (a hand holding something excepted)
+        busy = ctx.get("busy_hands", {}).get(n, ())
+        humans.fidget(rig, a, b, seed=_seed(n, 79), sides=tuple(s for s in ("Left", "Right") if s not in busy))
     return events, phrases
 
 
@@ -849,9 +886,10 @@ def _act_chamber(ctx):
     mer = rigs["Mercer"]
     knee = lambda f: mer.matrix_world @ mer.pose.bones["RightLeg"].head
     hip = lambda f: mer.matrix_world @ mer.pose.bones["RightUpLeg"].head
-    humans.reach(mer, "Right", A, B, target=lambda f: hip(f).lerp(knee(f), 0.7) + Vector((0, 0, 0.11)),
+    humans.reach(mer, "Right", A, B, target=lambda f: hip(f).lerp(knee(f), 0.5) + Vector((0, 0, 0.11)),
                  hand=lambda f: humans.hand_frame(mer.matrix_world.to_3x3() @ Vector((0, -1, -0.2)),
-                                                  mer.matrix_world.to_3x3() @ Vector((1, 0, 0))), blend=1)
+                                                  mer.matrix_world.to_3x3() @ Vector((1, 0, 0))), blend=1,
+                 pole=(-0.35, 0.7, -0.6))
     humans.grip(mer, "Right", A, curl=0.75)
     cup = props["cup"]
     scene.frame_set(A)
@@ -1026,7 +1064,8 @@ def check(shots=None, step=4):
     a held prop drifting over 1 cm from its hand; planted feet (ball of the foot under 4 cm, moving under 25 cm/s,
     so a foot swinging low through a step doesn't count) sliding over 2 cm/s on average (not on the stair);
     an on-camera character moving less than 0.5 deg (summed over the spine, neck, head and arms) in any 1 s;
-    a speaker's jaw opening less than 0.08 over a line he speaks on screen (lips must move while talking)."""
+    a speaker's jaw opening less than 0.08 over a line he speaks on screen (lips must move while talking);
+    a seated man's arm locked straight (elbow over 150 deg) with the hand on his lap."""
     import bpy
     from bpy_extras.object_utils import world_to_camera_view
     from mathutils.bvhtree import BVHTree
@@ -1102,6 +1141,18 @@ def check(shots=None, step=4):
                 mean = slide / max(count, 1)
                 if mean > 0.02:
                     fails.append(f"{sid}: {n}'s planted feet slide {mean * 100:.1f} cm/s")
+        for n, rig in rigs.items():                                          # 6. no locked arms on the lap
+            for f in range(f0, f1 + 1, step * 3):
+                scene.frame_set(f)
+                m, pb = rig.matrix_world, rig.pose.bones
+                for side in ("Left", "Right"):
+                    S, E, W = (m @ pb[f"{side}{b}"].head for b in ("Arm", "ForeArm", "Hand"))
+                    hip, knee = m @ pb[f"{side}UpLeg"].head, m @ pb[f"{side}Leg"].head
+                    t = max(0.0, min(1.0, (W - hip).dot(knee - hip) / (knee - hip).length_squared))
+                    on_lap = knee.z > hip.z - 0.15 and (W - hip.lerp(knee, t)).length < 0.2
+                    elbow = math.degrees((S - E).angle(W - E))
+                    if on_lap and elbow > 150:
+                        fails.append(f"{sid} f{f}: {n}'s {side.lower()} arm locked straight on his lap ({elbow:.0f} deg)")
         tl = json.loads((OUT / "timeline.json").read_text())                 # 5. lips move while they speak
         spoken = [l for s_ in tl["shots"] for l in s_["lines"] if l["who"] in ON_SCREEN] + tl["chatter"]
         for l in spoken:
@@ -1138,7 +1189,7 @@ def check(shots=None, step=4):
     if fails:
         kinds = {}
         for line in fails:
-            key = next((k for k in ("inside", "drifts", "slide", "frozen", "lips") if k in line), "other")
+            key = next((k for k in ("inside", "drifts", "slide", "frozen", "lips", "locked") if k in line), "other")
             who = line.split(": ", 1)[1].split("'")[0] if ": " in line else ""
             kinds[(key, who)] = kinds.get((key, who), 0) + 1
         print("V4 check failures by kind: " + ", ".join(f"{k} {w}: {n}" for (k, w), n in sorted(kinds.items())))

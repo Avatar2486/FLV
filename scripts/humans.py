@@ -896,8 +896,10 @@ def plant_feet(rig, start, end, floor=0.0, blend=3):
     return lift
 
 
-def _two_bone(rig, rest, pose, frame, up, low, foot, target, pole=(0, -1, 0), end_rot=None, wrist=None, ease=1.0):
-    """Analytic two-bone IK in armature space; keys the thigh, shin and foot rotations at `frame`."""
+def _two_bone(rig, rest, pose, frame, up, low, foot, target, pole=(0, -1, 0), end_rot=None, wrist=None, ease=1.0,
+              force_pole=False):
+    """Analytic two-bone IK in armature space; keys the thigh, shin and foot rotations at `frame`. The knee/elbow
+    bends the way it already does (the mocap's), or toward `pole` when straight or force_pole."""
     from mathutils import Matrix
     H, K, A = pose[up].translation, pose[low].translation, pose[foot].translation
     l1, l2 = (K - H).length, (A - K).length
@@ -905,7 +907,7 @@ def _two_bone(rig, rest, pose, frame, up, low, foot, target, pole=(0, -1, 0), en
     d = max(abs(l1 - l2) + 1e-4, min(l1 + l2 - 1e-4, reach.length))
     u = reach.normalized()
     bend = (K - H) - (K - H).project(A - H)                                    # the knee's mocap direction
-    bend = bend if bend.length > 0.01 * l1 else Vector(pole)          # straight limb: use the natural bend
+    bend = bend if bend.length > 0.01 * l1 and not force_pole else Vector(pole)   # straight limb: the natural bend
     bend = (bend - bend.project(u)).normalized()
     a = (l1 * l1 + d * d - l2 * l2) / (2 * d)
     knee = H + u * a + bend * math.sqrt(max(0.0, l1 * l1 - a * a))
@@ -951,12 +953,13 @@ def _two_bone(rig, rest, pose, frame, up, low, foot, target, pole=(0, -1, 0), en
 
 
 # --- hands, props, beds -------------------------------------------------------------------------------
-def reach(rig, side, start, end, target, blend=8, hand=None, wrist=None):
+def reach(rig, side, start, end, target, blend=8, hand=None, wrist=None, pole=None):
     """Arm IK: the hand (wrist) goes to target(frame) -> world point (or None = free), with `blend`-frame
     ease in and out. Elbows bend back and down. hand: a world 3x3 rotation for the hand (its Y axis along
     the fingers, palm on -Z), or a function frame -> rotation, else it keeps its own angle. wrist:
     (bend degrees, palm direction in world) instead - the hand carries on the line of the solved forearm,
-    bent that much toward the palm side, so the wrist stays in a natural range (holding things). For hands on doors, latches, lanterns:
+    bent that much toward the palm side, so the wrist stays in a natural range (holding things). pole: the
+    elbow's direction (armature space) instead of the way the arm already bends. For hands on doors, latches, lanterns:
     in FLV nothing moves unless a hand moves it."""
     scene = bpy.context.scene
     bpy.context.view_layer.update()
@@ -996,7 +999,8 @@ def reach(rig, side, start, end, target, blend=8, hand=None, wrist=None):
             want = (to_arm.to_3x3() @ rot).to_quaternion()
             turned = pose[chain[2]].to_quaternion().slerp(want, ease).to_matrix()
         bent = None if wrist is None else (math.radians(wrist[0]), (to_arm.to_3x3() @ Vector(wrist[1])).normalized())
-        _two_bone(rig, rest, pose, f, *chain, aim_at, pole=(0, 0.6, -0.4), end_rot=turned, wrist=bent, ease=ease)
+        _two_bone(rig, rest, pose, f, *chain, aim_at, pole=pole or (0, 0.6, -0.4), end_rot=turned, wrist=bent,
+                  ease=ease, force_pole=pole is not None)
 
 
 def hand_frame(fingers, palm):
@@ -1318,26 +1322,50 @@ CMU_LIBRARY = ROOT / "assets" / "mocap" / "library" / "cmu"
 # Palms carry meaning: palm up (Kendon's "open hand supine") offers, shows, presents a topic - friendly talk;
 # palm down ("open hand prone") halts, denies, interrupts - never for a raised hand in friendly talk. The default
 # beat is an open palm flicking up and down (Shattuck-Hufnagel et al.; McNeill): here palm up, turned in ("upin").
+# Where: from the SHOULDER, not the chest - a hand placed relative to the chest of a seated man leaning back ended
+# 51 cm from the shoulder, the arm all but straight and swung out sideways: a puppet. The wrist goes along `dir`
+# (forward, up, out to the gesturing side; out < 0 is across toward the midline) at the distance that bends the
+# elbow to `elbow` degrees: 90-110 in conversation, the upper arm hanging near the body and the forearm doing the
+# work (the elbow at ~90 with the upper arm by the trunk is the arm's relaxed working posture: AAO ergonomics).
 GESTURES = {
-    "offer": dict(at=(0.32, -0.06, 0.16), palm="up", fingers="open", dip=0.03),       # palm-up open hand
-    "present": dict(at=(0.30, -0.05, 0.22), palm="up", fingers="open", dip=0.025, both=True),
-    "beat": dict(at=(0.28, -0.09, 0.14), palm="upin", fingers="open", dip=0.04),      # open palm, up and in, flicking
-    "chop": dict(at=(0.34, 0.04, 0.14), palm="in", fingers="open", dip=0.09),         # agitated: the edge chops
-    "fist": dict(at=(0.30, 0.06, 0.12), palm="in", fingers="fist", dip=0.08),         # knuckles forward
-    "spread": dict(at=(0.26, 0.10, 0.32), palm="up", fingers="open", dip=0.05, both=True),
+    "offer": dict(dir=(0.75, -0.62, -0.05), elbow=100, palm="up", fingers="open", dip=0.03),   # palm-up open hand
+    "present": dict(dir=(0.78, -0.64, 0.12), elbow=100, palm="up", fingers="open", dip=0.025, both=True),
+    "beat": dict(dir=(0.70, -0.70, -0.08), elbow=105, palm="upin", fingers="open", dip=0.04),  # open palm flicks
+    "chop": dict(dir=(0.85, -0.35, -0.05), elbow=100, palm="in", fingers="open", dip=0.09),   # agitated: the edge chops
+    "fist": dict(dir=(0.80, -0.40, -0.02), elbow=90, palm="in", fingers="fist", dip=0.08),    # knuckles forward
+    "spread": dict(dir=(0.62, -0.38, 0.45), elbow=110, palm="up", fingers="open", dip=0.05, both=True),
 }
+# The joints that hang off the forearm move like it: a relaxed wrist sags ~22 deg under gravity and the hand
+# and fingers settle into a new pose in 0.38-0.48 s (Neff & Seidel 2006, Tables 1-2); gesturing, the wrist is
+# held a little firmer, so here half the sag, and the hand trails the forearm on a damped spring that settles in
+# ~0.45 s (2-3 frames behind a fast move, a slight overshoot: drag and follow-through). The shoulder girdle
+# rises and comes forward with the arm (scapulohumeral rhythm: ~1 deg of scapula per 2 of arm, Inman).
+WRIST_SAG = 0.2              # tan of the wrist's sag below the forearm line while gesturing (~11 deg)
+DRAG = (2.2, 0.65)           # the hand's spring: natural frequency (Hz), damping ratio
 NEW_GESTURE_AFTER = 1.6     # s: a long phrase gets a fresh gesture on a stress this long after the last one
 CALM, AGITATED = (("offer", 0.45), ("beat", 0.3), ("present", 0.25)), (("chop", 0.4), ("fist", 0.3), ("spread", 0.3))
 # Finger shapes, degrees at (knuckle MCP, middle PIP, tip DIP). A relaxed hand is never flat: it rests in the
 # flexion cascade, least bent at the index (measured means, non-power-grip adults, dominant hand: Varghese et al.,
 # J Clin Diagn Res 2020, 14(5) YC01; the wrist rests 15-20 degrees extended). An open gesturing hand is that
 # cascade loosened, not straightened ("loosely extended", Kendon; animators: no flat "spatula hands").
-RELAXED_HAND = {"Thumb": (15, 12, 10), "Index": (27, 39, 14), "Middle": (33, 41, 14), "Ring": (29, 45, 14),
+# The fingers lie nearly parallel, not fanned: abduction from the middle finger at rest, index +1, ring -1.5,
+# little -6 deg (Neff & Seidel 2006, Table 2; + toward the thumb there, + toward the little finger here). Our rigs
+# rest with the hand fanned (ring 8, little 18 deg out), so _finger_shape turns each finger to these. The thumb
+# sits in front of the palm, not in its plane: CMC palmar abduction 42, flexion 28, MCP 36, IP 24 (same table);
+# here (palmar, MCP, IP) about the bone X and THUMB_ACROSS deg across toward the fingers about its Z.
+SPREAD = {"Index": -1.0, "Middle": 0.0, "Ring": 1.5, "Pinky": 6.0}
+RELAXED_HAND = {"Thumb": (12, 30, 20), "Index": (27, 39, 14), "Middle": (33, 41, 14), "Ring": (29, 45, 14),
                 "Pinky": (26, 43, 16)}
 HAND_SHAPES = {"relaxed": RELAXED_HAND,
-               "open": {k: tuple(round(a * 0.35) for a in v) for k, v in RELAXED_HAND.items()},
-               "fist": {"Thumb": (30, 35, 25), "Index": (85, 100, 70), "Middle": (88, 100, 70), "Ring": (88, 100, 70),
+               "open": {**{k: tuple(round(a * 0.35) for a in v) for k, v in RELAXED_HAND.items()}, "Thumb": (4, 8, 5)},
+               "fist": {"Thumb": (45, 40, 30), "Index": (85, 100, 70), "Middle": (88, 100, 70), "Ring": (88, 100, 70),
                         "Pinky": (85, 95, 65)}}
+THUMB_ACROSS = {"relaxed": 15, "open": -5, "fist": 25}   # open: a soft L beside the index, not sticking up
+# The thumb is turned ~55-60 deg against the fingers (opposition), so its own knuckles (MCP, IP) bend across the
+# palm toward the little finger, not up out of it; our rigs' thumbs are rolled like fingers (bending them about X
+# stood the relaxed thumb 77 deg out of the palm, a hitchhiker's). They bend about an axis tilted OPPOSE degrees.
+OPPOSE = 55
+_REST_SPREAD = {}
 
 
 def _voicing(wav):
@@ -1396,15 +1424,108 @@ def stress_times(wav):
     return sorted(round(float(times[i]), 3) for i in kept)
 
 
+def _rest_spread(rig, side):
+    """{finger: (degrees from the middle finger in the palm plane, + toward the little finger; the sign of a
+    bone-Z turn toward the little finger)} in the rig's rest pose."""
+    key = (rig.data.name, side)
+    if key not in _REST_SPREAD:
+        B = rig.data.bones
+        g = lambda n: B[f"{side}Hand{n}1"]
+        along = lambda b: (b.tail_local - b.head_local).normalized()
+        wrist = B[f"{side}Hand"].head_local
+        n = (g("Index").head_local - wrist).cross(g("Pinky").head_local - wrist).normalized()
+        k = (g("Pinky").head_local - g("Index").head_local).normalized()
+        flat = lambda v: (v - v.project(n)).normalized()
+        mid = flat(along(g("Middle")))
+        out = {}
+        for j in (2, 3):                         # the thumb's own knuckles: which way is across the palm
+            b = B[f"{side}HandThumb{j}"]
+            out[f"Thumb{j}"] = (0.0, 1 if b.matrix_local.to_3x3().col[2].cross(along(b)).dot(k) > 0 else -1)
+        for finger in ("Thumb", *SPREAD):
+            v = flat(along(g(finger)))
+            ang = math.degrees(mid.angle(v)) if finger != "Middle" else 0.0
+            out[finger] = (ang if v.dot(k) > mid.dot(k) else -ang,
+                           1 if (g(finger).matrix_local.to_3x3().col[2]).cross(along(g(finger))).dot(k) > 0 else -1)
+        _REST_SPREAD[key] = out
+    return _REST_SPREAD[key]
+
+
 def _finger_shape(rig, side, frame, shape):
-    """Key one hand's fingers to a HAND_SHAPES shape at `frame`, the fingers settling one after another (index
-    first, little finger 3 frames later: fingers don't move as one block)."""
+    """Key one hand's fingers to a HAND_SHAPES shape at `frame`: flexion, the fingers brought nearly parallel
+    (SPREAD) and the thumb in front of the palm, settling one after another (index first, little finger 3 frames
+    later: fingers don't move as one block)."""
+    spread = _rest_spread(rig, side)
     for k, (finger, degs) in enumerate(HAND_SHAPES[shape].items()):
         for j, deg in enumerate(degs, 1):
             pb = rig.pose.bones.get(f"{side}Hand{finger}{j}")
             if pb is not None:
-                pb.rotation_quaternion = Quaternion((1, 0, 0), math.radians(deg))
+                q = Quaternion((1, 0, 0), math.radians(deg))
+                if finger == "Thumb" and j > 1:  # opposed: across the palm
+                    o = math.radians(OPPOSE)
+                    q = Quaternion((math.cos(o), 0, spread[f"Thumb{j}"][1] * math.sin(o)), math.radians(deg))
+                if j == 1:
+                    rest, sign = spread[finger]
+                    turn = THUMB_ACROSS[shape] if finger == "Thumb" else SPREAD[finger] - rest
+                    q = Quaternion((0, 0, 1), math.radians(sign * turn)) @ q
+                pb.rotation_quaternion = q
                 pb.keyframe_insert("rotation_quaternion", frame=frame + max(0, k - 1))
+
+
+def _follow(target, fps, freq=DRAG[0], zeta=DRAG[1]):
+    """Drag and follow-through: an orientation trailing `target` ({frame: Quaternion}) on a damped spring - a few
+    frames behind a fast turn, settling with a slight overshoot. -> {frame: Quaternion}."""
+    w0, dt = 2 * math.pi * freq, 1.0 / fps
+    frames = sorted(target)
+    cur, vel, out = target[frames[0]].copy(), Vector(), {}
+    for f in frames:
+        err = target[f] @ cur.inverted()
+        if err.w < 0:
+            err.negate()
+        vel += (Vector(err.axis) * err.angle * w0 * w0 - 2 * zeta * w0 * vel) * dt
+        if vel.length > 1e-9:
+            cur = Quaternion(vel.normalized(), vel.length * dt) @ cur
+            cur.normalize()
+        out[f] = cur.copy()
+    return out
+
+
+def fidget(rig, start, end, seed=1, sides=("Left", "Right"), fps=24):
+    """Hands are never frozen, not even at rest: the fingers drift a few degrees, and every 3-7 s a hand does
+    something small - the fingers lift off the thigh and settle back (index first), the index taps twice, or the
+    thumb rubs. Layered on whatever the hand does (call it after gestures())."""
+    rng = random.Random(seed)
+    names = ("Thumb", "Index", "Middle", "Ring", "Pinky")
+    events = {}
+    for s in sides:
+        t, events[s] = start + rng.uniform(1, 4) * fps, []
+        while t < end - fps:
+            events[s].append((t, rng.choice(("lift", "lift", "tap", "rub"))))
+            t += rng.uniform(3, 7) * fps
+    phase = {(s, n): rng.uniform(0, 2 * math.pi) for s in sides for n in names}
+
+    def env(x, rise, hold, fall):                # 0 -> 1 -> 0, eased
+        if x <= 0 or x >= rise + hold + fall:
+            return 0.0
+        u = min(1.0, x / rise) if x < rise + hold else 1 - (x - rise - hold) / fall
+        return u * u * (3 - 2 * u)
+
+    def offsets(f):
+        out = {}
+        for s in sides:
+            for k, n in enumerate(names):
+                deg = 2.5 * math.sin(2 * math.pi * 0.15 * f / fps + phase[(s, n)])
+                for t, kind in events[s]:
+                    x = (f - t) / fps
+                    if kind == "lift" and n != "Thumb":
+                        deg -= 14 * env(x - 0.04 * k, 0.25, 0.3, 0.6)
+                    elif kind == "tap" and n == "Index":
+                        deg -= 12 * (env(x, 0.12, 0.0, 0.15) + env(x - 0.35, 0.12, 0.0, 0.15))
+                    elif kind == "rub" and n == "Thumb":
+                        deg += 8 * math.sin(2 * math.pi * x / 0.5) * env(x, 0.2, 0.6, 0.2)
+                out[f"{s}Hand{n}1"] = Quaternion((1, 0, 0), math.radians(deg))
+                out[f"{s}Hand{n}2"] = Quaternion((1, 0, 0), math.radians(0.6 * deg))
+        return out
+    _layer(rig, int(start), int(end), offsets, local=True)
 
 
 def _gesture_units(wav, start_frame, energy, hands, seed, fps):
@@ -1495,6 +1616,24 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
         first, last = int(keys[0][0]), int(math.ceil(keys[-1][0])) + 1
         pb = rig.pose.bones
         frames = range(first, last + 1)
+
+        def seg(f):                                  # (kind from, kind to, linear 0..1, eased 0..1)
+            for (fa, ka), (fb, kb) in zip(keys, keys[1:]):
+                if fa <= f <= fb:
+                    raw = 1.0 if ka == kb else min(1.0, max(0.0, (f - fa) / max(fb - fa, 1)))
+                    return ka, kb, raw, raw * raw * (3 - 2 * raw)
+            return None, None, 0.0, 0.0
+
+        def weight(f):                               # 0 at rest .. 1 gesturing
+            ka, kb, _, w = seg(f)
+            return (w if kb else 1 - w) if (ka is None) != (kb is None) else (1.0 if ka else 0.0)
+        sx = 1 if side == "Left" else -1             # the shoulder girdle rises and comes forward with the arm
+        lift, ahead = 4 + 4 * energy, 3 + 2 * energy
+        _layer(rig, first, last, lambda f: {f"{side}Shoulder": (-sx * ahead * weight(f), 0, -sx * lift * weight(f))})
+        l1 = pb[f"{side}Arm"].length * rig.matrix_world.to_scale().x
+        l2 = pb[f"{side}ForeArm"].length * rig.matrix_world.to_scale().x
+        pole = Vector((0.3 * sx, 0.45, -0.85))       # elbows down, back and a little out (armature space)
+        reach_to = lambda deg: math.sqrt(l1 * l1 + l2 * l2 - 2 * l1 * l2 * math.cos(math.radians(deg)))
         rest, body = {}, {}
         for f in frames:                             # where the hand rests and where the body is, before any key
             scene.frame_set(f)
@@ -1503,56 +1642,58 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
             fwd = (m.to_3x3() @ Vector((0, -1, 0)))
             fwd.z = 0
             fwd.normalize()
-            out = (m.to_3x3() @ Vector((1, 0, 0))).normalized() * (1 if side == "Left" else -1)
-            chest = m @ pb["Spine1"].head
-            if toward is not None:                   # into the space shared with the listener (up to ~25 deg)
-                to = Vector(toward) - chest
+            out = (m.to_3x3() @ Vector((1, 0, 0))).normalized() * sx
+            if toward is not None:                   # angled into the space shared with the listener (~15 deg)
+                to = Vector(toward) - m @ pb["Spine1"].head
                 to.z = 0
                 if to.length > 0.1:
-                    fwd = (fwd + 0.5 * to.normalized()).normalized()
-            body[f] = (chest, fwd, out)
+                    fwd = (fwd + 0.3 * to.normalized()).normalized()
+                    out = (out - out.project(fwd)).normalized()
+            body[f] = (m @ pb[f"{side}Arm"].head, fwd, out, (m.to_3x3() @ pole).normalized())
 
         def place(kind, f):
             g = GESTURES[kind]
-            chest, fwd, out = body[f]
-            a, b, c = g["at"]
-            p = chest + fwd * a * size + Vector((0, 0, b * size)) + out * c * size
-            p += Vector((0, 0, 0.012 * math.sin(2 * math.pi * 0.4 * f / fps + (1 if side == "Left" else 0))))
-            fingers = fwd + out * 0.25 + Vector((0, 0, -0.15))
+            shoulder, fwd, out, bend = body[f]
+            a, b, c = g["dir"]
+            u = (fwd * a + Vector((0, 0, b)) + out * c).normalized()
+            d = reach_to(g["elbow"] + (energy - 0.5) * 24)
+            p = shoulder + u * d + Vector((0, 0, 0.012 * math.sin(2 * math.pi * 0.4 * f / fps + (sx > 0))))
+            u = (p - shoulder).normalized()          # the elbow as the IK will put it, so the hand carries on
+            e = (l1 * l1 + d * d - l2 * l2) / (2 * d)  # the forearm's line (no wrist bent at the hand's whim)
+            elbow = shoulder + u * e + (bend - bend.project(u)).normalized() * math.sqrt(max(0.0, l1 * l1 - e * e))
+            line = (p - elbow).normalized()
+            sag = Vector((0, 0, -1)) - Vector((0, 0, -1)).project(line)
+            fingers = line + WRIST_SAG * sag.normalized() if sag.length > 1e-3 else line
             palm = {"up": Vector((0, 0, 1)), "upin": Vector((0, 0, 0.75)) - out * 0.65, "in": -out}[g["palm"]]
             return p, hand_frame(fingers, palm)
 
         def at(f):
-            for (fa, ka), (fb, kb) in zip(keys, keys[1:]):
-                if fa <= f <= fb:
-                    pa = place(ka, f) if ka else rest[f]
-                    if ka == kb:
-                        return pa, 1.0 if ka else 0.0
-                    raw = min(1.0, max(0.0, (f - fa) / max(fb - fa, 1)))
-                    w = raw * raw * (3 - 2 * raw)
-                    # the forearm turns the palm as the hand leaves the lap, and back only as it lands
-                    rw = min(1.0, raw * 1.6) if ka is None else max(0.0, raw * 1.6 - 0.6) if kb is None else raw
-                    rw = rw * rw * (3 - 2 * rw)
-                    pb_ = place(kb, f) if kb else rest[f]
-                    chest, fwd, out = body[f]
-                    arc = (Vector((0, 0, 0.035)) + fwd * 0.02) * size * math.sin(math.pi * raw)   # hands move in arcs
-                    return (pa[0].lerp(pb_[0], w) + arc,
-                            pa[1].to_quaternion().slerp(pb_[1].to_quaternion(), rw).to_matrix()), \
-                        (w if kb else 1 - w) if (ka is None) != (kb is None) else 1.0
-            return rest[f], 0.0
+            ka, kb, raw, w = seg(f)
+            pa = place(ka, f) if ka else rest[f]
+            if ka == kb:
+                return pa
+            # the forearm turns the palm as the hand leaves the lap, and back only as it lands
+            rw = min(1.0, raw * 1.6) if ka is None else max(0.0, raw * 1.6 - 0.6) if kb is None else raw
+            rw = rw * rw * (3 - 2 * rw)
+            pb_ = place(kb, f) if kb else rest[f]
+            fwd = body[f][1]
+            arc = (Vector((0, 0, 0.035)) + fwd * 0.02) * size * math.sin(math.pi * raw)   # hands move in arcs
+            return (pa[0].lerp(pb_[0], w) + arc, pa[1].to_quaternion().slerp(pb_[1].to_quaternion(), rw).to_matrix())
         flicks = [(u["stroke"], GESTURES[u["kind"]]) for u in mine] + \
                  [(b_, GESTURES[u["kind"]]) for u in mine for b_ in u["beats"]]
         targets, turns = {}, {}
         for f in frames:
-            (p, rot), on = at(f)
+            p, rot = at(f)
             for t, g in flicks:                      # the stroke: a quick flick down (and out, offering)
                 d = (f - t) / (0.07 * fps)
                 if abs(d) < 3:
-                    chest, fwd, out = body[f]
+                    fwd = body[f][1]
                     dirn = Vector((0, 0, -1)) + (fwd * 0.6 if g["palm"] in ("up", "upin") else Vector())
-                    p = p + dirn.normalized() * g["dip"] * size * on * math.exp(-d * d)
-            targets[f], turns[f] = p, rot
-        reach(rig, side, first, last, target=lambda f: targets[f], hand=lambda f: turns[f], blend=1)
+                    p = p + dirn.normalized() * g["dip"] * size * weight(f) * math.exp(-d * d)
+            targets[f], turns[f] = p, rot.to_quaternion()
+        dragged = _follow(turns, fps)                # the hand trails the forearm and settles
+        reach(rig, side, first, last, target=lambda f: targets[f], hand=lambda f: dragged[f].to_matrix(), blend=1,
+              pole=tuple(pole))
         shape = lambda k: GESTURES[k]["fingers"] if k else "relaxed"
         for (fa, ka), (fb, kb) in zip(keys, keys[1:]):
             if kb != ka:                             # the fingers follow the wrist, a couple of frames behind
@@ -1563,7 +1704,8 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
     strokes = sorted(set(strokes))
     nods = [(f, rng.uniform(2, 4)) for f, _ in strokes]
     lo, hi = min(f for f, _ in strokes) - 10, max(f for f, _ in strokes) + 10
-    _layer(rig, lo, hi, lambda f: {"Head": (0, sum(a * math.exp(-((f - s_) / (0.12 * fps)) ** 2) for s_, a in nods), 0)})
+    nod = lambda f: sum(a * math.exp(-((f - s_) / (0.12 * fps)) ** 2) for s_, a in nods)
+    _layer(rig, lo, hi, lambda f: {"Head": (0, nod(f), 0), "Spine1": (0, 0.35 * nod(f), 0)})   # leaning into it
     rig["gesture_log"] = [k for _, k in strokes]
     return [f for f, _ in strokes]
 
@@ -1767,7 +1909,7 @@ def _selfcheck_gestures():
     for f in range(1, 73):
         scene.frame_set(f)
         rest[f] = (rig.matrix_world @ rig.pose.bones["RightHand"].head).copy()
-    strokes = gestures(rig, wav, 1, hands=("Right",), toward=Vector((0.3, -2.0, 1.4)), seed=4)
+    strokes = gestures(rig, wav, 1, hands=("Right",), toward=Vector((-1.5, -0.8, 1.4)), seed=4)   # listener to his right
     assert strokes, "no strokes"
     for f in strokes:
         assert any(b * fps + 1 - 0.15 * fps - 1 <= f <= b * fps + 1 + 1 for b in bursts), f"stroke at {f} off the stress"
@@ -1775,9 +1917,19 @@ def _selfcheck_gestures():
     shown = [k for k in kinds if k != "beat"]
     assert all(a != b for a, b in zip(shown, shown[1:])), f"the same gesture twice in a row: {kinds}"
     pb = rig.pose.bones
+    scene.frame_set(1)
+    clav0 = pb["RightShoulder"].matrix.to_quaternion()
+    shrug0 = pb["RightArm"].head.z - pb["Neck1"].head.z
     for f, kind in zip(strokes, kinds):          # research-based gesture space (compact, in front, toward the listener)
         scene.frame_set(f)
         m = rig.matrix_world
+        S, E, W = (m @ pb[f"Right{b}"].head for b in ("Arm", "ForeArm", "Hand"))
+        elbow = math.degrees((S - E).angle(W - E))   # a gesturing elbow is bent, the upper arm near the body
+        assert 70 <= elbow <= 135, f"{kind} at {f}: elbow at {elbow:.0f} deg (a near-straight arm reads as a rig)"
+        clav = math.degrees(clav0.rotation_difference(pb["RightShoulder"].matrix.to_quaternion()).angle)
+        assert clav >= 2.0, f"{kind} at {f}: the shoulder girdle doesn't move ({clav:.1f} deg; scapulohumeral rhythm)"
+        shrug = pb["RightArm"].head.z - pb["Neck1"].head.z - shrug0
+        assert shrug >= 0.004, f"{kind} at {f}: the shoulder doesn't rise with the arm ({shrug * 100:+.1f} cm)"
         fwd = (m.to_3x3() @ Vector((0, -1, 0))).normalized()
         chest, wrist = m @ pb["Spine1"].head, m @ pb["RightHand"].head
         ahead, up = (wrist - chest).dot(fwd), wrist.z - chest.z
@@ -1808,6 +1960,30 @@ def _selfcheck_gestures():
     bent = {fg: sum(math.degrees(pb[f"LeftHand{fg}{j}"].rotation_quaternion.angle) for j in (1, 2, 3))
             for fg in ("Index", "Middle", "Ring", "Pinky")}
     assert min(bent.values()) >= 60 and bent["Index"] == min(bent.values()), f"relaxed fingers not a cascade: {bent}"
+    for shape in ("relaxed", "open"):              # fingers nearly parallel, the thumb in front of the palm
+        _finger_shape(rig, "Left", 300, shape)     # (Neff & Seidel 2006: index +1, ring -1.5, little -6 deg; thumb
+        scene.frame_set(300)                       # CMC palmar abduction 42 deg)
+        wrist = pb["LeftHand"].head
+        n = (pb["LeftHandIndex1"].head - wrist).cross(pb["LeftHandPinky1"].head - wrist).normalized()
+        if (pb["LeftHandMiddle3"].tail - pb["LeftHandMiddle1"].head).dot(n) < 0:
+            n = -n                                 # n: out of the palm side
+        k = pb["LeftHandPinky1"].head - pb["LeftHandIndex1"].head
+
+        def flat(v):
+            return v - v.project(n)
+        mid = flat(pb["LeftHandMiddle1"].vector)
+        ang = {fg: math.degrees(mid.angle(flat(pb[f"LeftHand{fg}1"].vector))) *
+              (1 if flat(pb[f"LeftHand{fg}1"].vector).dot(k) > mid.dot(k) else -1) for fg in ("Index", "Ring", "Pinky")}
+        assert ang["Pinky"] - ang["Index"] <= 12, f"{shape} fingers fan out {ang} (splayed: a claw)"
+        thumb = pb["LeftHandThumb3"].tail - pb["LeftHandThumb1"].head
+        lift = math.degrees(math.asin(max(-1.0, min(1.0, thumb.normalized().dot(n)))))
+        assert (12 if shape == "open" else 20) <= lift <= 45, \
+            f"{shape} thumb {lift:.0f} deg in front of the palm (flat in its plane, or sticking up like a hitchhiker's)"
+    lagged = _follow({f: Quaternion() if f < 10 else Quaternion((1, 0, 0), math.radians(60)) for f in range(1, 40)},
+                     fps)                          # the hand trails the forearm (drag), settles, barely overshoots
+    turned = {f: math.degrees(q.angle) for f, q in lagged.items()}
+    assert turned[10] < 30 and turned[11] < 45, f"no drag: {turned[10]:.0f}, {turned[11]:.0f} deg right after the turn"
+    assert abs(turned[39] - 60) < 1 and max(turned.values()) < 69, f"drag doesn't settle: {turned}"
     angry = build({"name": "AngryGestureCheck", "character": "Narrator"}, location=(-3, 0, 0))
     relax_arms(angry)
     gestures(angry, wav, 1, hands=("Right",), energy=0.9, seed=4)

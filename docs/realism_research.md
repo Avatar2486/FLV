@@ -268,12 +268,33 @@ What went wrong first, and what the research says instead.
 | A relaxed hand is never flat: the flexion cascade, least bent at the index; the wrist rests 15-20 degrees extended | Varghese et al. 2020 (MCP/PIP/DIP, degrees: index 27/39/14, middle 33/41/14, ring 29/45/14, little 26/43/16) | `RELAXED_HAND`; open hands are that cascade loosened to 35%, not straightened |
 | Animators: no flat "spatula hands", no twinning, hands in arcs, wrists lead, fingers drop at different times; motion passes shoulder, elbow, wrist, fingers ("successive breaking of joints") | AnimSchool; Art Babbitt / Richard Williams | Arcs on every move, the palm turns as the hand leaves the lap, fingers settle after the wrist and one after another, the second hand 2 frames behind |
 | Angry gestures are larger, faster and higher | Wallbott 1998 | energy >= 0.6: chop, fist, both arms spread, higher, quicker |
+| Relaxed fingers lie nearly parallel: abduction from the middle finger index +1, ring -1.5, little -6 deg; the thumb in front of the palm (CMC palmar abduction 42, flexion 28; MCP 36; IP 24) | Neff & Seidel 2006, Table 2 | `SPREAD`, thumb in `HAND_SHAPES`; our rigs rest fanned (ring 8, little 18 deg out, thumb flat in the palm's plane), so each finger is turned to these |
+| A relaxed wrist sags ~22 deg under gravity; the wrist and fingers settle into a new pose in 0.38-0.48 s | Neff & Seidel 2006, Tables 1-2 | The hand carries on the forearm's line with half that sag (`WRIST_SAG`), and trails the forearm on a damped spring that settles in ~0.45 s (`_follow`, `DRAG`): drag and follow-through |
+| The elbow near 90 deg with the upper arm by the trunk is the arm's relaxed working posture; a straight wrist or arm "falls flat" | AAO ergonomics; AnimSchool (Vawter 2025) | Gesture hands are placed from the shoulder at the distance that bends the elbow 90-110 deg, the elbow pointing down and back; seated hands rest halfway along the thigh, not at the knee |
+| The shoulder girdle moves with the arm: about 1 deg of scapula for every 2 of arm | Inman (scapulohumeral rhythm); Ludewig et al. | The clavicle rises 4-8 deg and comes forward 3-5 deg with each gesture |
+| Fingers cluster, not evenly spaced; the little finger closes first and opens last | AnimSchool (Vawter 2025) | Spread from Neff; the fingers settle one after another |
+| Seated, the shoulders hang relaxed and an engaged listener leans in | Mehrabian (immediacy: forward lean) | `_sit_up()`: the seated mocap's shrugged collarbones go to rest, the trunk leans 8-12 deg in, the neck keeps the face level |
+| Resting hands are not frozen | Idle-animation believability (2025) | `fidget()`: fingers drift a few degrees; every 3-7 s a hand lifts its fingers and settles, taps or rubs the thumb |
 
 **Mistakes on the way (each seen in renders, then measured):**
 1. Replaying a standing actor's mocap joint rotations on a seated arm swung the arms out sideways, straight, with flat fingers (the CMU data has no fingers). Replaced with hand paths in the speaker's own body space, reached by arm IK.
 2. The first body-space poses were too low: seated hands already rest about 30 cm in front of and 25 cm below the chest, so a gesture moved a hand only 6 cm. Poses now rise to chest height.
 3. Beats were palm down. A raised palm-down hand says "stop" or "no". Beats are now open palm up and in, and the self-check fails on any raised palm-down hand in calm talk.
 4. Fingers were one uniform curl. They now follow the measured cascade.
+5. Still "rigged" after that, and close-ups showed why: every seated arm was locked straight at 178 deg with the
+   hands hooked over the kneecaps; gesturing arms swung out sideways nearly straight (the hand was placed from the
+   chest of a man leaning back, 51 cm from his shoulder); the hand was held at a fixed angle in the world like a
+   puppet's, the shoulders never moved, and the fingers fanned out with the thumb flat. Fixed as in the last seven
+   rows above; the scene check now fails on any seated arm over 150 deg with the hand on the lap.
+6. Moving the resting hands to mid-thigh changed nothing: measured, the shoulder joint sat 52-56 cm above the lap,
+   the arm's whole length (real people: about 40 cm against a 57 cm arm). The seated mocap had its shoulders
+   shrugged (collarbones 25-28 deg up, shoulder joints 3 cm high). Collarbones at rest plus an 8-12 deg lean in
+   bends the resting elbows to about 120-130 deg.
+7. The thumb then stood up like a hitchhiker's (measured: 77 deg out of the palm). The thumb is turned ~55-60 deg
+   against the fingers (opposition), so its knuckles bend across the palm; our rigs' thumbs are rolled like fingers.
+   They now bend about an axis tilted 55 deg (`OPPOSE`): relaxed 38 deg in front of the palm, angled toward the
+   fingers; open, a soft L (26 deg in front, 22 deg out). The self-check fails a thumb flat in the palm's plane or
+   over 45 deg out of it.
 
 ## Light and grain (Eevee, Blender 5.3)
 - **The speckle came from the moon light's size.** Fine grain on every moonlit surface came from the
@@ -290,6 +311,13 @@ What went wrong first, and what the research says instead.
 
 ## Sources
 - [JALI (Edwards et al. 2016)](https://www.dgp.toronto.edu/~elf/jali.html)
+- [Neff & Seidel 2006, modeling relaxed hand shape for character animation](https://www.cs.ucdavis.edu/~neff/papers/amdo_06_NeffSeidel.pdf)
+- [AnimSchool: posing hands for animation (Vawter 2025)](https://blog.animschool.edu/?p=1069)
+- [Follow through and overlapping action](https://en.wikipedia.org/wiki/Follow_through_and_overlapping_action)
+- [Scapulohumeral rhythm (Physiopedia)](https://Www.physio-Pedia.com/Scapulohumeral_Rhythm)
+- [Ludewig et al. 2009, shoulder kinematics](https://pmc.ncbi.nlm.nih.gov/articles/PMC2657311)
+- [AAO: seated ergonomics, elbows ~90 deg, upper arms by the trunk](https://www.aao.org/education/image/ergonomics-27)
+- [Nonverbal dictionary: palm up](https://center-for-nonverbal-studies.org/htdocs/10301.html)
 - [Lip-sync theory (Flawless)](https://kb.flawlessai.com/lip-sync-theory)
 - [Wav2ARKit model card](https://hug-proxy.pages.dev/myned-ai/wav2arkit_cpu)
 - [Eyes Alive (Lee, Badler & Badler 2002)](https://repository.upenn.edu/hms/51)
