@@ -1603,7 +1603,8 @@ def _frame_chamber_cams(ctx):
     toward_b = (head["Brandt"] - group) * 0.3
     aim("four", T("5.7"), T("5.8") - 1, behind, behind - side * 0.5 + fwd * 0.15,
         group - Vector((0, 0, 0.15)) + toward_b, 22)
-    others = [head[n] for n in rigs if n != "Narrator"]
+    others = [head[n] for n in rigs if n != "Narrator"] + [o.matrix_world.translation.copy() for o in bpy.data.objects
+                                                           if o.name.startswith("V4_Lantern_") and o.parent is None]
 
     def clear(dirs, reach):
         """Of these directions from his face, the one whose line to the lens passes furthest from the officers'
@@ -1612,7 +1613,8 @@ def _frame_chamber_cams(ctx):
             return min(((h - face_at) - d * max(0.0, min(reach, (h - face_at).dot(d)))).length for h in others)
         return max((d.normalized() for d in dirs), key=gap)
     cu = clear([fwd * math.cos(math.radians(a)) + side * math.sin(math.radians(a)) for a in (-35, -20, 20, 35)], 1.35)
-    aim("nar_cu", T("5.8"), T("5.9") - 1, face_at + cu * 1.35, face_at + cu * 0.95, face_at, 85)
+    lift = Vector((0, 0, 0.12))                           # a little above the props between them
+    aim("nar_cu", T("5.8"), T("5.9") - 1, face_at + cu * 1.35 + lift, face_at + cu * 0.95 + lift, face_at, 85)
     hh = face_at + clear([fwd * 0.97 + side * k for k in (-0.5, -0.24, 0.24, 0.5)], 0.85) * 0.85
     aim("nar_hh", T("5.10"), T("5.11") - 1, hh, hh - (hh - face_at).normalized() * 0.2, face_at, 50)
     for name in ("nar_cu", "nar_hh"):                     # the push moves the lens 40 cm: focus follows his head
