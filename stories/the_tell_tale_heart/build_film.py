@@ -1062,7 +1062,7 @@ def _dust_beats(ctx, sid):
 def heartbeat_times():
     """Absolute seconds of every heartbeat (shared with the audio mix)."""
     times = []
-    for s_id, s_off, bpm0, bpm1, e_id, e_off, _muffled in film.HEARTBEATS:
+    for s_id, s_off, bpm0, bpm1, e_id, e_off, _muffled, *_ in film.HEARTBEATS:
         t0 = (f0(s_id) - 1) / FPS + s_off
         t1 = (f0(e_id) - 1) / FPS + e_off
         t = t0

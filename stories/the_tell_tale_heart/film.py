@@ -450,5 +450,5 @@ SHOTS = [
 HEARTBEATS = [
     ("3.15", 9.0, 62, 96, "3.17", 0.2, False),     # the old man's heart, rising to the attack
     ("3.18", 6.0, 90, 40, "3.20", 3.0, True),      # under the bed, slowing to nothing
-    ("5.9", 3.5, 60, 150, "5.15", 7.0, False),     # the tell-tale heart under the planks
+    ("5.8", 2.0, 60, 150, "5.15", 6.0, True, "5.13"),     # the tell-tale heart under the planks
 ]

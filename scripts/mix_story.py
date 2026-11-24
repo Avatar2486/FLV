@@ -79,7 +79,7 @@ class Mix:
 
 def heartbeat_times(film, start_of):
     runs = []
-    for s_id, s_off, bpm0, bpm1, e_id, e_off, muffled in film.HEARTBEATS:
+    for s_id, s_off, bpm0, bpm1, e_id, e_off, muffled, *_ in film.HEARTBEATS:      # (an 8th field: clear-from shot)
         t0, t1 = start_of[s_id] + s_off, start_of[e_id] + e_off
         t, beats = t0, []
         while t < t1:
