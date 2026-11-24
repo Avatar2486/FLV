@@ -1154,7 +1154,8 @@ def hang(prop, rig, side, start, end, ring=(0.0, 0.0, 0.255), length=0.155, fps=
     """A prop hanging from a hand by its ring (a lantern, a pail): the ring follows the grip point (in the
     crook of the curled fingers) while the prop hangs plumb under gravity and swings as a damped
     pendulum when the hand accelerates - so it moves only because the hand moves. `length`: ring to
-    centre of mass. Keys location and rotation every frame from start to end."""
+    centre of mass; yaw: radians, or frame -> radians (the lantern turns with the one carrying it). Keys
+    location and rotation every frame from start to end."""
     scene = bpy.context.scene
     pb = rig.pose.bones
     grips = {}
@@ -1175,7 +1176,7 @@ def hang(prop, rig, side, start, end, ring=(0.0, 0.0, 0.255), length=0.155, fps=
                 acc = -(g * math.sin(angle[i]) + a * math.cos(angle[i])) / length - damping * speed[i]
                 speed[i] += acc * dt
                 angle[i] += speed[i] * dt
-        turn = Euler((-angle[1], angle[0], 0.0)).to_matrix() @ Euler((0.0, 0.0, yaw)).to_matrix()
+        turn = Euler((-angle[1], angle[0], 0.0)).to_matrix() @ Euler((0.0, 0.0, yaw(f) if callable(yaw) else yaw)).to_matrix()
         prop.rotation_euler = turn.to_euler()
         prop.location = grips[f] - turn @ Vector(ring)
         prop.keyframe_insert("rotation_euler", frame=f)
@@ -1334,6 +1335,11 @@ GESTURES = {
     "chop": dict(dir=(0.85, -0.35, -0.05), elbow=100, palm="in", fingers="open", dip=0.09),   # agitated: the edge chops
     "fist": dict(dir=(0.80, -0.40, -0.02), elbow=90, palm="in", fingers="fist", dip=0.08),    # knuckles forward
     "spread": dict(dir=(0.62, -0.38, 0.45), elbow=110, palm="up", fingers="open", dip=0.05, both=True),
+    # asked for at a word only (gestures(force=...)): brushing an idea away - the open hand flicks out and down,
+    # palm turned away (Kendon's "away" gestures of the open-hand-prone family: dismissing, "nothing in it");
+    # and the welcoming arm - it opens out to the side, palm up, the elbow more extended (an inviting sweep)
+    "wave": dict(dir=(0.60, -0.45, 0.35), elbow=110, palm="away", fingers="open", dip=0.07),
+    "welcome": dict(dir=(0.55, -0.50, 0.70), elbow=135, palm="up", fingers="open", dip=0.03),
 }
 # The joints that hang off the forearm move like it: a relaxed wrist sags ~22 deg under gravity and the hand
 # and fingers settle into a new pose in 0.38-0.48 s (Neff & Seidel 2006, Tables 1-2); gesturing, the wrist is
@@ -1528,10 +1534,11 @@ def fidget(rig, start, end, seed=1, sides=("Left", "Right"), fps=24):
     _layer(rig, int(start), int(end), offsets, local=True)
 
 
-def _gesture_units(wav, start_frame, energy, hands, seed, fps):
+def _gesture_units(wav, start_frame, energy, hands, seed, fps, force=()):
     """Plan the gestures of one line: one per phrase (voiced speech between pauses over 0.5 s) that has a
     stressed syllable, and a fresh one on a stress NEW_GESTURE_AFTER s after the last; its stroke lands 1-3 frames
-    before the stress, the stresses in between are beats on it."""
+    before the stress, the stresses in between are beats on it. force: [(seconds into the line, kind)] - that
+    gesture on that word instead of what its stretch of the phrase would get."""
     rng = random.Random(seed)
     times, _, _, voiced = _voicing(wav)
     phrases, on, last_on = [], None, None
@@ -1558,9 +1565,15 @@ def _gesture_units(wav, start_frame, energy, hands, seed, fps):
             group.append(t)
         if group:
             groups.append((group, b))
-    for ss, b in groups:
+    groups = [(ss, b, None) for ss, b in groups]
+    for t, kind in force:                        # a gesture asked for on a word: it replaces that stretch's own
+        a, b = next(((a, b) for a, b in phrases if a - 0.3 <= t <= b + 0.3), (t, t + 0.6))
+        near = [g for g in groups if a - 0.05 <= g[0][0] <= b + 0.05 and abs(g[0][0] - t) < NEW_GESTURE_AFTER]
+        groups = [g for g in groups if g not in near] + [([t], max([b] + [g[1] for g in near]), kind)]
+    groups.sort(key=lambda g: g[0][0])
+    for ss, b, forced in groups:
         choices = [(k, w) for k, w in pool if (len(hands) == 2 or not GESTURES[k].get("both")) and k != shown]
-        kind = rng.choices([k for k, _ in choices], [w for _, w in choices])[0]
+        kind = forced or rng.choices([k for k, _ in choices], [w for _, w in choices])[0]
         if kind != "beat":
             shown = kind
         if GESTURES[kind].get("both"):
@@ -1574,7 +1587,7 @@ def _gesture_units(wav, start_frame, energy, hands, seed, fps):
     return units
 
 
-def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=None, seed=1):
+def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=None, seed=1, force=()):
     """Co-speech gestures for a voice line starting at start_frame (see the research above): per phrase, a hand
     (or both) rises from where it rests into the space in front of the chest, angled toward `toward` (the
     listener's head, a world point), the palm and fingers shaped for the gesture (palm-up open hand, open-palm
@@ -1583,11 +1596,12 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
     later stresses in the phrase are quick beats; it holds (drifting a little) through the phrase and goes back
     to rest at a pause over 0.5 s. energy 0..1: calm (small, low) to agitated (>= 0.6: larger, higher, faster).
     Only the hands in `hands` move (one holding something stays put). The head nods 2-4 degrees on each stroke.
+    force: [(seconds into the line, kind)] puts that gesture on that word (a wave-off on "dream").
     Returns the stroke frames (gestures and beats); rig["gesture_log"] has each stroke's kind."""
     scene = bpy.context.scene
     fps = scene.render.fps
     rng = random.Random(seed + 7)
-    units = _gesture_units(wav, start_frame, energy, hands, seed, fps)
+    units = _gesture_units(wav, start_frame, energy, hands, seed, fps, force)
     rig["gesture_log"] = []
     if not units:
         return []
@@ -1664,7 +1678,8 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
             line = (p - elbow).normalized()
             sag = Vector((0, 0, -1)) - Vector((0, 0, -1)).project(line)
             fingers = line + WRIST_SAG * sag.normalized() if sag.length > 1e-3 else line
-            palm = {"up": Vector((0, 0, 1)), "upin": Vector((0, 0, 0.75)) - out * 0.65, "in": -out}[g["palm"]]
+            palm = {"up": Vector((0, 0, 1)), "upin": Vector((0, 0, 0.75)) - out * 0.65, "in": -out,
+                    "away": out * 0.75 + fwd * 0.35 - Vector((0, 0, 0.35))}[g["palm"]]
             return p, hand_frame(fingers, palm)
 
         def at(f):
@@ -1689,6 +1704,8 @@ def gestures(rig, wav, start_frame, energy=0.5, hands=("Left", "Right"), toward=
                 if abs(d) < 3:
                     fwd = body[f][1]
                     dirn = Vector((0, 0, -1)) + (fwd * 0.6 if g["palm"] in ("up", "upin") else Vector())
+                    if g["palm"] == "away":          # brushed away: the flick goes out to the side
+                        dirn = body[f][2] * 0.9 + Vector((0, 0, -0.3))
                     p = p + dirn.normalized() * g["dip"] * size * weight(f) * math.exp(-d * d)
             targets[f], turns[f] = p, rot.to_quaternion()
         dragged = _follow(turns, fps)                # the hand trails the forearm and settles
@@ -1995,6 +2012,10 @@ def _selfcheck_gestures():
             top = max(top, (r.matrix_world @ r.pose.bones["RightHand"].head).z - r.matrix_world.translation.z)
         return top
     assert highest(angry) > highest(rig) + 0.05, "agitated gestures are no larger than calm ones"
+    asked = build({"name": "ForceCheck", "character": "Narrator"}, location=(-6, 0, 0))   # a gesture on a word
+    relax_arms(asked)
+    got = dict(zip(gestures(asked, wav, 1, hands=("Left",), seed=4, force=[(1.5, "welcome")]), asked["gesture_log"]))
+    assert any(k == "welcome" and abs(f - (1 + 1.5 * fps)) <= 3 for f, k in got.items()), f"no welcome at 1.5 s: {got}"
     for f in range(1, 73):
         scene.frame_set(f)
         for n in left:

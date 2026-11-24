@@ -318,7 +318,7 @@ def entry(coll, lights):
     for i in range(0, 14, 2):
         su.add_rod(bm, (x - 0.97, -1.4 + i * 0.22, 0.214 * (i + 1)), (x - 0.97, -1.4 + i * 0.22, 0.214 * (i + 1) + 0.9),
                    0.015)
-    su.add_rod(bm, (x - 0.97, -1.5, 1.1), (x - 0.97, 1.6, 3.9), 0.03)
+    su.add_rod(bm, (x - 0.97, -1.5, 1.133), (x - 0.97, 1.6, 4.149), 0.03)    # 0.9 m above the nosings, parallel
     su.make_object("EN_Banister", coll, M("MAT_Bed_Wood"), bm)
     lib.side_table(coll, (x + 1.5, 1.4, 0), prefix="EN_Hall_Table")
     ph("ornate_mirror_01", coll, "EN_Mirror", (x + 1.97, 0.6, 1.7), rotation=90)

@@ -296,6 +296,25 @@ What went wrong first, and what the research says instead.
    fingers; open, a soft L (26 deg in front, 22 deg out). The self-check fails a thumb flat in the palm's plane or
    over 45 deg out of it.
 
+## The arrival (5.1-5.5): hands that touch things
+- **Every contact is measured at build time.** A hand on a door handle, the banister, the strongbox lid or a hat
+  brim must be within 2 cm of it on every frame (`_contact`), or the build stops and says how far the shoulder
+  was from the target against the arm's length. That caught each of these before a frame was rendered:
+  - the banister ran 25 cm low at the top of the stair. Handrails stand 0.86-0.97 m above the stair nosings
+    (US residential code, 34-38 in), parallel to the pitch; the set's rail climbed more shallowly than its
+    stair. It now runs 0.9 m above the nosings (`sets.entry`), so its balusters no longer poke through it;
+  - the street door pulled open past his reach: he now lets go at 45 degrees and it swings on (as a released
+    door does), and he stands at the handle side, outside its sweep;
+  - the strongbox lid's front edge is 47 cm off the floor: a stoop from the hips alone left his shoulder 54 cm
+    above it with a 52 cm arm. He bends his knees into a half squat as well.
+- **Stairs, step over step.** Coming down, one foot stays on its tread while the other swings past it to the
+  tread below; the body drops as the leading foot reaches down. About half a second a step is a brisk descent;
+  he takes 0.42 s ("almost lightly"). Each foot is placed on its tread by leg IK.
+- **Measured surprises.** An imported asset (the strongbox) rotates in quaternions, so keying its Euler angles
+  did nothing; shot lights keyed only at each shot's start faded through the shot toward the next one's values
+  (they now hold and change at the cut); and the draft renderer keeps frames it finds, so a re-rendered test
+  showed old frames (the test commands now clear them first).
+
 ## Light and grain (Eevee, Blender 5.3)
 - **The speckle came from the moon light's size.** Fine grain on every moonlit surface came from the
   shadows of the large (1.2 × 1.4 m) area light.
