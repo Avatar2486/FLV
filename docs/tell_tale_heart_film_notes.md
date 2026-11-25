@@ -44,6 +44,7 @@ The fix for part `NN_name`, where `B` is the Blender binary:
 Every part passes the shared checks (`preview_v4.run_checks`): hands inside other people or chairs, held props
 drifting from the hand, planted feet sliding, seated arms locked straight, lips on lines spoken on screen,
 continuity (the strongbox lid, the loose planks, the narrator's worn look) and nobody frozen on camera.
+Part 06 also checks that nothing in the room comes between the 5.11 orbit camera and his head.
 
 | Part | Held props: worst drift | Lips: smallest jaw opening on a spoken line |
 |---|---|---|
