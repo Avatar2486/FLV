@@ -173,6 +173,7 @@ def renders(keys, stall=600):
         while True:
             cmd = [BLENDER, "-b", str(part["blend"]), "--python-exit-code", "1", "--python", __file__, "--",
                    "render", key] + ([str(resume)] if resume else []) + ([str(until)] if until else [])
+            started = time.time()
             with open(log, "a") as fh:
                 proc = subprocess.Popen(cmd, stdout=fh, stderr=subprocess.STDOUT)
             seen, last, hung = _newest(out), time.time(), False
@@ -190,8 +191,15 @@ def renders(keys, stall=600):
                     raise RuntimeError(f"render {key} failed ({proc.returncode}): see {log}")
                 print(f"film_parts renders: {key} done")
                 break
-            resume = _newest(out)[1]
+            resume = _resume_at(out, started, resume)
             print(f"film_parts renders: {key} hung; resuming at {resume}", flush=True)
+
+
+def _resume_at(out, since, resume):
+    """Where a hung render starts again: the last frame it wrote (rendered again: it may be cut off mid-write), or
+    where it started if it wrote none (in a re-rendered stretch the newest frame may be an old one)."""
+    t, f = _newest(out)
+    return f if t > since else resume
 
 
 def _newest(out):
@@ -449,6 +457,8 @@ def selfcheck():
         frames_a = part_dir("A") / "frames" / "480p"           # a range re-render overwrites frame 10 of 48
         os.utime(frames_a / "00010.png", (time.time() + 5, time.time() + 5))
         assert _newest(frames_a)[1] == 10, _newest(frames_a)
+        assert _resume_at(frames_a, time.time(), 30) == 10                # hung after writing frame 10 again
+        assert _resume_at(frames_a, time.time() + 10, 30) == 30           # hung before writing any: start over
         clock = film_clock()
         assert [c["start"] for c in clock] == [0.0, 2.0], clock
         mix()
