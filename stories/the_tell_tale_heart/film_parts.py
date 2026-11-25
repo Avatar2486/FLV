@@ -10,6 +10,7 @@ Nothing in a part's folder is deleted by joining: fix one part, re-render it, mi
 """
 import json
 import math
+import os
 import shutil
 import subprocess
 import time
@@ -174,10 +175,10 @@ def renders(keys, stall=600):
                    "render", key] + ([str(resume)] if resume else []) + ([str(until)] if until else [])
             with open(log, "a") as fh:
                 proc = subprocess.Popen(cmd, stdout=fh, stderr=subprocess.STDOUT)
-            seen, last, hung = -1, time.time(), False
+            seen, last, hung = _newest(out), time.time(), False
             while proc.poll() is None:
                 time.sleep(15)
-                n = len(list(out.glob("*.png"))) if out.exists() else 0
+                n = _newest(out)
                 if n != seen:
                     seen, last = n, time.time()
                 elif time.time() - last > stall:
@@ -189,8 +190,16 @@ def renders(keys, stall=600):
                     raise RuntimeError(f"render {key} failed ({proc.returncode}): see {log}")
                 print(f"film_parts renders: {key} done")
                 break
-            resume = max(int(f.stem) for f in out.glob("*.png"))
+            resume = _newest(out)[1]
             print(f"film_parts renders: {key} hung; resuming at {resume}", flush=True)
+
+
+def _newest(out):
+    """(write time, frame) of the frame written last. Progress is a new write, not a new file: a range
+    re-render overwrites frames that are already there, so the count stays put and the highest number is not
+    where it stopped."""
+    pngs = list(out.glob("*.png")) if out.exists() else []
+    return max(((f.stat().st_mtime, int(f.stem)) for f in pngs), default=(0.0, None))
 
 
 def _media_seconds(path):
@@ -437,6 +446,9 @@ def selfcheck():
                  "lines": [{"who": "N", "file": str(line), "start": 1.0, "seconds": 0.5}]}]}))
             return dict(key=key, title=key, shots=[f"{key}1"], blend=None, timeline=tl, voice_dir=None)
         PARTS = [make_part("A", 48, "red"), make_part("B", 72, "blue")]
+        frames_a = part_dir("A") / "frames" / "480p"           # a range re-render overwrites frame 10 of 48
+        os.utime(frames_a / "00010.png", (time.time() + 5, time.time() + 5))
+        assert _newest(frames_a)[1] == 10, _newest(frames_a)
         clock = film_clock()
         assert [c["start"] for c in clock] == [0.0, 2.0], clock
         mix()
