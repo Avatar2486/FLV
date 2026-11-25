@@ -1870,6 +1870,9 @@ def _act_breakdown(ctx):
     for i, (f, h) in enumerate(sorted(heads.items())):
         ang = math.radians(-110 + 170 * i / max(1, len(heads) - 1))
         at = Vector((min(2.3, max(-2.3, h.x + 1.4 * math.cos(ang))), min(2.1, max(-2.1, h.y + 1.4 * math.sin(ang))), 1.6))
+        hit = _set_hit(scene, h, at)                      # the wardrobe behind him: come in in front of it
+        if hit:
+            at = hit[1] - (at - h).normalized() * 0.3
         keys.append((f, tuple(at), h - Vector((0, 0, 0.1))))
     ctx["su"].animate_camera(cams["orbit"], keys)
     oc = cams["officers"]
@@ -1992,6 +1995,40 @@ def check_standins():
 CAST = ("Narrator", "Hale", "Brandt", "Mercer")
 LIVING = ("LowerBack", "Spine", "Spine1", "Neck1", "Head") + tuple(
     f"{s}{b}" for s in ("Left", "Right") for b in ("Shoulder", "Arm", "ForeArm", "Hand"))
+
+
+def _set_hit(scene, a, b):
+    """The first thing on the line a->b that is not one of the cast (the set, a prop), as (object, point); None
+    if the line is clear."""
+    import bpy
+    d = b - a
+    n, t = d.length, 0.0
+    d.normalize()
+    while t < n:
+        hit, loc, _, _, ob, _ = scene.ray_cast(bpy.context.evaluated_depsgraph_get(), a + d * t, d, distance=n - t)
+        if not hit:
+            return None
+        if ob.name.split(".")[0] not in CAST:
+            return ob, loc
+        t = (loc - a).length + 0.01
+    return None
+
+
+def check_orbit():
+    """5.11's orbit round him: from the lens, the line to his head meets nothing but people (it swung through
+    the wardrobe, and the frame went black for 0.8 s)."""
+    import bpy
+    scene, cam, nar = bpy.context.scene, bpy.data.objects["CAM_orbit"], bpy.data.objects["Narrator"]
+    f0, f1 = _spans()["5.11"]
+    blocked = []
+    for f in range(f0, f1 + 1, 2):
+        scene.frame_set(f)
+        lens = cam.matrix_world.translation.copy()
+        hit = _set_hit(scene, lens, nar.matrix_world @ nar.pose.bones["Head"].head)
+        if hit:
+            blocked.append(f"f{f}: {hit[0].name} {(hit[1] - lens).length:.2f} m from the lens")
+    assert not blocked, f"5.11 orbit blocked at {len(blocked)} frames:\n  " + "\n  ".join(blocked)
+    print("V4 check: 5.11 orbit clear (every 2nd frame)")
 
 
 def _spans():
@@ -2238,6 +2275,8 @@ def check(shots=None, step=4):
                    if fc.data_path.startswith("pose.bones"))
     tl = json.loads((OUT / "timeline.json").read_text())
     spoken = [l for s_ in tl["shots"] for l in s_["lines"] if l["who"] in ON_SCREEN] + tl["chatter"]
+    if animated and (not shots or "5.11" in shots):
+        check_orbit()
     run_checks("V4", CAST, "V4_Chair_", json.loads(bpy.context.scene.get("v4_held", "[]")), _spans(), shots,
                spoken, WHO, step=step, no_feet=("5.1",), animated=animated)
 
@@ -2331,7 +2370,7 @@ if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
     shots = args[1].split(",") if len(args) > 1 and args[1] else None
     {"standins": check_standins, "build": build, "build_static": lambda: build(acts=False),
-     "check": lambda: check(shots), "stills": lambda: stills(shots), "test57": test57,
+     "check": lambda: check(shots), "orbit": check_orbit, "stills": lambda: stills(shots), "test57": test57,
      "test": lambda: testclip(*(args[1].split("-") if len(args) > 1 else ("5.1", "5.5"))),
      "timeline": lambda: (OUT.mkdir(parents=True, exist_ok=True),
                           (OUT / "timeline.json").write_text(json.dumps(check_timeline(), indent=1)))}[args[0]]()
